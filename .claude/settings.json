@@ -15,7 +15,6 @@
       "Bash(git reset --hard *)",
       "Bash(git clean -f *)",
       "Bash(git clean -fd *)",
-      "Bash(git branch -D *)",
       "Bash(git checkout -- *)",
       "Bash(git restore *)",
       "PowerShell(git push --force *)",
@@ -24,7 +23,6 @@
       "PowerShell(git reset --hard *)",
       "PowerShell(git clean -f *)",
       "PowerShell(git clean -fd *)",
-      "PowerShell(git branch -D *)",
       "PowerShell(git checkout -- *)",
       "PowerShell(git restore *)"
     ]
