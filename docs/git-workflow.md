@@ -54,6 +54,8 @@ Git Flow 변형 — `release` 브랜치는 사용하지 않음.
   - 예: `✨ feat: 로그인 API 엔드포인트 추가`
 - **PR 본문**: `.github/pull_request_template.md` 따름
 - **CI 통과 필수**: PR 생성 시 `.github/workflows/ci.yml` 의 Build & Test 잡이 자동 실행 (`./gradlew build` = 컴파일 + Spotless + 테스트 + Jacoco)
+- **코드 리뷰 생략**: 사람 코드 리뷰 단계를 두지 않는다. CI 통과를 머지 게이트로 삼고, CI 가 green 이면 머지한다. (커밋 메시지 사전 검토 룰은 별개로 유지 — `AGENTS.md` Git 섹션)
+- **CI 결과 책임**: PR 생성 후 CI 통과/실패 확인과 머지(또는 실패 수정)까지 같은 세션에서 끝낸다. 머지 전엔 다른 git 작업(브랜치/커밋)을 시작하지 않는다. CI 모니터링 자체는 background 로 돌려도 된다.
 - 머지 후 원본 브랜치 삭제
 
 ---
