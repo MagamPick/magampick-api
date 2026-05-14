@@ -127,6 +127,7 @@ Agent 위임 예 (메인 세션 Opus 안에서):
 - **의존성 있는 도메인 동시 X** — Agent 위임 전에 의존 도메인 머지 끝나야
 - **마이그레이션 V 번호 = timestamp** (위 DB 섹션) — 동시 작업 충돌 방지
 - **로컬 docker compose DB 는 머지 후 적용** — 개발 중엔 Testcontainers 만
+- **4단계 머지도 Agent 위임 가능** — CI 대기 (`gh pr checks --watch`) 가 메인 세션을 블로킹하므로. **커밋(메시지 확인)까지 메인 세션**, `push → gh pr create → CI watch → merge → develop pull → 로컬 브랜치 삭제` 는 Agent
 
 > 별도 터미널 띄우는 방식은 진짜 긴 빌드 (10분+) / 메인 컨텍스트 절약이 우선일 때만 검토.
 
