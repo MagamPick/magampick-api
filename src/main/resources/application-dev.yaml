@@ -6,3 +6,8 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
+
+cors:
+  allowed-origins:
+    - https://dev.magampick.com
+    - https://admin.dev.magampick.com
