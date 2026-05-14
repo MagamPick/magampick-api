@@ -130,8 +130,9 @@ Agent 위임 예 (메인 세션 Opus 안에서):
 - **마이그레이션 V 번호 = timestamp** (위 DB 섹션) — 동시 작업 충돌 방지
 - **로컬 docker compose DB 는 머지 후 적용** — 개발 중엔 Testcontainers 만
 - **4단계 머지도 Agent 위임 가능** — CI 대기 (`gh pr checks --watch`) 가 메인 세션을 블로킹하므로. **커밋(메시지 확인)까지 메인 세션**, `push → gh pr create → CI watch → merge → develop pull → 로컬 브랜치 삭제` 는 Agent
+- **별도 세션(수동 터미널) 운영 시 `git worktree` 로 디렉토리 분리 필수** — 같은 디렉토리에서 두 세션은 `.git` 을 공유해 한쪽의 `git checkout` 이 다른 쪽 브랜치를 바꿔버린다 (브랜치 충돌 / 잘못된 브랜치에 커밋). `git worktree add ../{디렉토리} {브랜치}` 로 분리할 것. Agent 위임은 `isolation=worktree` 가 자동 처리
 
-> 별도 터미널 띄우는 방식은 진짜 긴 빌드 (10분+) / 메인 컨텍스트 절약이 우선일 때만 검토.
+> 별도 터미널 / 세션 방식은 진짜 긴 빌드 (10분+) / 메인 컨텍스트 절약이 우선일 때만. **쓸 거면 반드시 worktree 로 분리** — 안 그러면 `.git` 공유로 브랜치가 엉킨다.
 
 ---
 
