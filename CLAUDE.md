@@ -56,6 +56,7 @@
 ### Git
 - 커밋 메시지: [`docs/commit-convention.md`](docs/commit-convention.md)
 - 브랜치·PR·머지: [`docs/git-workflow.md`](docs/git-workflow.md)
+- **커밋 전 메시지 검토 필수** — `git commit` 실행 **전에** 작성한 커밋 메시지 전문과 해당 커밋에 포함될 파일 목록을 사용자에게 보여주고 확인받는다. 검토 없이 임의로 메시지를 작성해 커밋 / 푸시 금지. 여러 커밋이면 각각 보여줄 것
 
 ---
 
