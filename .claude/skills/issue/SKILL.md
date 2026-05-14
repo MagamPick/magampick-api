@@ -77,11 +77,40 @@ gh issue create `
 - 다른 type 면 해당 이모지 / type 으로 (`🐛 fix:` 등)
 - subject 50자 이내, 마침표 X, 명사형 종결 ([commit-convention §4](../../../docs/commit-convention.md))
 
-### 7. 결과 보고
+### 7. 작업 브랜치 + worktree 생성
 
-생성된 이슈 번호 + URL 사용자에게 알림. 다음 단계 안내:
+이슈 생성 직후, 작업할 worktree 를 만든다 (주 디렉터리에서 실행). 이후 `/spec`·`/impl` 은 이 worktree 안에서 진행.
 
-> `/spec {N}` 으로 구현 명세 작성 진행 가능
+**슬러그 추출**:
+1. 이슈 제목에서 type prefix 제거 (`^[이모지] [type]: ` 패턴)
+2. 남은 한국어 기능명을 [`glossary.md`](../../../docs/glossary.md) 영문 매핑으로 변환
+3. 영문 단어 kebab-case 로 결합 — 예: `매장 등록 신청` → `store-registration`
+
+glossary 에 없는 용어는 사용자에게 옵션 제시 + 확정. 추출 결과는 **사용자에게 확인 후 사용**.
+
+**브랜치 + worktree 생성** (슬러그 확정 후):
+```powershell
+$gh = 'C:\Program Files\GitHub CLI\gh.exe'
+& $gh issue develop {N} --repo MagamPick/magampick-api --base develop --name "feat/{N}-{슬러그}"
+git worktree add ../magampick-api-{N}-{슬러그} "feat/{N}-{슬러그}"
+```
+- `gh issue develop` — GitHub 이슈에 연결된 브랜치를 origin 에 생성 (PR 머지 시 이슈 자동 클로즈). `--checkout` 안 함 — 주 디렉터리는 `develop` 고정
+- `git worktree add` — 그 브랜치를 sibling 디렉터리에 checkout
+- type 이 feat 가 아니면 prefix 조정 (`fix/`, `refactor/` 등)
+
+### 8. 결과 보고
+
+생성된 이슈 번호 + URL + worktree 경로를 사용자에게 알림. 다음 단계 안내:
+
+> ✅ 이슈 #{N} 생성 + worktree 준비됨: `../magampick-api-{N}-{슬러그}`
+> 그 디렉터리에서 에이전트를 새로 띄운 뒤 `/spec {N}` 진행:
+> ```
+> cd ../magampick-api-{N}-{슬러그}
+> claude   # 또는 codex
+> /spec {N}
+> ```
+
+> **Claude Code 한정 편의**: 같은 세션을 이어가고 싶으면 위 relaunch 대신 `EnterWorktree` 로 worktree 에 진입해도 된다 (세션 앵커가 worktree 로 이동). Codex 에는 없는 기능이라 canonical 절차는 relaunch 기준.
 
 ## 에러 처리
 
@@ -97,4 +126,5 @@ gh issue create `
 - **임의 결정 X** — 정책 / scope 미정 사항은 항상 사용자 확정
 - **사용자 검토 없이 이슈 생성 X** — 6번 단계 강제
 - **상세 명세는 `/spec` 으로** — 이슈는 정책 / scope / 큰 그림까지만
+- **worktree 부트스트랩 (7~8번 단계)** — 이슈 생성 후 브랜치+worktree 까지 만들고 사용자를 worktree 로 보낸다. 슬러그 추출 실패(glossary 미정) 시 사용자 확정 받기
 - **PowerShell 5.1 호환**: gh 본문은 here-string `@'...'@` 사용 (한글 인코딩 안전)

@@ -15,10 +15,12 @@ description: spec 파일 기반으로 도메인 코드 구현. 옵션 X 순서 (
 
 ## 흐름
 
-> **시작 전 — 작업 브랜치 확인 (필수)**
-> 현재 브랜치가 `feat/{N}-*` (또는 이슈 type 에 맞는 prefix) 인지 확인.
-> - `develop` / `main` 이면 **즉시 중단** — `/spec` 이 작업 브랜치를 만들었어야 함
-> - 작업 브랜치가 없으면: `gh issue develop {N} --repo MagamPick/magampick-api --base develop --name "feat/{N}-{슬러그}" --checkout` 로 생성 후 진행
+> **시작 전 — 작업 위치 확인 (필수)**
+> `/impl` 은 이슈 #{N} 의 **worktree 디렉터리 안에서** 실행되어야 한다 (`/issue` 가 만든 `../magampick-api-{N}-{슬러그}`).
+> - 현재 브랜치가 `feat/{N}-*` (이슈 type prefix) 이고 `docs/specs/{N}-*.md` 가 보이면 → 진행
+> - `develop` / `main` (= 주 디렉터리) 이면 **즉시 중단** — 이슈 #{N} 의 worktree 경로(`git worktree list` 로 확인)를 안내하고 "그 디렉터리에서 에이전트 띄워 `/impl {N}` 재실행" 안내
+> - worktree 자체가 없으면 → `/issue` 또는 `/spec {N}` 먼저 안내, 중단
+> - (Claude Code 한정 편의: relaunch 대신 `EnterWorktree` 로 worktree 진입 후 진행해도 됨. Codex 엔 없음)
 
 ### 1. spec 파일 로드
 - `docs/specs/{이슈번호}-*.md` 패턴 탐색
@@ -186,6 +188,7 @@ roadmap 행은 이미 `완료` 로 갱신됨 — feature PR 에 함께 포함해
 
 ## 주의
 
+- **worktree 안에서 실행** — 시작 가드 필수. 주 디렉터리(`develop`/`main`)면 중단하고 worktree 로 안내
 - **spec 결정 따름** — 임의 변경 X. spec 누락은 사용자에게 질문
 - **마이그레이션 V 번호 = timestamp** — 머지된 파일 수정 X (CLAUDE.md)
 - **테스트 먼저 작성** (TDD lite) — Service 단위 + Controller @WebMvcTest 다 적용
