@@ -53,6 +53,16 @@ Follow this order unless the existing codebase makes a small local adjustment ne
 9. Controller implementation
 10. `./gradlew spotlessApply`
 11. `./gradlew build`
+12. Update `docs/roadmap.md`
+
+Update the roadmap only after the build passes:
+
+- Find the row for the implemented feature.
+- Change status from `미착수` to `완료`.
+- Set the `이슈` column to the issue number, for example `#12`.
+- Make this edit on the feature branch so it is included in the feature PR and reflected on `develop` only after merge.
+- If the feature row does not exist because the approved scope added a new feature, add the row in the appropriate dependency layer.
+- If the build failed or implementation stopped, do not mark the roadmap row complete.
 
 ## 5. Coding Rules
 
@@ -72,6 +82,7 @@ Allowed:
 
 - `docs/erd/tables/{table}.md`
 - `docs/auth.md` when an authentication/authorization policy decision is part of the spec
+- `docs/roadmap.md` for the implemented feature row status and issue number
 
 Not allowed without a separate issue:
 
@@ -96,9 +107,10 @@ If build fails from simple compile/import/format issues, fix and rerun once or t
 
 Report:
 
-- Created/modified files grouped by Entity, migration, ERD, repository, service/test, DTO/mapper, controller/test.
+- Created/modified files grouped by Entity, migration, ERD, repository, service/test, DTO/mapper, controller/test, and roadmap.
 - Build result.
 - Any small spec-adjacent implementation choices made.
 - Remaining blockers, if any.
+- Confirm whether `docs/roadmap.md` was updated to `완료` with the issue number, or explain why it was not updated.
 
 Do not commit, push, or create a PR unless the user explicitly requests it and approves the exact commit message and file list first.

@@ -116,6 +116,16 @@ description: spec 파일 기반으로 도메인 코드 구현. 옵션 X 순서 (
 - **단순 실패** (오타 / import 누락 / 포맷) → 자동 수정 후 재실행 (1~2회)
 - **복잡한 실패** (로직 / spec 해석) → 사용자에게 보고 + 결정 받기
 
+#### 4-10. roadmap 갱신
+
+[`docs/roadmap.md`](../../../docs/roadmap.md) 에서 이 기능에 해당하는 행을 찾아:
+- 상태 `미착수` → `완료`
+- `이슈` 컬럼에 이슈 번호 기록 (예: `#12`)
+
+- 작업 브랜치에서 수정 → 이 변경이 feature PR 에 함께 실려 머지 시 `develop` 에 반영된다 (develop 직접 푸시 금지 우회).
+- 해당 기능 행이 roadmap 에 없으면 (scope 신규 추가 등) 적절한 계층에 행 추가.
+- 빌드 실패로 중단된 경우 갱신하지 않는다 — `완료` 는 구현 + 빌드 통과 후에만.
+
 ### 5. 결과 보고 (사용자 검토 ★)
 
 작업 완료 후 사용자에게 다음 보고:
@@ -131,6 +141,7 @@ description: spec 파일 기반으로 도메인 코드 구현. 옵션 X 순서 (
 - Service + 테스트: ...
 - DTO / Mapper: ...
 - Controller + 테스트: ...
+- roadmap: docs/roadmap.md (해당 행 `완료` + 이슈 번호)
 
 ### 빌드 결과
 ✅ ./gradlew build 통과
@@ -141,6 +152,7 @@ description: spec 파일 기반으로 도메인 코드 구현. 옵션 X 순서 (
 
 ### 다음 단계
 사용자 검토 후 커밋 + PR 진행 (`commit-convention.md` / `git-workflow.md` 따름).
+roadmap 행은 이미 `완료` 로 갱신됨 — feature PR 에 함께 포함해 머지.
 ```
 
 ## 중간 질문 — 자연스럽게 (강제 검토 X)
@@ -156,6 +168,7 @@ description: spec 파일 기반으로 도메인 코드 구현. 옵션 X 순서 (
 **수정 OK**:
 - `docs/erd/tables/{table}.md` (해당 도메인 ERD 상세)
 - `auth.md` (인증 / 인가 정책 결정 필요 시)
+- `docs/roadmap.md` (해당 기능 행 상태/이슈 번호 갱신 — 단계 4-10)
 
 **수정 X (별도 이슈로 메모)**:
 - api-convention / coding-convention / test-convention / commit-convention / git-workflow
