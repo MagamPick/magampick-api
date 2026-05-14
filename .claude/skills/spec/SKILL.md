@@ -26,26 +26,30 @@ $gh = 'C:\Program Files\GitHub CLI\gh.exe'
 - **body** → 5섹션 파싱 (Context / Scope / User Roles / 핵심 정책 결정 / Business Logic 큰 그림)
 - **labels** → domain 라벨로 도메인 그룹 추정
 
-### 2. 슬러그 추출 + 작업 브랜치 생성
+### 2. 작업 위치 확인 (worktree 가드)
 
-**슬러그 추출**:
-1. 이슈 제목에서 type prefix 제거 (`^[이모지] [type]: ` 패턴)
-2. 남은 한국어 기능명을 [`glossary.md`](../../../docs/glossary.md) 영문 매핑으로 변환
-3. 영문 단어 kebab-case 로 결합
+`/spec` 은 이슈 #{N} 의 **worktree 디렉터리 안에서** 실행되어야 한다. 정상 흐름은 `/issue` 가 worktree 를 이미 만들어 둔다 — 이 단계는 위치 검증 + 누락 시 fallback.
 
-예: `✨ feat: 매장 등록 신청` → `매장 등록 신청` → `store-registration`
+**현재 위치 판별** (`git branch --show-current` / `git worktree list`):
+- 현재 브랜치가 `feat/{N}-*` (이슈 type prefix) → worktree 안에 있음. **그대로 진행**
+- `develop` / `main` (= 주 디렉터리) 인 경우:
+  - 이슈 #{N} 의 worktree 가 이미 있나? (`git worktree list` 에서 `feat/{N}-*` 검색)
+    - **있으면** → 그 경로 안내 + "그 디렉터리에서 에이전트 띄워 `/spec {N}` 재실행" → **중단**
+    - **없으면** (fallback — `/issue` 안 거치고 GitHub 에서 수동 생성한 이슈 등) → 아래 부트스트랩 후 안내 → **중단**
 
-glossary 에 없는 용어는 사용자에게 옵션 제시 + 확정. 추출 결과는 **사용자에게 확인 후 사용**.
+**fallback 부트스트랩** (worktree 가 없을 때만):
+1. 슬러그 추출 — 이슈 제목 type prefix 제거 (`^[이모지] [type]: ` 패턴) → 남은 한국어 기능명을 [`glossary.md`](../../../docs/glossary.md) 영문 매핑으로 kebab-case 변환 (예: `✨ feat: 매장 등록 신청` → `store-registration`). glossary 미정 용어는 사용자에게 옵션 제시 + 확정.
+2. 브랜치 + worktree 생성:
+   ```powershell
+   $gh = 'C:\Program Files\GitHub CLI\gh.exe'
+   & $gh issue develop {N} --repo MagamPick/magampick-api --base develop --name "feat/{N}-{슬러그}"
+   git worktree add ../magampick-api-{N}-{슬러그} "feat/{N}-{슬러그}"
+   ```
+   - type 이 feat 가 아니면 prefix 조정 (`fix/`, `refactor/` 등)
+3. 사용자에게 worktree 경로 안내 + "그 디렉터리에서 에이전트 띄워 `/spec {N}` 재실행" → **중단**
 
-**작업 브랜치 생성** (슬러그 확정 후):
-```powershell
-$gh = 'C:\Program Files\GitHub CLI\gh.exe'
-& $gh issue develop {N} --repo MagamPick/magampick-api --base develop --name "feat/{N}-{슬러그}" --checkout
-```
-- GitHub 이슈에 연결된 브랜치를 origin 에 생성 + 로컬 checkout (PR 머지 시 이슈 자동 클로즈)
-- type 이 feat 가 아니면 prefix 조정 (`fix/`, `refactor/` 등)
-- 이미 `feat/{N}-*` 작업 브랜치에 있으면 skip
-- **이후 `/spec` 의 spec 저장 + `/impl` 전부 이 브랜치에서 진행** — `develop` / `main` 에서 작업 금지
+> **Claude Code 한정 편의**: relaunch 대신 `EnterWorktree` 로 worktree 진입 후 이어가도 된다 (세션 앵커 이동). Codex 엔 없는 기능이라 canonical 은 relaunch.
+> 이후 `/spec` 의 spec 저장 + `/impl` 전부 이 worktree 안에서 진행 — `develop` / `main` 주 디렉터리에서 작업 금지.
 
 ### 3. 사전 점검 (Read only)
 - 이슈 본문의 미정 사항 있나? → 있으면 **`/issue` 로 돌아가 결정 후 재호출** 안내, **중단**
@@ -220,6 +224,7 @@ $gh = 'C:\Program Files\GitHub CLI\gh.exe'
 
 ## 주의
 
+- **worktree 안에서 실행** — 2번 단계 가드. 주 디렉터리(`develop`/`main`)면 중단하고 worktree 로 안내
 - **임의 결정 X** — 미정 사항 발견 시 `/issue` 로 돌아가기
 - **사용자 검토 없이 파일 저장 X** — 6번 단계 강제
 - **명세 + 설계 한 파일** — `/impl` 은 이 파일만 보고 코드 작성하므로 누락 없게
