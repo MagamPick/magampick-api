@@ -19,6 +19,10 @@ repositories {
 	mavenCentral()
 }
 
+configurations {
+	mockitoAgent
+}
+
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
@@ -28,10 +32,18 @@ dependencies {
 	implementation 'org.hibernate.orm:hibernate-spatial'
 	implementation 'org.flywaydb:flyway-core'
 	implementation 'org.flywaydb:flyway-database-postgresql'
+	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.6'
+	implementation 'org.mapstruct:mapstruct:1.6.3'
+	implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+	implementation 'com.google.firebase:firebase-admin:9.4.1'
 	compileOnly 'org.projectlombok:lombok'
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 	runtimeOnly 'org.postgresql:postgresql'
+	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
+	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
 	annotationProcessor 'org.projectlombok:lombok'
+	annotationProcessor 'org.mapstruct:mapstruct-processor:1.6.3'
+	annotationProcessor 'org.projectlombok:lombok-mapstruct-binding:0.2.0'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
 	testImplementation 'org.springframework.security:spring-security-test'
@@ -40,10 +52,21 @@ dependencies {
 	testCompileOnly 'org.projectlombok:lombok'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 	testAnnotationProcessor 'org.projectlombok:lombok'
+	mockitoAgent('org.mockito:mockito-core') { transitive = false }
 }
 
 tasks.named('test') {
 	useJUnitPlatform()
+	// Mockito 를 javaagent 로 명시 로드 — JDK 21+ self-attach deprecation 경고 회피
+	jvmArgs("-javaagent:${configurations.mockitoAgent.asPath}")
+	// Windows: 한글 사용자명 경로의 java.io.tmpdir 회피
+	// — Mockito boot delegation jar 를 native instrumentation 이 한글 경로에서
+	//   못 여는 문제 (appendToClassLoaderSearch0 → IllegalArgumentException)
+	if (System.getProperty('os.name').toLowerCase().contains('windows')) {
+		def asciiTmp = file('C:/temp/magampick-test')
+		doFirst { asciiTmp.mkdirs() }
+		systemProperty 'java.io.tmpdir', asciiTmp.toString()
+	}
 	finalizedBy jacocoTestReport
 }
 
