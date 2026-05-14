@@ -1,5 +1,43 @@
 {
   "permissions": {
-    "defaultMode": "auto"
+    "defaultMode": "auto",
+    "allow": [
+      "Bash(git push *)",
+      "Bash(git branch *)",
+      "Bash(git checkout *)",
+      "Bash(git fetch *)",
+      "Bash(git pull *)",
+      "Bash(git log *)",
+      "Bash(git diff *)",
+      "Bash(git status *)",
+      "Bash(git remote *)",
+      "PowerShell(git push *)",
+      "PowerShell(git branch *)",
+      "PowerShell(git checkout *)",
+      "PowerShell(git fetch *)",
+      "PowerShell(git pull *)",
+      "PowerShell(git log *)",
+      "PowerShell(git diff *)",
+      "PowerShell(git status *)",
+      "PowerShell(git remote *)"
+    ],
+    "deny": [
+      "Bash(git push --force *)",
+      "Bash(git push -f *)",
+      "Bash(git push --force-with-lease *)",
+      "Bash(git reset --hard *)",
+      "Bash(git clean -f *)",
+      "Bash(git clean -fd *)",
+      "Bash(git branch -D *)",
+      "Bash(git checkout -- *)",
+      "PowerShell(git push --force *)",
+      "PowerShell(git push -f *)",
+      "PowerShell(git push --force-with-lease *)",
+      "PowerShell(git reset --hard *)",
+      "PowerShell(git clean -f *)",
+      "PowerShell(git clean -fd *)",
+      "PowerShell(git branch -D *)",
+      "PowerShell(git checkout -- *)"
+    ]
   }
 }
