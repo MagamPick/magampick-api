@@ -6,3 +6,14 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
+
+cors:
+  allowed-origins:
+    - https://magampick.com
+    - https://admin.magampick.com
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
