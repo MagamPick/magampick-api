@@ -23,17 +23,28 @@ Extract:
 
 If the issue is missing required sections or still has undecided policy/scope, stop and send the user back to `/issue`.
 
-## 2. Create Or Verify Working Branch
+## 2. Working Directory Guard
 
-Build a slug from the issue title using `docs/glossary.md` English mappings. Show the slug to the user and confirm before using it.
+`/spec` must run inside issue #{N}'s git worktree directory. Normally `/issue` already created it; this step verifies the location and provides a fallback.
 
-Create the linked branch after slug approval:
+Check the current location with `git branch --show-current` and `git worktree list`:
 
-```powershell
-gh issue develop {N} --repo MagamPick/magampick-api --base develop --name "feat/{N}-{slug}" --checkout
-```
+- On `feat/{N}-*` (the issue type prefix): inside the worktree. Continue.
+- On `develop` or `main` (the main directory):
+  - If a `feat/{N}-*` worktree already exists: tell the user its path, ask them to launch the agent there and re-run `/spec {N}`, then stop.
+  - If no worktree exists (fallback, e.g. an issue created directly on GitHub): bootstrap it, then stop with the same instruction.
 
-If already on the matching issue branch, continue. If on `main` or `develop`, do not write the spec until the branch is created or checked out.
+Fallback bootstrap (only when the worktree is missing):
+
+1. Build a slug from the issue title using `docs/glossary.md` English mappings (remove the emoji/type prefix, kebab-case the English words). Confirm undecided terms with the user.
+2. Create the branch and worktree:
+   ```powershell
+   gh issue develop {N} --repo MagamPick/magampick-api --base develop --name "feat/{N}-{slug}"
+   git worktree add ../magampick-api-{N}-{slug} "feat/{N}-{slug}"
+   ```
+3. Tell the user the worktree path and to re-run `/spec {N}` from there, then stop.
+
+`/spec` (spec save) and `/impl` all run inside this worktree. Never work in the main directory on `develop` or `main`.
 
 ## 3. Read-Only Context Check
 

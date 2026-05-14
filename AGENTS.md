@@ -66,14 +66,14 @@
 
 | 단계 | 명령/스킬 | 산출물 | 사용자 검토 |
 |---|---|---|---|
-| 1. 이슈 | `/issue {기능명}` | GitHub Issue (정책 / scope 결정) | 생성 전 |
+| 1. 이슈 | `/issue {기능명}` | GitHub Issue (정책 / scope 결정) + 작업 브랜치·worktree | 생성 전 |
 | 2. 명세 | `/spec {이슈번호}` | `docs/specs/{N}-{기능명}.md` (구현 명세 + 구현 결정) | 저장 전 |
 | 3. 구현 | `/impl {이슈번호}` | 코드 + 테스트 + 빌드 통과 | 진행 중 선택 |
 | 4. 머지 | 별도 진행 | 작업 브랜치 push + PR 생성 | 커밋 / PR 전 |
 
 > **`main` / `develop` 으로 직접 push 금지.** 항상 작업 브랜치 (`{type}/{이슈번호}-{설명}`) → PR (`base: develop`) → 머지. 예외 없음.
 >
-> **작업 브랜치는 `/spec` 시작 시 생성** — `gh issue develop {이슈번호}` 로 GitHub 이슈에 연결된 브랜치 (`feat/{이슈번호}-{슬러그}`) 를 만들고, `/spec`·`/impl` 은 이 브랜치에서 작업. `/impl` 은 시작 시 작업 브랜치인지 확인하고 `develop`/`main` 이면 중단.
+> **작업 브랜치 + worktree 는 `/issue` 끝에서 생성** — `gh issue develop {이슈번호}` 로 GitHub 이슈에 연결된 브랜치 (`feat/{이슈번호}-{슬러그}`) 를 만들고 `git worktree add ../magampick-api-{이슈번호}-{슬러그}` 로 worktree 를 분리한다. `/spec`·`/impl` 은 **그 worktree 디렉터리에서 에이전트(`claude`/`codex`)를 띄워** 실행한다 — `cd` 로 옮겨 다니지 않는다. 둘 다 시작 시 worktree 위치인지 확인하고 `develop`/`main` (= 주 디렉터리) 이면 중단. (`/issue` 를 거치지 않은 이슈는 `/spec` 이 worktree 를 만들어 준다.)
 
 ### 단계별 docs 수정 범위
 
@@ -90,9 +90,22 @@
 
 ### 병렬 운영
 
+#### worktree 규칙 — 1 디렉터리 = 1 브랜치 = 1 세션
+
+같은 디렉터리에서 두 세션이 `.git` 을 공유하면 한쪽의 checkout 이 다른 세션 브랜치를 바꾼다. 그래서:
+
+- **주 디렉터리 `magampick-api` 는 항상 `develop` 에 고정** — pull / worktree 생성 / PR 리뷰의 홈베이스. 여기서 작업 브랜치로 checkout 하지 않는다.
+- **모든 작업 브랜치는 worktree 로 분리** — spec·impl 뿐 아니라 문서 / 컨벤션 수정도 예외 없이. 단계로 판단하지 않는다.
+- **worktree 생성 = `/issue` 끝에서 1회** — `gh issue develop` 으로 이슈 연결 브랜치 생성 후 `git worktree add ../magampick-api-{이슈번호}-{슬러그} feat/{이슈번호}-{슬러그}`. (`/issue` 를 거치지 않은 이슈는 `/spec` 이 만든다.)
+- **`/spec`·`/impl` 은 그 worktree 디렉터리에서 에이전트를 띄워 실행한다.** 도구 앵커(파일 탐색·셸 cwd·스킬)가 그 디렉터리 기준이어야 하므로, 주 디렉터리에서 `cd` 로 옮기는 것에 의존하지 않는다.
+- worktree 디렉터리명 = 브랜치명과 1:1. 한 브랜치는 한 곳에만 체크아웃 가능 (git 제약) — `develop` 은 주 디렉터리가 점유.
+- **정리 = PR 머지 후 1회** — `git worktree remove ../magampick-api-{이슈번호}-{슬러그}`. 안 그러면 그 브랜치를 다른 곳에서 못 쓴다.
+- `build/` · Testcontainers 는 worktree 별로 독립 — 격리에 유리.
+
+#### 그 외
+
 - 동시 구현 작업은 1~2개 정도로 제한. 3개 이상은 머지 충돌 / 컨텍스트 부담이 커진다.
 - 의존성 있는 도메인은 동시에 구현하지 않는다. 머지 순서 = 도메인 의존성 (`users → stores → products → orders → ...`).
-- 별도 터미널 / 세션으로 병렬 작업 시 `git worktree` 로 디렉터리 분리 필수. 같은 디렉터리에서 두 세션이 `.git` 을 공유하면 한쪽의 checkout 이 다른 세션 브랜치를 바꿀 수 있다.
 - 로컬 docker compose DB 는 머지 후 적용. 개발 중엔 Testcontainers 만 사용.
 
 ### AI Agent 호환성

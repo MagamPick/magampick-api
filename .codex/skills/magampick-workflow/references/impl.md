@@ -7,13 +7,13 @@ Implement code from a completed spec. Follow the spec mechanically. Ask the user
 - `{이슈번호}`: required GitHub Issue number.
 - Find exactly one matching file: `docs/specs/{N}-*.md`.
 
-## 1. Branch Guard
+## 1. Working Directory Guard
 
-Before editing, verify the current branch:
+`/impl` must run inside issue #{N}'s git worktree directory (`../magampick-api-{N}-{slug}`, created by `/issue`).
 
-- If on `main` or `develop`, stop.
-- If not on the matching issue branch, ask before creating/checking out a branch.
-- Expected branch shape: `{type}/{N}-{slug}`, usually `feat/{N}-{slug}`.
+- If on `feat/{N}-*` (the issue type prefix) and `docs/specs/{N}-*.md` is present: continue.
+- If on `develop` or `main` (the main directory): stop. Report the worktree path (`git worktree list`) and ask the user to launch the agent there and re-run `/impl {N}`.
+- If no worktree exists: tell the user to run `/issue` or `/spec {N}` first, then stop.
 
 ## 2. Load Spec
 

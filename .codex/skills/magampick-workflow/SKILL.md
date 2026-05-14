@@ -27,7 +27,7 @@ For workflow details, load only the reference file needed for the user's request
 - Speak with the user in Korean.
 - Do not make product, policy, scope, convention, or structure decisions without user confirmation.
 - Do not create GitHub issues, save spec files, commit, push, create PRs, or merge before showing the exact content and receiving user approval.
-- Do not work directly on `main` or `develop` for `/spec` or `/impl`.
+- Run `/spec` and `/impl` from inside the issue's git worktree directory (`../magampick-api-{N}-{slug}`), which `/issue` creates. Never work in the main directory on `main` or `develop` for `/spec` or `/impl`.
 - Do not modify already-merged migration files. Add a new timestamped migration instead.
 - Preserve `.claude/` files. They are still used by Claude Code.
 
