@@ -42,15 +42,15 @@ Git Flow 변형 — `release` 브랜치는 사용하지 않음.
    ```
 3. **작업 + 커밋** — [커밋 컨벤션](commit-convention.md) 준수
 4. **PR 생성** — base: `develop`
-5. **Squash and merge**
+5. **Merge pull request** (merge commit 생성)
 6. **원본 브랜치 삭제** (GitHub 머지 후 자동 삭제 옵션 권장)
 
 ---
 
 ## 4. PR 정책
 
-- **머지 전략**: Squash and merge
-- **PR 제목**: 머지 시 커밋 subject가 됨 → [커밋 컨벤션](commit-convention.md) 형식으로 작성
+- **머지 전략**: Merge commit — GitHub 의 "Merge pull request" (브랜치 커밋 보존 + 머지 커밋 1개 생성)
+- **PR 제목**: [커밋 컨벤션](commit-convention.md) 형식으로 작성 (PR 목록 가독성용)
   - 예: `✨ feat: 로그인 API 엔드포인트 추가`
 - **PR 본문**: `.github/pull_request_template.md` 따름
 - **CI 통과 필수**: PR 생성 시 `.github/workflows/ci.yml` 의 Build & Test 잡이 자동 실행 (`./gradlew build` = 컴파일 + Spotless + 테스트 + Jacoco)
