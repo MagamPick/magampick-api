@@ -1,0 +1,4 @@
+interface:
+  display_name: "MagamPick Workflow"
+  short_description: "Run MagamPick issue, spec, and impl workflows"
+  default_prompt: "Use $magampick-workflow to run /issue, /spec, or /impl for the MagamPick API."
