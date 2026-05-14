@@ -1,0 +1,40 @@
+services:
+  app:
+    image: ${APP_IMAGE:-magampick-api:latest}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      TZ: Asia/Seoul
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-magampick}
+      DB_USERNAME: ${POSTGRES_USER:-magampick}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-magampick}
+    restart: unless-stopped
+    networks:
+      - magampick
+
+  postgres:
+    image: postgis/postgis:16-3.4-alpine
+    environment:
+      TZ: Asia/Seoul
+      PGTZ: Asia/Seoul
+      POSTGRES_DB: ${POSTGRES_DB:-magampick}
+      POSTGRES_USER: ${POSTGRES_USER:-magampick}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-magampick}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-magampick} -d ${POSTGRES_DB:-magampick}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - magampick
+
+volumes:
+  postgres_data:
+
+networks:
+  magampick:
