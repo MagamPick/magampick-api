@@ -81,7 +81,7 @@
 |---|---|---|
 | `/issue` | `product.md` / `features.md` / `policy.md` / `glossary.md` | 전역 코딩 컨벤션 |
 | `/spec` | `docs/erd/overview.md` 의 미정 사항 | 전역 코딩 컨벤션 |
-| `/impl` | `docs/erd/tables/{table}.md` (해당 도메인 ERD) / `auth.md` (인증·인가 정책) | api-convention / coding-convention / test-convention / commit-convention / git-workflow |
+| `/impl` | `docs/erd/tables/{table}.md` (해당 도메인 ERD) / `auth.md` (인증·인가 정책) / `docs/roadmap.md` (해당 기능 행 상태·이슈 번호) | api-convention / coding-convention / test-convention / commit-convention / git-workflow |
 
 > 한 이슈 = 한 PR. 컨벤션 수정 같이 가면 PR 비대 → 별도 이슈로 분리.
 
@@ -125,6 +125,7 @@
 |---|---|
 | [`docs/product.md`](docs/product.md) | 서비스 정의 / 범위 / Platform / 의사결정 원칙 |
 | [`docs/features.md`](docs/features.md) | 기능 scope |
+| [`docs/roadmap.md`](docs/roadmap.md) | 구현 순서 (의존 계층) + 진행 상태 추적 |
 | [`docs/policy.md`](docs/policy.md) | 운영 정책 |
 | [`docs/glossary.md`](docs/glossary.md) | 도메인 용어 · 영문 매핑 |
 | [`docs/coding-convention.md`](docs/coding-convention.md) | 패키지 / Entity / DTO / 예외 / 의존성 |
