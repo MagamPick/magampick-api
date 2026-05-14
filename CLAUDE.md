@@ -70,7 +70,9 @@
 | 3. 구현 | `/impl {이슈번호}` | 코드 + 테스트 + 빌드 통과 | (선택) 진행 중 |
 | 4. 머지 | (스킬 없음) | 작업 브랜치 push + PR 생성 — Claude 가 [`commit-convention`](docs/commit-convention.md) / [`git-workflow`](docs/git-workflow.md) 따라 실행 | ✅ 커밋 / PR 전 |
 
-> **`main` / `develop` 으로 직접 push 금지.** 항상 작업 브랜치 (`{type}/{이슈번호}-{설명}`) → PR (`base: develop`) → squash & merge. 예외 없음.
+> **`main` / `develop` 으로 직접 push 금지.** 항상 작업 브랜치 (`{type}/{이슈번호}-{설명}`) → PR (`base: develop`) → 머지. 예외 없음.
+>
+> **작업 브랜치는 `/spec` 시작 시 생성** — `gh issue develop {이슈번호}` 로 GitHub 이슈에 연결된 브랜치 (`feat/{이슈번호}-{슬러그}`) 를 만들고, `/spec`·`/impl` 은 이 브랜치에서 작업. `/impl` 은 시작 시 작업 브랜치인지 확인하고 `develop`/`main` 이면 중단.
 
 ### 단계별 docs 수정 범위
 
