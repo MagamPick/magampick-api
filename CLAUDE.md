@@ -68,7 +68,9 @@
 | 1. 이슈 | `/issue {기능명}` | GitHub Issue (정책 / scope 결정) | ✅ 생성 전 |
 | 2. 명세 | `/spec {이슈번호}` | `docs/specs/{N}-{기능명}.md` (구현 명세 + 구현 결정) | ✅ 저장 전 |
 | 3. 구현 | `/impl {이슈번호}` | 코드 + 테스트 + 빌드 통과 | (선택) 진행 중 |
-| 4. 머지 | (스킬 없음) | 커밋 + PR — Claude 가 [`commit-convention`](docs/commit-convention.md) / [`git-workflow`](docs/git-workflow.md) 따라 실행 | ✅ 커밋 / PR 전 |
+| 4. 머지 | (스킬 없음) | 작업 브랜치 push + PR 생성 — Claude 가 [`commit-convention`](docs/commit-convention.md) / [`git-workflow`](docs/git-workflow.md) 따라 실행 | ✅ 커밋 / PR 전 |
+
+> **`main` / `develop` 으로 직접 push 금지.** 항상 작업 브랜치 (`{type}/{이슈번호}-{설명}`) → PR (`base: develop`) → squash & merge. 예외 없음.
 
 ### 단계별 docs 수정 범위
 
@@ -82,6 +84,17 @@
 
 ### spec 미정 발견 시
 `/spec` 작성 중 정책 / scope 미정 발견 → **`/issue` 로 돌아가 결정** → `/spec` 재호출.
+
+### 모델 운영
+
+| 작업 | 모델 | 비고 |
+|---|---|---|
+| `/issue`, `/spec`, 사용자 대화 / 결정 | **Opus** | `settings.json` 의 기본 모델 |
+| `/impl` (구현) | **Sonnet** | Agent 위임 시 `model: "sonnet"` 명시 / 별도 터미널이면 `/model sonnet` 수동 전환 |
+
+Agent 위임 예 (메인 세션 Opus 안에서):
+
+> `Agent(prompt="impl SKILL.md 따라 이슈 12 구현", model="sonnet", isolation="worktree", run_in_background=true)`
 
 ### 병렬 운영 (Agent 위임)
 
