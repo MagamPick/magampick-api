@@ -508,8 +508,8 @@ implementation 'org.mapstruct:mapstruct:1.6.3'
 annotationProcessor 'org.mapstruct:mapstruct-processor:1.6.3'
 annotationProcessor 'org.projectlombok:lombok-mapstruct-binding:0.2.0'
 
-// springdoc-openapi (Swagger UI)
-implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0'
+// springdoc-openapi (Swagger UI) — Spring Boot 3.5 호환 버전
+implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.6'
 
 // Flyway (DB 마이그레이션)
 implementation 'org.flywaydb:flyway-core'
