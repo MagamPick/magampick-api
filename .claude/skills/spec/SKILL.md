@@ -26,14 +26,26 @@ $gh = 'C:\Program Files\GitHub CLI\gh.exe'
 - **body** → 5섹션 파싱 (Context / Scope / User Roles / 핵심 정책 결정 / Business Logic 큰 그림)
 - **labels** → domain 라벨로 도메인 그룹 추정
 
-### 2. 슬러그 자동 추출
+### 2. 슬러그 추출 + 작업 브랜치 생성
+
+**슬러그 추출**:
 1. 이슈 제목에서 type prefix 제거 (`^[이모지] [type]: ` 패턴)
 2. 남은 한국어 기능명을 [`glossary.md`](../../../docs/glossary.md) 영문 매핑으로 변환
 3. 영문 단어 kebab-case 로 결합
 
 예: `✨ feat: 매장 등록 신청` → `매장 등록 신청` → `store-registration`
 
-glossary 에 없는 용어는 사용자에게 옵션 제시 + 확정. 추출 결과는 **사용자에게 확인 후 사용** (자동이지만 검토 가능).
+glossary 에 없는 용어는 사용자에게 옵션 제시 + 확정. 추출 결과는 **사용자에게 확인 후 사용**.
+
+**작업 브랜치 생성** (슬러그 확정 후):
+```powershell
+$gh = 'C:\Program Files\GitHub CLI\gh.exe'
+& $gh issue develop {N} --repo MagamPick/magampick-api --base develop --name "feat/{N}-{슬러그}" --checkout
+```
+- GitHub 이슈에 연결된 브랜치를 origin 에 생성 + 로컬 checkout (PR 머지 시 이슈 자동 클로즈)
+- type 이 feat 가 아니면 prefix 조정 (`fix/`, `refactor/` 등)
+- 이미 `feat/{N}-*` 작업 브랜치에 있으면 skip
+- **이후 `/spec` 의 spec 저장 + `/impl` 전부 이 브랜치에서 진행** — `develop` / `main` 에서 작업 금지
 
 ### 3. 사전 점검 (Read only)
 - 이슈 본문의 미정 사항 있나? → 있으면 **`/issue` 로 돌아가 결정 후 재호출** 안내, **중단**

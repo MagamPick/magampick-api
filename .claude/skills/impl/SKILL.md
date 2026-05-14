@@ -15,6 +15,11 @@ description: spec 파일 기반으로 도메인 코드 구현. 옵션 X 순서 (
 
 ## 흐름
 
+> **시작 전 — 작업 브랜치 확인 (필수)**
+> 현재 브랜치가 `feat/{N}-*` (또는 이슈 type 에 맞는 prefix) 인지 확인.
+> - `develop` / `main` 이면 **즉시 중단** — `/spec` 이 작업 브랜치를 만들었어야 함
+> - 작업 브랜치가 없으면: `gh issue develop {N} --repo MagamPick/magampick-api --base develop --name "feat/{N}-{슬러그}" --checkout` 로 생성 후 진행
+
 ### 1. spec 파일 로드
 - `docs/specs/{이슈번호}-*.md` 패턴 탐색
 - 매칭 0개 → `/spec {N}` 먼저 호출 안내, 중단
