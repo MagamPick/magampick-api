@@ -46,14 +46,15 @@ Follow this order unless the existing codebase makes a small local adjustment ne
 2. Migration SQL
 3. ERD table doc
 4. Repository
-5. Service unit tests
+5. Service unit tests (written alongside the service, not strictly before)
 6. Service implementation
 7. DTOs and MapStruct mapper
-8. Controller `@WebMvcTest`
+8. Controller `@WebMvcTest` (written alongside the controller, not strictly before)
 9. Controller implementation
-10. `./gradlew spotlessApply`
-11. `./gradlew build`
-12. Update `docs/roadmap.md`
+10. Integration test when the feature is a golden-path flow (signup / order / payment / refund) — see §5. Skip otherwise.
+11. `./gradlew spotlessApply`
+12. `./gradlew build`
+13. Update `docs/roadmap.md`
 
 Update the roadmap only after the build passes:
 
@@ -73,6 +74,7 @@ Update the roadmap only after the build passes:
 - Service tests use Mockito + AssertJ and Korean method names.
 - Controller tests use MockMvc + Mockito.
 - Use `@WithMockUser` or security context setup when auth is required.
+- Integration tests for golden-path flows (signup / order / payment / refund) use `@SpringBootTest @AutoConfigureMockMvc @Transactional` and `extends PostgresTestBase`. They exist to break the AI self-reference risk that mock-heavy unit/slice tests cannot catch — real DB, real service↔repository wiring, real transaction boundary, real security filter. Skip for non-golden-path features.
 - DTO request/response shapes follow `docs/api-convention.md`.
 - Controllers and DTOs must include Springdoc OpenAPI annotations from `docs/api-convention.md`.
   - Controller class: `@Tag`.

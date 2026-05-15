@@ -1,6 +1,6 @@
 ---
 name: impl
-description: spec 파일 기반으로 도메인 코드 구현. 옵션 X 순서 (Entity → 마이그레이션 → ERD → Repository → Service+테스트 → DTO+Mapper → Controller+테스트 → spotlessApply → build) 로 한 번에 진행. spec 결정을 기계적으로 코드로 변환 — 임의 결정 X.
+description: spec 파일 기반으로 도메인 코드 구현. 옵션 X 순서 (Entity → 마이그레이션 → ERD → Repository → Service+테스트 → DTO+Mapper → Controller+테스트 → 통합 테스트(핵심 흐름) → spotlessApply → build) 로 한 번에 진행. spec 결정을 기계적으로 코드로 변환 — 임의 결정 X.
 ---
 
 # /impl — 구현
@@ -69,15 +69,17 @@ description: spec 파일 기반으로 도메인 코드 구현. 옵션 X 순서 (
 - 기본 CRUD 만이면 테스트 X
 - 커스텀 쿼리 있으면 `@DataJpaTest` 테스트 추가 ([test-convention.md](../../../docs/test-convention.md))
 
-#### 4-5. Service + 단위 테스트 (TDD lite)
+#### 4-5. Service + 단위 테스트 (동시 작성)
 
-**먼저 단위 테스트 작성**:
+**단위 테스트와 Service 를 동시에 작성**. AI 컨텍스트에서 둘은 같은 generation 단계에 만들어지므로 엄격한 "테스트 먼저 → 코드" 순서는 의미가 적다. 핵심은 *함께 있다* 는 것.
+
+**단위 테스트**:
 - 위치 = `src/test/java/{package}/{domain}/service/{Name}ServiceTest.java`
 - spec Test Cases 의 Service 단위 테스트 케이스 그대로
 - **한국어 메서드명** (예: `매장_등록_성공`) + `// given-when-then` 주석
 - Mockito + AssertJ
 
-**그 다음 Service 구현**:
+**Service 구현**:
 - 위치 = `src/main/java/{package}/{domain}/service/{Name}Service.java`
 - 비즈니스 로직 = spec Business Logic 따름
 - 트랜잭션 경계 = spec Implementation Notes 따름 (기본 = Service 메서드 단위)
@@ -89,15 +91,17 @@ description: spec 파일 기반으로 도메인 코드 구현. 옵션 X 순서 (
 - Mapper = MapStruct (coding-convention §8)
 - DTO / Mapper 자체 테스트 X
 
-#### 4-7. Controller + @WebMvcTest (TDD lite)
+#### 4-7. Controller + @WebMvcTest (동시 작성)
 
-**먼저 @WebMvcTest 작성**:
+**@WebMvcTest 와 Controller 를 동시에 작성**. 4-5 와 동일한 이유 — 작성 순서보다 "함께 있는지" 가 핵심.
+
+**@WebMvcTest**:
 - 위치 = `src/test/java/{package}/{domain}/controller/{Name}ControllerTest.java`
 - spec Test Cases 의 Controller 테스트 케이스 그대로
 - MockMvc + Mockito (Service mock)
 - 인증 필요 시 `@WithMockUser` 또는 SecurityContext 설정 ([auth.md](../../../docs/auth.md))
 
-**그 다음 Controller 구현**:
+**Controller 구현**:
 - 위치 = `src/main/java/{package}/{domain}/controller/{Name}Controller.java`
 - URL / 메서드 / 상태 코드 = spec API Specification 따름
 - `@RestController` + `@RequestMapping` (api-convention URL 룰)
@@ -109,12 +113,23 @@ description: spec 파일 기반으로 도메인 코드 구현. 옵션 X 순서 (
   - Path / Query parameter: 필요 시 `@Parameter`
 - 인가 = `@PreAuthorize` 또는 SecurityConfig (auth.md 의 인가 매트릭스)
 
-#### 4-8. spotlessApply
+#### 4-8. 통합 테스트 (핵심 흐름인 경우만)
+
+spec 의 Business Logic / Test Cases 가 **핵심 비즈니스 흐름 (회원가입 / 주문 / 결제 / 환불)** 에 해당하면 통합 테스트 작성. 그 외 부수 기능은 이 단계 skip.
+
+- 위치 = `src/test/java/{package}/{domain}/{Name}IntegrationTest.java`
+- `@SpringBootTest @AutoConfigureMockMvc @Transactional` + `extends PostgresTestBase` ([test-convention.md §8 / §10](../../../docs/test-convention.md))
+- 실제 DB (Testcontainers PostGIS) + 실제 Service ↔ Repository 협업
+- 검증 시나리오 = spec Test Cases 의 통합 시나리오 그대로
+- **목적**: 단위/슬라이스 테스트의 mock 가정이 어긋나는 부분 (트랜잭션 경계 / FK / 보안 필터 / Validation 흐름) 을 여기서 드러냄. AI 의 자기참조 검증 위험 차단
+- 핵심 흐름이 아니면 skip — `test-convention.md §2` 의 🟢 선택 항목들 (Repository 커스텀 쿼리 / E2E) 은 명시 요청 시만
+
+#### 4-9. spotlessApply
 ```powershell
 ./gradlew spotlessApply
 ```
 
-#### 4-9. build (전체 빌드 + 테스트)
+#### 4-10. build (전체 빌드 + 테스트)
 ```powershell
 ./gradlew build
 ```
@@ -123,7 +138,7 @@ description: spec 파일 기반으로 도메인 코드 구현. 옵션 X 순서 (
 - **단순 실패** (오타 / import 누락 / 포맷) → 자동 수정 후 재실행 (1~2회)
 - **복잡한 실패** (로직 / spec 해석) → 사용자에게 보고 + 결정 받기
 
-#### 4-10. roadmap 갱신
+#### 4-11. roadmap 갱신
 
 [`docs/roadmap.md`](../../../docs/roadmap.md) 에서 이 기능에 해당하는 행을 찾아:
 - 상태 `미착수` → `완료`
@@ -175,7 +190,7 @@ roadmap 행은 이미 `완료` 로 갱신됨 — feature PR 에 함께 포함해
 **수정 OK**:
 - `docs/erd/tables/{table}.md` (해당 도메인 ERD 상세)
 - `auth.md` (인증 / 인가 정책 결정 필요 시)
-- `docs/roadmap.md` (해당 기능 행 상태/이슈 번호 갱신 — 단계 4-10)
+- `docs/roadmap.md` (해당 기능 행 상태/이슈 번호 갱신 — 단계 4-11)
 
 **수정 X (별도 이슈로 메모)**:
 - api-convention / coding-convention / test-convention / commit-convention / git-workflow
@@ -196,7 +211,7 @@ roadmap 행은 이미 `완료` 로 갱신됨 — feature PR 에 함께 포함해
 - **worktree 안에서 실행** — 시작 가드 필수. 주 디렉터리(`develop`/`main`)면 중단하고 worktree 로 안내
 - **spec 결정 따름** — 임의 변경 X. spec 누락은 사용자에게 질문
 - **마이그레이션 V 번호 = timestamp** — 머지된 파일 수정 X (CLAUDE.md)
-- **테스트 먼저 작성** (TDD lite) — Service 단위 + Controller @WebMvcTest 다 적용
+- **테스트 동시 작성** — Service 단위 + Controller @WebMvcTest 항상. 핵심 흐름 (가입 / 주문 / 결제 / 환불) 은 통합 테스트도 (단계 4-8). 작성 순서보다 *함께 있는지* 가 중요 (AI 자기참조 검증 위험 보완)
 - **한국어 테스트 메서드명** ([test-convention.md](../../../docs/test-convention.md))
 - **결과 보고 = 사용자 검토 시점** — `/impl` 끝나면 사용자가 검토 → OK 면 커밋 / PR (4단계, 스킬 없음)
 - **PowerShell 5.1**: 한글 메서드명 / 주석은 UTF-8 (Write tool 기본). Gradle 인코딩 이슈는 빌드 실패 시점에 진단

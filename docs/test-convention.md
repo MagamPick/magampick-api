@@ -33,15 +33,19 @@ Spring Boot 3.5 / Java 21 / JUnit 5 / Mockito / Testcontainers (PostGIS) 기준.
 | 대상 | 테스트 종류 |
 |---|---|
 | **Controller** (모든 endpoint) | **슬라이스 (`@WebMvcTest`)** |
+| **핵심 비즈니스 흐름** (회원가입 / 주문 / 결제 / 환불) | **통합 (`@SpringBootTest`)** |
 
-검증 항목: 정상 응답, Validation 실패(`400`), 권한 실패(`403`), Not Found(`404`), envelope 포맷.
+검증 항목 (Controller): 정상 응답, Validation 실패(`400`), 권한 실패(`403`), Not Found(`404`), envelope 포맷.
+
+검증 항목 (통합): 실제 DB / Service ↔ Repository 협업 / 트랜잭션 경계 / 보안 필터. spec 의 핵심 시나리오를 end-to-end 흐름으로 검증.
+
+> **통합 테스트가 🟡 권장인 이유** — AI 에이전트가 spec 으로 테스트 + 코드를 같은 컨텍스트에서 생성하면 둘이 같은 잘못된 가정을 공유해도 mock 단위/슬라이스 테스트는 그대로 통과한다 (자기참조 검증). 실제 DB · Service ↔ Repository 협업을 거치는 통합 테스트만이 이 위험을 차단함. 핵심 흐름 4개에만 적용 — 부담은 작고 ROI 가 높음.
 
 ### 🟢 선택 — 명시 요청 시만
 
 | 대상 | 테스트 종류 |
 |---|---|
 | **Repository — 커스텀 쿼리 / PostGIS 반경 검색** | 슬라이스 (`@DataJpaTest`) |
-| **핵심 비즈니스 흐름** (회원가입 / 주문 / 결제 / 환불) | 통합 (`@SpringBootTest`) |
 | **사용자 시나리오** (가입→로그인→주문 같은) | E2E |
 
 ### ⛔ 생략 — 시간 낭비
