@@ -8,7 +8,7 @@
 - **위치 정보**: **PostGIS** 사용 — `stores.location`, `addresses.location` 는 `GEOGRAPHY(POINT, 4326)` + GIST 인덱스
 - **Enum**: PostgreSQL native ENUM 대신 `VARCHAR + CHECK` 제약 (Hibernate `@Enumerated(EnumType.STRING)` 표준)
 - **Soft Delete (`deleted_at`)**: customers, sellers, stores, clearance_items, orders 등 주요 엔티티만. 종속 데이터(order_items 등)는 hard delete
-- **휴대폰 번호 UNIQUE 미적용** (졸업 프로젝트 단계): 시연 시 동일 번호로 customer + seller 둘 다 가입해야 함. 실제 인증 API 연동 시점에 재검토 ([auth.md §8](../auth.md))
+- **휴대폰 번호 UNIQUE 영구 미적용**: 별개 계정 모델 + 사장 다중 사업자 운영. 본인인증 = 번호 소유자 검증이지 1번호 1계정 강제가 아님 (한국 이커머스 표준). 자세한 사유는 [auth.md §8](../auth.md)
 - **시간대**: 모든 `TIMESTAMP` 컬럼은 KST 통일 (운영 인프라 시간대 일치, [api-convention.md §7](../api-convention.md))
 - **사용자 분리**: `customers` / `sellers` / `admins` 세 테이블 분리 (가입 흐름·필드 다름)
 

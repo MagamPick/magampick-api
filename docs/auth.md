@@ -80,11 +80,25 @@ POST /api/v1/auth/kakao
 
 흐름:
 1. 클라이언트가 카카오 SDK 로 인가 → kakao access token
-2. 서버: 카카오 API 로 사용자 정보 조회
-3. 가입된 customer 있으면 로그인, 없으면 자동 가입 후 로그인
-4. JWT 발급
+2. 서버: 카카오 API 로 사용자 정보 조회 (email + provider_user_id)
+3. **매칭 키 `(provider, provider_user_id)`** 로 `customer_oauth_accounts` 조회
+   - 기존 연결 있으면 → 해당 customer 로 로그인
+   - 미존재 → 신규 가입 흐름 (아래)
+4. 신규 가입: `customers.email` 충돌 검사 → 충돌 시 `EMAIL_ALREADY_EXISTS` (409) 차단, 미충돌 시 `customer` row 생성 (`password_hash = NULL`) + `customer_oauth_accounts` row 생성
+5. JWT 발급
 
 **소셜 로그인은 소비자만**. 사장 / 관리자는 이메일 + 비밀번호.
+
+**계정 모델 — 별개 (Separate Accounts)**:
+
+- 소셜 가입자와 이메일 가입자는 **같은 사람이라도 별개 `customers` row** 를 가진다. 자동 linking 안 함 (한국 이커머스 표준 패턴)
+- 한 customer 는 인증 수단 한 가지만 보유 — 이메일+비번 **또는** 카카오 OAuth (DB 차원에서 `customer_oauth_accounts.customer_id` UNIQUE 로 강제)
+- 카카오로 가입한 customer 의 `password_hash` 는 `NULL` → 이메일+비번 로그인 시 비밀번호 불일치 처리
+- 이메일+비번 가입자가 카카오로도 가입 시도 시:
+  - **같은 이메일** → `EMAIL_ALREADY_EXISTS` 차단 (자동 linking 안 함)
+  - **다른 이메일** → 신규 카카오 계정 생성 (별개 customer row — 의도된 동작)
+
+**이메일 처리**: 카카오에서 받은 이메일을 `customers.email` 에 그대로 저장. 카카오 콘솔에서 이메일 **필수 동의** 설정이 전제 (운영 영역).
 
 ---
 
@@ -218,7 +232,10 @@ Authorization: Bearer {access}
 실제 외부 인증 API (PASS / NICE 등) 는 **미연동**. Mock 구현으로 흐름만 갖춤.
 
 **DB**
-- `customers.phone`, `sellers.phone` 은 **UNIQUE 제거** (시연 시 동일 번호로 customer + seller 둘 다 가입해야 하기 때문)
+- `customers.phone`, `sellers.phone` 둘 다 **UNIQUE 영구 미적용**. 사유:
+  - **별개 계정 모델** — 한 사람이 카카오 / 이메일+비번으로 각각 customer 계정 보유 가능 (별개 row, §3 참조)
+  - **사장 다중 사업자** — 한 사람이 여러 사업자를 운영하는 비즈니스 현실 (같은 phone 으로 여러 seller 계정 자연스러움)
+  - **본인인증의 의미** = "번호 소유자 검증" 이지 "1번호 1계정 강제" 가 아님 (한국 이커머스 표준 패턴: 쿠팡, 배민 모두 phone UNIQUE 없음)
 - 회원가입 완료 시 `phone_verified_at` 기록 (mock 통과 결과)
 
 **구조 — 인터페이스 + 환경별 구현**
@@ -256,7 +273,6 @@ Spring `@Profile` 로 환경별 자동 주입. `AuthService` 는 인터페이스
 - 외부 API 제공사 결정 (PASS / NICE / KCB)
 - `RealPhoneVerificationService` 작성 (`@Profile("prod")`)
 - 환경 변수 (`PHONE_VERIFY_API_KEY` 등) 등록
-- `phone` UNIQUE 제약 추가 여부 결정 — 운영 데이터 중복 정리 후
 - CI / DI 저장 여부 (개인정보 최소화 vs 동일인 식별)
 
 ---
@@ -447,7 +463,6 @@ com.magampick.auth/
 ## 15. Pending Decisions
 
 - 휴대폰 본인인증 외부 API 제공사 (PASS / NICE / KCB) — 출시 시점 결정
-- `phone` UNIQUE 제약 재도입 — 출시 시점 결정 (졸업 프로젝트 단계엔 제거)
 - 소셜 로그인 추가 (네이버 / 구글) — 애플은 PWA only 라 불필요
 - 관리자 가입 흐름 (초대 메일 / 별도 시스템 / 첫 부팅 시 시드)
 - Rate Limiting 구현 방식 (Bucket4j vs Redis)
