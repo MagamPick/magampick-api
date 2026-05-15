@@ -98,9 +98,17 @@ For each endpoint:
 
 **Error Responses**
 | 상태 | 에러 코드 | 상황 |
+
+**OpenAPI / Swagger**
+- Controller `@Tag` name / description
+- Method `@Operation` summary / description
+- Success and major error `@ApiResponse`
+- DTO / field `@Schema` descriptions and examples
+- Path / query `@Parameter` descriptions and examples when useful
 ```
 
 Follow `docs/api-convention.md`. Specify the payload only; the `ApiResponse<T>` envelope is applied globally.
+Include enough descriptions, examples, and constraints in the spec so `/impl` can add Springdoc OpenAPI annotations without guessing.
 
 ## 6. Length And Range Constraints
 
