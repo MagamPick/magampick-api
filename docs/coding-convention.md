@@ -395,7 +395,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusiness(BusinessException e) {
         BaseErrorCode errorCode = e.getErrorCode();
-        log.warn("BusinessException: {}", errorCode.getCode());
+        log.warn("비즈니스 예외 발생. code={}", errorCode.getCode());
         return ResponseEntity
             .status(errorCode.getStatus())
             .body(ApiResponse.error(ErrorResponse.from(errorCode)));
@@ -414,7 +414,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleAll(Exception e) {
-        log.error("Unhandled exception", e);
+        log.error("처리되지 않은 예외", e);
         return ResponseEntity
             .status(HttpStatus.INTERNAL_SERVER_ERROR)
             .body(ApiResponse.error(ErrorResponse.from(CommonErrorCode.INTERNAL_ERROR)));
@@ -624,13 +624,13 @@ placeholder `{}` 만 사용한다. 문자열 concat / `String.format` / `String.
 
 ```java
 // O
-log.info("order created. orderId={}, customerId={}", order.getId(), customerId);
+log.info("주문 생성됨. orderId={}, customerId={}", order.getId(), customerId);
 
 // X — 레벨 꺼져 있어도 concat 발생
-log.info("order created. orderId=" + order.getId() + ", customerId=" + customerId);
+log.info("주문 생성됨. orderId=" + order.getId() + ", customerId=" + customerId);
 
 // X — 동일
-log.info(String.format("order created. orderId=%d", order.getId()));
+log.info(String.format("주문 생성됨. orderId=%d", order.getId()));
 ```
 
 #### 클래스 / 레이어는 메시지에 붙이지 않는다
@@ -638,41 +638,53 @@ log.info(String.format("order created. orderId=%d", order.getId()));
 Logback 기본 패턴이 logger 이름 (= 클래스 전체 경로) 을 출력하므로 메시지에 별도로 표기하지 않는다.
 
 ```
-2026-05-15 14:23:01.234  INFO 12345 --- [nio-8080-exec-1] c.m.store.service.StoreService : order created. orderId=123
+2026-05-15 14:23:01.234  INFO 12345 --- [nio-8080-exec-1] c.m.store.service.StoreService : 주문 생성됨. orderId=123
                                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
                                                           레이어(service) + 클래스(StoreService) 자동 포함
 ```
 
 ```java
 // X — 중복
-log.info("[StoreService] order created. orderId={}", order.getId());
+log.info("[StoreService] 주문 생성됨. orderId={}", order.getId());
 
 // X — 동일
-log.info("[Service] order created. orderId={}", order.getId());
+log.info("[Service] 주문 생성됨. orderId={}", order.getId());
 
 // O
-log.info("order created. orderId={}", order.getId());
+log.info("주문 생성됨. orderId={}", order.getId());
 ```
 
 패키지에 레이어가 들어있으므로 (`com.magampick.{domain}.service.XxxService`), 출력만 봐도 어느 레이어 / 어느 클래스인지 식별 가능.
 
-#### 메시지 템플릿
+#### 메시지 템플릿 — 한글 하이브리드
 
-다음 패턴을 따른다. **소문자 + 키=값 + placeholder** 가 핵심.
+본문 (사람이 읽는 서술) 은 **한글**, 키 / 값 / enum 코드 / 외부 시스템 식별자는 **영문** 으로 두는 하이브리드 형식을 사용한다.
+
+```
+[한글 서술]. [key]=[값], [key]=[값] (영문)
+   ↓             ↓
+   동사 / 명사구  grep / 외부 수집기 대상
+```
+
+핵심 한 줄: **`=` 의 왼쪽과 오른쪽은 영문**.
 
 | 상황 | 형식 | 예 |
 |---|---|---|
-| 도메인 이벤트 성공 | `<event 동사 과거형>. <key>={}` | `"order created. orderId={}, customerId={}"` |
-| 상태 전이 | `<noun> <new state>. <key>={}` | `"order completed. orderId={}"` `"store approved. storeId={}"` |
-| 액션 실패 | `<action> failed. <key>={}, reason={}` | `"payment failed. orderId={}, reason={}"` |
-| 외부 호출 | `<system> <action> {결과}. <key>={}` | `"fcm send succeeded. token={}"` `"fcm send failed. token={}, code={}"` |
-| 미처리 예외 | `<context 명사구>` + 예외 마지막 인자 | `log.error("unhandled exception", e)` |
+| 도메인 이벤트 성공 | `<한글 서술>. <key>={}` | `"주문 생성됨. orderId={}, customerId={}"` |
+| 상태 전이 | `<한글 명사구>. <key>={}` | `"주문 완료. orderId={}"` `"매장 승인됨. storeId={}"` |
+| 액션 실패 | `<한글 서술> 실패. <key>={}, reason={}` | `"결제 실패. orderId={}, reason={}"` |
+| 외부 호출 | `<한글 서술>. <key>={}` | `"FCM 전송 성공. token={}"` `"FCM 전송 실패. token={}, code={}"` |
+| 미처리 예외 | `<한글 명사구>` + 예외 마지막 인자 | `log.error("처리되지 않은 예외", e)` |
 
 작성 규칙:
-- **메시지 본문은 영문 소문자**. 한글 메시지는 검색·grep 시 불리하므로 도메인 명사도 영문 (`order`, `store`, `payment`) 으로
+- **본문은 한글 서술, 키 / 값은 영문** (하이브리드). 핵심: `=` 의 왼쪽과 오른쪽은 영문
+  - **인코딩 안전망**: 본문이 깨져도 `key=value` 는 살아남음. 윈도우 콘솔 / Docker stdout / CI 로그에서 디버깅 가능
+  - **grep / 외부 수집기 일관성**: `grep "orderId=123"` 이 환경에 무관하게 동작. 출시 시점 ELK / Datadog 색인도 단순
+  - **enum 값 그대로**: `reason=INSUFFICIENT_FUNDS` 처럼 enum 코드를 그대로 찍을 수 있음 — 번역 매핑 불필요
 - **키=값** 형태로 식별자 노출. 검색 가능하게 (`orderId=123` > `주문 123번`)
-- 동사는 **과거형 / 결과형** — 이미 일어난 사건만 로깅 (`created`, `failed`, `approved`). 시작 로그 (`creating...`) 는 남기지 않음
+- 동사는 **명사형 종결** — 이미 일어난 사건만 로깅 (`생성됨`, `완료`, `실패`, `승인됨`). 시작 로그 (`생성 중...`) 는 남기지 않음
 - 가변 길이 본문 (사용자 입력 텍스트 등) 은 마지막에 한 번만. 중간에 끼우면 grep 어려움
+- 클래스명 / 어노테이션 / Java 식별자 같이 코드 참조에 해당하는 것은 메시지에 넣지 않는다 (logger 이름으로 자동 노출됨)
 
 ### 예외 로깅
 
@@ -680,13 +692,13 @@ log.info("order created. orderId={}", order.getId());
 
 ```java
 // O — stacktrace 출력됨
-log.error("payment failed. orderId={}", orderId, e);
+log.error("결제 실패. orderId={}", orderId, e);
 
 // X — getMessage() 만 찍히고 stacktrace 유실
-log.error("payment failed. orderId={}, error={}", orderId, e.getMessage());
+log.error("결제 실패. orderId={}, error={}", orderId, e.getMessage());
 
 // X — 예외 객체에 placeholder 잡으면 toString() 만 찍히고 stacktrace 유실
-log.error("payment failed. orderId={}, error={}", orderId, e);
+log.error("결제 실패. orderId={}, error={}", orderId, e);
 ```
 
 ### 레이어별 가이드
