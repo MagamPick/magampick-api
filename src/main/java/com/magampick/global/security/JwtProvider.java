@@ -10,7 +10,10 @@ import io.jsonwebtoken.security.Keys;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Date;
+import java.util.UUID;
 import javax.crypto.SecretKey;
 import org.springframework.stereotype.Component;
 
@@ -41,10 +44,22 @@ public class JwtProvider {
 
   /** 토큰을 검증하고 claim 으로 인증 주체를 만든다. 실패 시 BusinessException(AuthErrorCode). */
   public CustomUserDetails parse(String token) {
+    TokenPayload payload = parsePayload(token);
+    return new CustomUserDetails(payload.userId(), payload.role());
+  }
+
+  /** 토큰을 검증하고 payload 를 반환한다. refresh token 처리에서 사용자 일치 검증에 사용한다. */
+  public TokenPayload parsePayload(String token) {
     Claims claims = parseClaims(token);
     Long userId = Long.valueOf(claims.getSubject());
     Role role = Role.valueOf(claims.get(ROLE_CLAIM, String.class));
-    return new CustomUserDetails(userId, role);
+    LocalDateTime expiresAt =
+        LocalDateTime.ofInstant(claims.getExpiration().toInstant(), ZoneId.systemDefault());
+    return new TokenPayload(userId, role, expiresAt);
+  }
+
+  public long accessTokenExpiresInSeconds() {
+    return accessTokenValidity.toSeconds();
   }
 
   private String issueToken(Long userId, Role role, Duration validity) {
@@ -53,6 +68,7 @@ public class JwtProvider {
         .issuer(ISSUER)
         .subject(String.valueOf(userId))
         .claim(ROLE_CLAIM, role.name())
+        .id(UUID.randomUUID().toString())
         .issuedAt(Date.from(now))
         .expiration(Date.from(now.plus(validity)))
         .signWith(key)
@@ -68,4 +84,6 @@ public class JwtProvider {
       throw new BusinessException(AuthErrorCode.INVALID_TOKEN);
     }
   }
+
+  public record TokenPayload(Long userId, Role role, LocalDateTime expiresAt) {}
 }
