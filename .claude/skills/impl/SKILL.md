@@ -149,9 +149,9 @@ spec 의 Business Logic / Test Cases 가 **핵심 비즈니스 흐름 (회원가
 - 해당 기능 행이 roadmap 에 없으면 (scope 신규 추가 등) 적절한 계층에 행 추가.
 - 빌드 실패로 중단된 경우 갱신하지 않는다 — `완료` 는 구현 + 빌드 통과 후에만.
 
-### 5. 결과 보고 (사용자 검토 ★)
+### 5. 결과 보고 + 머지까지 진행 (사용자 검토 ★)
 
-작업 완료 후 사용자에게 다음 보고:
+빌드 통과 후 사용자에게 다음 보고:
 
 ```markdown
 ## /impl 완료 — 이슈 #{N}
@@ -172,11 +172,29 @@ spec 의 Business Logic / Test Cases 가 **핵심 비즈니스 흐름 (회원가
 
 ### spec 외 결정 (있는 경우만)
 - {네이밍 / 컨벤션 선택 등 spec 에 없던 작은 결정}
-
-### 다음 단계
-사용자 검토 후 커밋 + PR 진행 (`commit-convention.md` / `git-workflow.md` 따름).
-roadmap 행은 이미 `완료` 로 갱신됨 — feature PR 에 함께 포함해 머지.
 ```
+
+보고 직후 머지까지 같은 세션에서 끝낸다 ([`AGENTS.md` 워크플로우 4단계](../../../AGENTS.md) / [`git-workflow.md §4`](../../../docs/git-workflow.md)):
+
+1. **커밋 메시지 검토** — 작성한 커밋 메시지 전문 + 커밋 파일 목록을 사용자에게 보여주고 OK 받기 ([`AGENTS.md` Git 섹션](../../../AGENTS.md))
+2. **커밋 + 푸시**
+3. **PR 본문 검토** — `gh pr create` 호출 전 제목 / 본문을 사용자에게 보여주고 OK 받기. **이 시점이 머지까지 위임받는 동의 시점**
+4. **PR 생성** — `gh pr create --base develop ...`
+5. **CI watch** — `gh pr checks {N} --repo MagamPick/magampick-api --watch` 를 background 로 실행. 다른 폴링 / sleep 금지
+6. **자동 머지** — CI green 시 즉시 `gh pr merge {N} --merge --delete-branch`. 사용자 추가 확인 없이 진행 (CI = 머지 게이트, `git-workflow.md §4`). 머지 결과는 `gh pr view ... --json state,mergedAt,mergeCommit` 으로 즉시 검증
+7. **슬롯 정리 + develop pull**
+   ```sh
+   git fetch --prune
+   git switch --detach origin/develop          # 현재 슬롯을 빈 상태로
+   git branch -D {type}/{N}-{슬러그}            # 로컬 브랜치 삭제
+   git -C "{메인 디렉터리 절대경로}" pull        # 메인의 develop 최신화
+   ```
+   원격 브랜치는 `--delete-branch` 로 이미 삭제됨.
+8. **사이클 완료 보고** — PR URL / merge commit / 다음 단계 안내
+
+CI red 인 경우: watch 결과의 실패 원인 + 다음 액션 후보 (수정 후 추가 커밋 vs 롤백 vs 상의) 를 보고 후 사용자 결정 대기. 임의로 강제 머지 / 머지 시도 X.
+
+`/spec` 을 건너뛰고 `/impl` 만 진행한 경우 (단순 docs 메타 작업 등) 도 위 흐름은 동일.
 
 ## 중간 질문 — 자연스럽게 (강제 검토 X)
 
