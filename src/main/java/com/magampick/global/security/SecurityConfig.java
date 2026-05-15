@@ -53,6 +53,8 @@ public class SecurityConfig {
                     .permitAll()
                     .requestMatchers("/actuator/health")
                     .permitAll()
+                    .requestMatchers("/api/v1/auth/logout")
+                    .authenticated()
                     .requestMatchers("/api/v1/auth/**")
                     .permitAll()
                     .requestMatchers(HttpMethod.GET, PUBLIC_GET_PATHS)

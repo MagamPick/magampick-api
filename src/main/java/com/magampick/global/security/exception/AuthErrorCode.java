@@ -5,10 +5,7 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 
-/**
- * 인증 관련 에러 코드. 현재는 토큰 검증 코드만 정의 — 로그인/가입 코드(INVALID_CREDENTIALS 등)는 회원·인증 도메인 이슈에서 추가한다 (auth.md
- * §13).
- */
+/** 토큰/필터/보안 인프라 에러 코드. */
 @Getter
 @RequiredArgsConstructor
 public enum AuthErrorCode implements BaseErrorCode {
