@@ -98,11 +98,28 @@ For each endpoint:
 
 **Error Responses**
 | 상태 | 에러 코드 | 상황 |
+
+**OpenAPI / Swagger**
+- Controller `@Tag` name / description
+- Method `@Operation` summary / description
+- Success and major error `@ApiResponse`
+- DTO / field `@Schema` descriptions and examples
+- Path / query `@Parameter` descriptions and examples when useful
 ```
 
 Follow `docs/api-convention.md`. Specify the payload only; the `ApiResponse<T>` envelope is applied globally.
+Include enough descriptions, examples, and constraints in the spec so `/impl` can add Springdoc OpenAPI annotations without guessing.
 
-## 6. Data Model Rules
+## 6. Length And Range Constraints
+
+- Request/Response DTO fields should specify string length, numeric range, collection size, and format constraints when applicable.
+- Data Model should specify `VARCHAR` length, numeric precision/scale, nullable, unique, and check constraints when applicable.
+- If a length/range constraint is not already decided in the issue or docs, do not invent it silently. Ask the user to confirm.
+- When asking, include a recommended value and a short reason.
+  - Example: `nickname`: recommend 2-20 characters because it is short enough for UI display and long enough for Korean/English nicknames.
+  - Example: `email`: recommend `VARCHAR(255)` because it follows common email storage limits and works well with unique indexes.
+
+## 7. Data Model Rules
 
 - IDs are `BIGINT`.
 - Enums use `VARCHAR + CHECK`.
@@ -110,7 +127,7 @@ Follow `docs/api-convention.md`. Specify the payload only; the `ApiResponse<T>` 
 - Migration filename uses timestamp format: `V{YYYYMMDDHHMMSS}__{description}.sql`.
 - Existing merged migrations must not be edited.
 
-## 7. Save After Final Approval
+## 8. Save After Final Approval
 
 Save only after final user approval:
 
