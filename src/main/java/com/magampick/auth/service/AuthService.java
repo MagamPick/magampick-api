@@ -23,10 +23,12 @@ import com.magampick.seller.domain.SellerVerificationStatus;
 import com.magampick.seller.repository.SellerRepository;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthService {
@@ -55,6 +57,7 @@ public class AuthService {
                 .nickname(request.nickname())
                 .build());
 
+    log.info("customer signup completed. customerId={}", customer.getId());
     return refreshTokenService.issueTokens(customer.getId(), Role.CUSTOMER);
   }
 
@@ -68,6 +71,7 @@ public class AuthService {
     if (!passwordEncoder.matches(request.password(), customer.getPasswordHash())) {
       throw invalidCredentials();
     }
+    log.info("customer login succeeded. customerId={}", customer.getId());
     return refreshTokenService.issueTokens(customer.getId(), Role.CUSTOMER);
   }
 
@@ -87,6 +91,7 @@ public class AuthService {
                 .businessNumber(request.businessNumber())
                 .verificationStatus(SellerVerificationStatus.APPROVED)
                 .build());
+    log.info("seller signup completed. sellerId={}", seller.getId());
     return refreshTokenService.issueTokens(seller.getId(), Role.SELLER);
   }
 
@@ -103,6 +108,7 @@ public class AuthService {
     if (!passwordEncoder.matches(request.password(), seller.getPasswordHash())) {
       throw invalidCredentials();
     }
+    log.info("seller login succeeded. sellerId={}", seller.getId());
     return refreshTokenService.issueTokens(seller.getId(), Role.SELLER);
   }
 
@@ -116,6 +122,7 @@ public class AuthService {
             .map(CustomerOAuthAccount::getCustomer)
             .orElseGet(() -> upsertKakaoCustomer(userInfo));
 
+    log.info("customer kakao login succeeded. customerId={}", customer.getId());
     return refreshTokenService.issueTokens(customer.getId(), Role.CUSTOMER);
   }
 
@@ -134,7 +141,9 @@ public class AuthService {
     }
 
     refreshTokenService.revoke(refreshToken);
-    return refreshTokenService.issueTokens(payload.userId(), payload.role());
+    TokenResponse tokens = refreshTokenService.issueTokens(payload.userId(), payload.role());
+    log.info("token rotated. ownerId={}, ownerRole={}", payload.userId(), payload.role());
+    return tokens;
   }
 
   @Transactional
@@ -145,6 +154,7 @@ public class AuthService {
           com.magampick.global.security.exception.AuthErrorCode.INVALID_TOKEN);
     }
     refreshTokenService.revoke(refreshToken);
+    log.info("logout completed. ownerId={}, ownerRole={}", userId, role);
   }
 
   private Customer upsertKakaoCustomer(OAuthUserInfo userInfo) {
