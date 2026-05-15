@@ -110,9 +110,9 @@ Run:
 
 If build fails from simple compile/import/format issues, fix and rerun once or twice. If the failure depends on ambiguous business logic or spec interpretation, stop and report the decision needed.
 
-## 8. Completion Report
+## 8. Completion Report + Merge Cycle
 
-Report:
+After the build passes, report:
 
 - Created/modified files grouped by Entity, migration, ERD, repository, service/test, DTO/mapper, controller/test, and roadmap.
 - Build result.
@@ -120,4 +120,24 @@ Report:
 - Remaining blockers, if any.
 - Confirm whether `docs/roadmap.md` was updated to `완료` with the issue number, or explain why it was not updated.
 
-Do not commit, push, or create a PR unless the user explicitly requests it and approves the exact commit message and file list first.
+Then continue the merge cycle in the same session, per `AGENTS.md` workflow step 4 and `docs/git-workflow.md §4`:
+
+1. **Commit message review** — Show the exact commit message and file list to the user; wait for approval.
+2. **Commit + push.**
+3. **PR body review** — Show the PR title and body to the user; wait for approval. This approval also delegates the rest of the merge cycle.
+4. **Create the PR** with `gh pr create --base develop ...`.
+5. **Watch CI** — Run `gh pr checks {N} --repo MagamPick/magampick-api --watch` in the background. Do not poll or sleep.
+6. **Auto-merge on green** — On CI success, immediately run `gh pr merge {N} --merge --delete-branch` without an additional user prompt (CI is the merge gate per `docs/git-workflow.md §4`). Verify with `gh pr view {N} --json state,mergedAt,mergeCommit`.
+7. **Slot cleanup + develop pull**:
+   ```sh
+   git fetch --prune
+   git switch --detach origin/develop                # detach current slot
+   git branch -D {type}/{N}-{slug}                   # delete local branch
+   git -C "{absolute path to main directory}" pull   # update develop in main
+   ```
+   The remote branch was already deleted by `--delete-branch`.
+8. **Cycle complete report** — PR URL, merge commit, and next-step guidance.
+
+On CI red: report the failure cause and candidate next actions (fix and add a commit, revert, discuss). Do not force-merge or retry merge without user direction.
+
+This also applies when `/impl` is run without a prior `/spec` (e.g. simple docs/meta updates) — the merge cycle still completes in the same session.

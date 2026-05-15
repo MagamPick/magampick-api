@@ -10,7 +10,7 @@ Use this skill for the MagamPick API repository's four-step feature workflow:
 1. `/issue {feature}`: decide policy and scope, then create a GitHub Issue.
 2. `/spec {issue-number}`: turn an approved issue into `docs/specs/{N}-{slug}.md`.
 3. `/impl {issue-number}`: implement from the spec with tests and build verification.
-4. Merge/PR: follow `docs/commit-convention.md` and `docs/git-workflow.md`; always confirm commit messages and PR creation with the user first.
+4. Merge: continues from `/impl` in the same session. After build passes, confirm commit message + PR body with the user, then commit → push → create PR → watch CI → on CI green, merge automatically (no extra user prompt — CI is the merge gate per `docs/git-workflow.md §4`) → clean up the slot → pull `develop` in the main directory → report cycle complete. On CI red, report the failure cause and wait for user direction.
 
 ## Required Context
 
@@ -26,7 +26,7 @@ For workflow details, load only the reference file needed for the user's request
 
 - Speak with the user in Korean.
 - Do not make product, policy, scope, convention, or structure decisions without user confirmation.
-- Do not create GitHub issues, save spec files, commit, push, create PRs, or merge before showing the exact content and receiving user approval.
+- Do not create GitHub issues, save spec files, or push code before showing the exact content and receiving user approval. For commits and PR creation, show the message/body and get explicit approval first; after the user approves the PR body, the rest of the merge cycle (CI watch → auto-merge on green → slot cleanup → develop pull) proceeds in the same session without further prompts, per `docs/git-workflow.md §4`.
 - Run `/spec` and `/impl` from inside the slot where the issue's branch is attached (`../magampick-api-wtX`, attached by `/issue`). Never work in the main directory on `main` or `develop` for `/spec` or `/impl`. See `AGENTS.md` §"병렬 운영" for the slot pool model.
 - Do not modify already-merged migration files. Add a new timestamped migration instead.
 - Preserve `.claude/` files. They are still used by Claude Code.

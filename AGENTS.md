@@ -69,9 +69,11 @@
 | 1. 이슈 | `/issue {기능명}` | GitHub Issue (정책 / scope 결정) + 작업 브랜치를 슬롯에 attach | 생성 전 |
 | 2. 명세 | `/spec {이슈번호}` | `docs/specs/{N}-{기능명}.md` (구현 명세 + 구현 결정) | 저장 전 |
 | 3. 구현 | `/impl {이슈번호}` | 코드 + 테스트 + 빌드 통과 | 진행 중 선택 |
-| 4. 머지 | 별도 진행 | 작업 브랜치 push + PR 생성 | 커밋 / PR 전 |
+| 4. 머지 | `/impl` 끝에서 이어 진행 | 커밋 → 푸시 → PR 생성 → CI watch → CI green 시 자동 머지 → 슬롯 정리 → develop pull | 커밋 메시지 전, PR 본문 전 |
 
 > **`main` / `develop` 으로 직접 push 금지.** 항상 작업 브랜치 (`{type}/{이슈번호}-{설명}`) → PR (`base: develop`) → 머지. 예외 없음.
+>
+> **4단계 = 머지까지 같은 세션에서 끝.** `/impl` 의 빌드 통과 후 사용자가 커밋 메시지 + PR 본문을 OK 하면, 그 시점에 머지까지 위임된다. CI green = 머지 게이트 ([`git-workflow.md §4`](docs/git-workflow.md)). 세션은 `gh pr checks --watch` 로 CI 결과를 기다리다가 green 즉시 머지 → 슬롯 정리 → develop pull → 사이클 완료 보고. CI red 면 원인 보고 후 다음 액션은 사용자와 결정. 단순 docs 메타 작업처럼 `/spec` 없이 바로 `/impl` 의 흐름만 거치는 경우에도 동일하게 4단계까지 같은 세션에서 끝낸다.
 >
 > **작업 브랜치는 `/issue` 끝에서 슬롯에 attach** — `gh issue develop {이슈번호}` 로 GitHub 이슈에 연결된 브랜치 (`feat/{이슈번호}-{슬러그}`) 를 만들고, 비어 있는 슬롯 (`magampick-api-wt1/wt2/wt3` 중 detached HEAD 인 곳) 에 `git -C ../magampick-api-wtX switch ...` 로 attach 한다. `/spec`·`/impl` 은 **그 슬롯 디렉터리에서 에이전트(`claude`/`codex`)를 띄워** 실행한다 — `cd` 로 옮겨 다니지 않는다. 둘 다 시작 시 슬롯 위치인지 확인하고 메인 디렉터리 (`develop`/`main`) 이면 중단. (`/issue` 를 거치지 않은 이슈는 `/spec` 이 슬롯에 attach 한다.) 자세한 슬롯 운영 룰은 §"병렬 운영" 참조.
 
