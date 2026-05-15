@@ -102,6 +102,11 @@ description: spec 파일 기반으로 도메인 코드 구현. 옵션 X 순서 (
 - URL / 메서드 / 상태 코드 = spec API Specification 따름
 - `@RestController` + `@RequestMapping` (api-convention URL 룰)
 - 응답은 `ApiResponse<T>` 자동 wrap (ResponseBodyAdvice — payload 만 반환)
+- Springdoc OpenAPI 어노테이션 부착 (api-convention Swagger / OpenAPI 룰)
+  - Controller class: `@Tag`
+  - Controller method: `@Operation`, 성공 / 주요 실패 `@ApiResponse`
+  - DTO record / component: `@Schema`
+  - Path / Query parameter: 필요 시 `@Parameter`
 - 인가 = `@PreAuthorize` 또는 SecurityConfig (auth.md 의 인가 매트릭스)
 
 #### 4-8. spotlessApply

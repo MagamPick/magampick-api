@@ -74,6 +74,11 @@ Update the roadmap only after the build passes:
 - Controller tests use MockMvc + Mockito.
 - Use `@WithMockUser` or security context setup when auth is required.
 - DTO request/response shapes follow `docs/api-convention.md`.
+- Controllers and DTOs must include Springdoc OpenAPI annotations from `docs/api-convention.md`.
+  - Controller class: `@Tag`.
+  - Controller method: `@Operation` and success / major error `@ApiResponse`.
+  - DTO record and components: `@Schema`.
+  - Path / query parameters: `@Parameter` when useful.
 - Exceptions follow `BusinessException` + `BaseErrorCode` patterns from `docs/coding-convention.md`.
 
 ## 6. Docs Allowed During /impl

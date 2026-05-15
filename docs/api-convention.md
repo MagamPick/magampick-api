@@ -475,9 +475,21 @@ public class SwaggerConfig {
 
 | 위치 | 어노테이션 | 비고 |
 |---|---|---|
-| **DTO** (record) | `@Schema(description, example)` | component 별 부착 |
+| **Controller 클래스** | `@Tag(name, description)` | 도메인 / 역할 단위로 부착 |
 | **Controller 메서드** | `@Operation(summary, description?)` | summary 필수, description 은 비즈니스 맥락 필요 시 |
 | **Controller 메서드** | `@ApiResponse(responseCode, description)` | 주요 에러 응답만 명시 (전부 X) |
+| **Path / Query 파라미터** | `@Parameter(description, example)` | public API 문서에 필요한 값만 |
+| **DTO** (record / component) | `@Schema(description, example)` | record 와 component 모두 부착 |
+
+구현 규칙:
+
+- 신규 / 수정 Controller 는 `@Tag` 를 붙인다.
+- 신규 / 수정 Controller 메서드는 `@Operation` 과 성공 응답 `@ApiResponse` 를 붙인다.
+- 비즈니스적으로 중요한 실패 응답은 `@ApiResponse` 로 함께 명시한다.
+- 신규 / 수정 Request / Response DTO 는 record 와 각 component 에 `@Schema` 를 붙인다.
+- DTO 의 `@Schema` 설명 / 예시 / 길이·범위는 Bean Validation, DB 제약, spec 제약과 어긋나지 않게 작성한다.
+- `@PathVariable`, `@RequestParam` 은 API 사용자가 의미를 알기 어려운 경우 `@Parameter` 를 붙인다.
+- 프로젝트 응답 envelope 인 `ApiResponse<T>` 와 springdoc 의 `@ApiResponse` 이름이 충돌하면 springdoc 어노테이션 import 를 우선하거나 fully qualified name 을 사용한다.
 
 예시:
 

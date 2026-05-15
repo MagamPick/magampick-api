@@ -93,6 +93,13 @@ $gh = 'C:\Program Files\GitHub CLI\gh.exe'
 
 **Error Responses**
 | 상태 | 에러 코드 | 상황 |
+
+**OpenAPI / Swagger**
+- Controller `@Tag` name / description
+- Method `@Operation` summary / description
+- Success and major error `@ApiResponse`
+- DTO / field `@Schema` descriptions and examples
+- Path / query `@Parameter` descriptions and examples when useful
 ```
 
 룰:
@@ -100,6 +107,7 @@ $gh = 'C:\Program Files\GitHub CLI\gh.exe'
 - 응답은 `ApiResponse<T>` envelope 자동 적용 (api-convention §3) — payload 만 명시
 - 페이지네이션이면 `PageResponse<T>` / 무한 스크롤은 `SliceResponse<T>`
 - 에러 코드 — [coding-convention.md](../../../docs/coding-convention.md) 의 `BaseErrorCode` 패턴
+- Springdoc OpenAPI 어노테이션을 `/impl` 이 추측 없이 붙일 수 있도록 설명 / 예시 / 제약을 spec 에 포함
 - Request / Response DTO 필드는 문자열 길이, 숫자 범위, 컬렉션 크기, 형식 제약을 가능한 한 명시
 - 길이 / 범위 제약이 이슈나 문서에 없으면 임의로 확정하지 않고 사용자에게 확인
 - 사용자에게 확인할 때는 추천값과 이유를 함께 제시
