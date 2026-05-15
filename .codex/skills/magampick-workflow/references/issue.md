@@ -64,27 +64,37 @@ gh issue create `
   --label "feat,{domain}"
 ```
 
-## 6. Create Working Branch And Worktree
+## 6. Create Working Branch And Attach To A Slot
 
-After the issue is created, bootstrap the worktree that `/spec` and `/impl` will run in. Run this from the main repo directory.
+After the issue is created, create the branch on origin and attach it to an empty slot. Run this from the main repo directory.
 
 Build a slug from the issue title using `docs/glossary.md` English mappings: remove the emoji/type prefix, kebab-case the English words (e.g. `매장 등록 신청` -> `store-registration`). Confirm undecided glossary terms with the user.
 
+Find an empty slot:
+
+```powershell
+git worktree list
+```
+
+A slot showing `(detached HEAD)` is empty. The default slot pool is `magampick-api-wt1/wt2/wt3` (see `AGENTS.md` §"병렬 운영"). If all slots are occupied, ask the user to clean up a slot or add a temporary slot, then stop.
+
+Create the branch and attach to the chosen empty slot:
+
 ```powershell
 gh issue develop {N} --repo MagamPick/magampick-api --base develop --name "feat/{N}-{slug}"
-git worktree add ../magampick-api-{N}-{slug} "feat/{N}-{slug}"
+git -C ../magampick-api-wtX switch "feat/{N}-{slug}"
 ```
 
 - `gh issue develop` creates the issue-linked branch on origin (PR merge auto-closes the issue). Do not pass `--checkout`; the main directory stays on `develop`.
-- `git worktree add` checks that branch out into a sibling directory.
-- Adjust the branch prefix if the type is not `feat` (`fix/`, `refactor/`, ...).
+- `git -C ../magampick-api-wtX switch` attaches the branch to the chosen empty slot (replace `wtX` with the actual slot number).
+- Adjust the branch prefix if the type is not `feat` (`fix/`, `refactor/`, `docs/`, ...).
 
 ## 7. Result Report
 
-Report the issue number, URL, and worktree path. Tell the user to launch the agent from inside the worktree for the next step:
+Report the issue number, URL, and the slot path the branch was attached to. Tell the user to launch the agent from inside the slot for the next step:
 
 ```
-cd ../magampick-api-{N}-{slug}
+cd ../magampick-api-wtX
 codex   # or claude
 /spec {N}
 ```

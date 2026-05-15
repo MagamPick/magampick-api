@@ -16,11 +16,12 @@ description: spec 파일 기반으로 도메인 코드 구현. 옵션 X 순서 (
 ## 흐름
 
 > **시작 전 — 작업 위치 확인 (필수)**
-> `/impl` 은 이슈 #{N} 의 **worktree 디렉터리 안에서** 실행되어야 한다 (`/issue` 가 만든 `../magampick-api-{N}-{슬러그}`).
+> `/impl` 은 이슈 #{N} 의 브랜치가 attach 된 **슬롯 안에서** 실행되어야 한다 (`/issue` 가 attach 한 `../magampick-api-wtX`).
 > - 현재 브랜치가 `feat/{N}-*` (이슈 type prefix) 이고 `docs/specs/{N}-*.md` 가 보이면 → 진행
-> - `develop` / `main` (= 주 디렉터리) 이면 **즉시 중단** — 이슈 #{N} 의 worktree 경로(`git worktree list` 로 확인)를 안내하고 "그 디렉터리에서 에이전트 띄워 `/impl {N}` 재실행" 안내
-> - worktree 자체가 없으면 → `/issue` 또는 `/spec {N}` 먼저 안내, 중단
-> - (Claude Code 한정 편의: relaunch 대신 `EnterWorktree` 로 worktree 진입 후 진행해도 됨. Codex 엔 없음)
+> - `develop` / `main` (= 메인 디렉터리) 이면 **즉시 중단** — 이슈 #{N} 의 브랜치가 어느 슬롯에 attach 돼 있는지 (`git worktree list` 로 확인) 안내하고 "그 디렉터리에서 에이전트 띄워 `/impl {N}` 재실행" 안내
+> - 어느 슬롯에도 attach 안 돼 있으면 → `/issue` 또는 `/spec {N}` 먼저 안내, 중단
+> - (Claude Code 한정 편의: relaunch 대신 `EnterWorktree` 로 슬롯 진입 후 진행해도 됨. Codex 엔 없음)
+> - 슬롯 운영 룰 자세히는 [AGENTS.md §"병렬 운영"](../../../AGENTS.md) 참조
 
 ### 1. spec 파일 로드
 - `docs/specs/{이슈번호}-*.md` 패턴 탐색

@@ -26,30 +26,31 @@ $gh = 'C:\Program Files\GitHub CLI\gh.exe'
 - **body** → 5섹션 파싱 (Context / Scope / User Roles / 핵심 정책 결정 / Business Logic 큰 그림)
 - **labels** → domain 라벨로 도메인 그룹 추정
 
-### 2. 작업 위치 확인 (worktree 가드)
+### 2. 작업 위치 확인 (슬롯 가드)
 
-`/spec` 은 이슈 #{N} 의 **worktree 디렉터리 안에서** 실행되어야 한다. 정상 흐름은 `/issue` 가 worktree 를 이미 만들어 둔다 — 이 단계는 위치 검증 + 누락 시 fallback.
+`/spec` 은 이슈 #{N} 의 브랜치가 attach 된 **슬롯 안에서** 실행되어야 한다. 정상 흐름은 `/issue` 가 슬롯에 attach 해둔다 — 이 단계는 위치 검증 + 누락 시 fallback.
 
 **현재 위치 판별** (`git branch --show-current` / `git worktree list`):
-- 현재 브랜치가 `feat/{N}-*` (이슈 type prefix) → worktree 안에 있음. **그대로 진행**
-- `develop` / `main` (= 주 디렉터리) 인 경우:
-  - 이슈 #{N} 의 worktree 가 이미 있나? (`git worktree list` 에서 `feat/{N}-*` 검색)
-    - **있으면** → 그 경로 안내 + "그 디렉터리에서 에이전트 띄워 `/spec {N}` 재실행" → **중단**
+- 현재 브랜치가 `feat/{N}-*` (이슈 type prefix) → 슬롯 안에 있음. **그대로 진행**
+- `develop` / `main` (= 메인 디렉터리) 인 경우:
+  - 이슈 #{N} 의 브랜치가 어느 슬롯에 attach 돼 있나? (`git worktree list` 에서 `feat/{N}-*` 검색)
+    - **있으면** → 그 슬롯 경로 안내 + "그 디렉터리에서 에이전트 띄워 `/spec {N}` 재실행" → **중단**
     - **없으면** (fallback — `/issue` 안 거치고 GitHub 에서 수동 생성한 이슈 등) → 아래 부트스트랩 후 안내 → **중단**
 
-**fallback 부트스트랩** (worktree 가 없을 때만):
+**fallback 부트스트랩** (브랜치가 어느 슬롯에도 안 잡혀있을 때만):
 1. 슬러그 추출 — 이슈 제목 type prefix 제거 (`^[이모지] [type]: ` 패턴) → 남은 한국어 기능명을 [`glossary.md`](../../../docs/glossary.md) 영문 매핑으로 kebab-case 변환 (예: `✨ feat: 매장 등록 신청` → `store-registration`). glossary 미정 용어는 사용자에게 옵션 제시 + 확정.
-2. 브랜치 + worktree 생성:
+2. **빈 슬롯 찾기** — `git worktree list` 에서 `(detached HEAD)` 표시된 슬롯. 기본 슬롯 풀은 `magampick-api-wt1/wt2/wt3` ([AGENTS.md §"병렬 운영"](../../../AGENTS.md)). 모두 점유 중이면 사용자에게 슬롯 정리 / 임시 슬롯 추가 여부 확인 후 중단.
+3. 브랜치 생성 + 슬롯 attach:
    ```powershell
    $gh = 'C:\Program Files\GitHub CLI\gh.exe'
    & $gh issue develop {N} --repo MagamPick/magampick-api --base develop --name "feat/{N}-{슬러그}"
-   git worktree add ../magampick-api-{N}-{슬러그} "feat/{N}-{슬러그}"
+   git -C ../magampick-api-wtX switch "feat/{N}-{슬러그}"
    ```
-   - type 이 feat 가 아니면 prefix 조정 (`fix/`, `refactor/` 등)
-3. 사용자에게 worktree 경로 안내 + "그 디렉터리에서 에이전트 띄워 `/spec {N}` 재실행" → **중단**
+   - type 이 feat 가 아니면 prefix 조정 (`fix/`, `refactor/`, `docs/` 등)
+4. 사용자에게 슬롯 경로 안내 + "그 디렉터리에서 에이전트 띄워 `/spec {N}` 재실행" → **중단**
 
-> **Claude Code 한정 편의**: relaunch 대신 `EnterWorktree` 로 worktree 진입 후 이어가도 된다 (세션 앵커 이동). Codex 엔 없는 기능이라 canonical 은 relaunch.
-> 이후 `/spec` 의 spec 저장 + `/impl` 전부 이 worktree 안에서 진행 — `develop` / `main` 주 디렉터리에서 작업 금지.
+> **Claude Code 한정 편의**: relaunch 대신 `EnterWorktree` 로 슬롯 진입 후 이어가도 된다 (세션 앵커 이동). Codex 엔 없는 기능이라 canonical 은 relaunch.
+> 이후 `/spec` 의 spec 저장 + `/impl` 전부 이 슬롯 안에서 진행 — 메인 디렉터리 (`develop`/`main`) 에서 작업 금지.
 
 ### 3. 사전 점검 (Read only)
 - 이슈 본문의 미정 사항 있나? → 있으면 **`/issue` 로 돌아가 결정 후 재호출** 안내, **중단**
