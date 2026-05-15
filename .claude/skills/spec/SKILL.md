@@ -100,6 +100,11 @@ $gh = 'C:\Program Files\GitHub CLI\gh.exe'
 - 응답은 `ApiResponse<T>` envelope 자동 적용 (api-convention §3) — payload 만 명시
 - 페이지네이션이면 `PageResponse<T>` / 무한 스크롤은 `SliceResponse<T>`
 - 에러 코드 — [coding-convention.md](../../../docs/coding-convention.md) 의 `BaseErrorCode` 패턴
+- Request / Response DTO 필드는 문자열 길이, 숫자 범위, 컬렉션 크기, 형식 제약을 가능한 한 명시
+- 길이 / 범위 제약이 이슈나 문서에 없으면 임의로 확정하지 않고 사용자에게 확인
+- 사용자에게 확인할 때는 추천값과 이유를 함께 제시
+  - 예: `nickname` 은 UI 표시성과 한글/영문 닉네임 사용성을 고려해 2~20자 추천
+  - 예: `email` 은 일반적인 이메일 저장 한계와 unique index 운용을 고려해 `VARCHAR(255)` 추천
 
 #### 5. Data Model (필수)
 
@@ -122,6 +127,8 @@ $gh = 'C:\Program Files\GitHub CLI\gh.exe'
 
 룰:
 - 식별자 `BIGINT`, Enum = `VARCHAR + CHECK`, 위치 = `GEOGRAPHY(POINT, 4326)`, KST timezone — [erd/overview.md](../../../docs/erd/overview.md) 따름
+- `VARCHAR` 길이, 숫자 precision/scale, nullable, unique, check 제약을 가능한 한 명시
+- DB 제약 값이 이슈나 문서에 없으면 임의로 확정하지 않고 사용자에게 추천값과 이유를 제시한 뒤 확인
 - 마이그레이션은 새 파일로만 (기존 머지된 파일 수정 X — CLAUDE.md)
 
 #### 6. Business Logic (필수)
