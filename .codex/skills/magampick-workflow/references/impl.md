@@ -9,11 +9,11 @@ Implement code from a completed spec. Follow the spec mechanically. Ask the user
 
 ## 1. Working Directory Guard
 
-`/impl` must run inside issue #{N}'s git worktree directory (`../magampick-api-{N}-{slug}`, created by `/issue`).
+`/impl` must run inside the slot where issue #{N}'s branch is attached (`../magampick-api-wtX`, attached by `/issue`). See `AGENTS.md` §"병렬 운영" for the slot pool model.
 
 - If on `feat/{N}-*` (the issue type prefix) and `docs/specs/{N}-*.md` is present: continue.
-- If on `develop` or `main` (the main directory): stop. Report the worktree path (`git worktree list`) and ask the user to launch the agent there and re-run `/impl {N}`.
-- If no worktree exists: tell the user to run `/issue` or `/spec {N}` first, then stop.
+- If on `develop` or `main` (the main directory): stop. Report which slot holds issue #{N}'s branch (`git worktree list`) and ask the user to launch the agent there and re-run `/impl {N}`.
+- If the branch is not attached to any slot: tell the user to run `/issue` or `/spec {N}` first, then stop.
 
 ## 2. Load Spec
 

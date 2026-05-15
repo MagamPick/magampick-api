@@ -66,14 +66,14 @@
 
 | 단계 | 명령/스킬 | 산출물 | 사용자 검토 |
 |---|---|---|---|
-| 1. 이슈 | `/issue {기능명}` | GitHub Issue (정책 / scope 결정) + 작업 브랜치·worktree | 생성 전 |
+| 1. 이슈 | `/issue {기능명}` | GitHub Issue (정책 / scope 결정) + 작업 브랜치를 슬롯에 attach | 생성 전 |
 | 2. 명세 | `/spec {이슈번호}` | `docs/specs/{N}-{기능명}.md` (구현 명세 + 구현 결정) | 저장 전 |
 | 3. 구현 | `/impl {이슈번호}` | 코드 + 테스트 + 빌드 통과 | 진행 중 선택 |
 | 4. 머지 | 별도 진행 | 작업 브랜치 push + PR 생성 | 커밋 / PR 전 |
 
 > **`main` / `develop` 으로 직접 push 금지.** 항상 작업 브랜치 (`{type}/{이슈번호}-{설명}`) → PR (`base: develop`) → 머지. 예외 없음.
 >
-> **작업 브랜치 + worktree 는 `/issue` 끝에서 생성** — `gh issue develop {이슈번호}` 로 GitHub 이슈에 연결된 브랜치 (`feat/{이슈번호}-{슬러그}`) 를 만들고 `git worktree add ../magampick-api-{이슈번호}-{슬러그}` 로 worktree 를 분리한다. `/spec`·`/impl` 은 **그 worktree 디렉터리에서 에이전트(`claude`/`codex`)를 띄워** 실행한다 — `cd` 로 옮겨 다니지 않는다. 둘 다 시작 시 worktree 위치인지 확인하고 `develop`/`main` (= 주 디렉터리) 이면 중단. (`/issue` 를 거치지 않은 이슈는 `/spec` 이 worktree 를 만들어 준다.)
+> **작업 브랜치는 `/issue` 끝에서 슬롯에 attach** — `gh issue develop {이슈번호}` 로 GitHub 이슈에 연결된 브랜치 (`feat/{이슈번호}-{슬러그}`) 를 만들고, 비어 있는 슬롯 (`magampick-api-wt1/wt2/wt3` 중 detached HEAD 인 곳) 에 `git -C ../magampick-api-wtX switch ...` 로 attach 한다. `/spec`·`/impl` 은 **그 슬롯 디렉터리에서 에이전트(`claude`/`codex`)를 띄워** 실행한다 — `cd` 로 옮겨 다니지 않는다. 둘 다 시작 시 슬롯 위치인지 확인하고 메인 디렉터리 (`develop`/`main`) 이면 중단. (`/issue` 를 거치지 않은 이슈는 `/spec` 이 슬롯에 attach 한다.) 자세한 슬롯 운영 룰은 §"병렬 운영" 참조.
 
 ### 단계별 docs 수정 범위
 
@@ -90,21 +90,50 @@
 
 ### 병렬 운영
 
-#### worktree 규칙 — 1 디렉터리 = 1 브랜치 = 1 세션
+#### Worktree 슬롯 풀
 
-같은 디렉터리에서 두 세션이 `.git` 을 공유하면 한쪽의 checkout 이 다른 세션 브랜치를 바꾼다. 그래서:
+같은 디렉터리에서 두 세션이 `.git` 을 공유하면 한쪽의 checkout 이 다른 세션 브랜치를 바꾼다. 그리고 Windows + Claude / IDE 환경에선 작업마다 worktree 를 생성·제거하면 OS 디렉터리 lock 으로 정리가 막힌다. → 미리 만들어둔 슬롯 풀을 작업마다 갈아끼우는 방식을 쓴다.
 
-- **주 디렉터리 `magampick-api` 는 항상 `develop` 에 고정** — pull / worktree 생성 / PR 리뷰의 홈베이스. 여기서 작업 브랜치로 checkout 하지 않는다.
-- **모든 작업 브랜치는 worktree 로 분리** — spec·impl 뿐 아니라 문서 / 컨벤션 수정도 예외 없이. 단계로 판단하지 않는다.
-- **worktree 생성 = `/issue` 끝에서 1회** — `gh issue develop` 으로 이슈 연결 브랜치 생성 후 `git worktree add ../magampick-api-{이슈번호}-{슬러그} feat/{이슈번호}-{슬러그}`. (`/issue` 를 거치지 않은 이슈는 `/spec` 이 만든다.)
-- **`/spec`·`/impl` 은 그 worktree 디렉터리에서 에이전트를 띄워 실행한다.** 도구 앵커(파일 탐색·셸 cwd·스킬)가 그 디렉터리 기준이어야 하므로, 주 디렉터리에서 `cd` 로 옮기는 것에 의존하지 않는다.
-- worktree 디렉터리명 = 브랜치명과 1:1. 한 브랜치는 한 곳에만 체크아웃 가능 (git 제약) — `develop` 은 주 디렉터리가 점유.
-- **정리 = PR 머지 후 1회** — `git worktree remove ../magampick-api-{이슈번호}-{슬러그}`. 안 그러면 그 브랜치를 다른 곳에서 못 쓴다.
-- `build/` · Testcontainers 는 worktree 별로 독립 — 격리에 유리.
+**구조 — 메인 + 작업 슬롯 3개 (fungible)**:
+
+```
+magampick-api          # 메인 디렉터리. develop 고정 — pull / /issue / 슬롯 정리의 홈베이스
+magampick-api-wt1      # 작업 슬롯 1
+magampick-api-wt2      # 작업 슬롯 2
+magampick-api-wt3      # 작업 슬롯 3
+```
+
+슬롯은 type / 종류 구분 없이 **fungible** — `docs/`, `feat/`, `fix/`, `refactor/` 어느 브랜치든 빈 슬롯에 임의로 attach.
+
+**최초 1회 셋업** (각 머신 / 환경마다):
+```sh
+git worktree add ../magampick-api-wt1 --detach origin/develop
+git worktree add ../magampick-api-wt2 --detach origin/develop
+git worktree add ../magampick-api-wt3 --detach origin/develop
+```
+
+`--detach` 로 만들어 어느 브랜치도 점유하지 않는 **빈 슬롯** 상태로 둔다.
+
+**규칙**:
+
+- **메인 디렉터리 `magampick-api` 는 항상 `develop` 고정** — pull / `/issue` 실행 / 슬롯 정리 / PR 웹 리뷰의 홈베이스. 여기서 작업 브랜치로 checkout 하지 않는다.
+- **모든 작업 브랜치는 슬롯에서** — spec·impl 뿐 아니라 문서 / 컨벤션 수정도 예외 없이 (docs 도 슬롯 사용).
+- **슬롯 attach = `/issue` 끝에서 1회** — `gh issue develop {이슈번호} --name {type}/{이슈번호}-{슬러그}` 로 origin 브랜치 생성 후 빈 슬롯에 `git -C ../magampick-api-wtX switch {type}/{이슈번호}-{슬러그}`. 빈 슬롯은 `git worktree list` 에서 `(detached HEAD)` 표시. (`/issue` 안 거친 이슈는 `/spec` 이 attach 한다.)
+- **`/spec`·`/impl` 은 그 슬롯 디렉터리에서 에이전트를 띄워 실행한다.** 도구 앵커(파일 탐색·셸 cwd·스킬)가 그 디렉터리 기준이어야 하므로, 메인에서 `cd` 로 옮기는 것에 의존하지 않는다.
+- **빈 슬롯 표시 = detached HEAD on `origin/develop`**. 한 슬롯은 attach 된 동안 한 브랜치만 점유 (git 제약). `develop` 은 메인이 점유 중이라 슬롯에서 `switch develop` 은 실패 — 항상 `--detach origin/develop` 사용.
+- **PR 머지 후 정리** — 슬롯 안의 브랜치 떼기 + 로컬·원격 브랜치 삭제. **`git worktree remove` 호출 X** (OS lock 회피):
+  ```sh
+  git -C ../magampick-api-wtX switch --detach origin/develop  # 슬롯을 빈 상태로
+  git branch -D {type}/{이슈번호}-{슬러그}                    # 로컬 브랜치 삭제
+  # 원격 브랜치는 PR auto-delete 됐으면 생략, 아니면 git push origin --delete {branch}
+  ```
+- **PR 리뷰** — 가벼운 리뷰는 메인 디렉터리에서 GitHub 웹 / IDE diff 로. 무거운 리뷰가 필요하면 빈 슬롯에 `gh pr checkout {N}` 으로 잠깐 attach 후 다시 detach.
+- **임시 슬롯 추가** — 슬롯 3개 다 점유 중인데 핫픽스가 필요하면 `magampick-api-wt4` 같이 임시 추가 OK. 작업 후 detach 로 비우거나 `git worktree remove` 로 완전 제거. 일반 운영엔 3개로 충분.
+- `build/` · Testcontainers 는 슬롯별로 독립 — 격리에 유리. 슬롯 재사용 시 gradle 캐시 / IDE 인덱싱이 그대로 재활용된다.
 
 #### 그 외
 
-- 동시 구현 작업은 1~2개 정도로 제한. 3개 이상은 머지 충돌 / 컨텍스트 부담이 커진다.
+- 동시 구현 작업은 1~2개 정도로 제한 (슬롯 3개 중 1개는 docs / 리뷰 / 핫픽스 여유). 3개 이상 동시 impl 은 머지 충돌 / 컨텍스트 부담이 커진다.
 - 의존성 있는 도메인은 동시에 구현하지 않는다. 머지 순서 = 도메인 의존성 (`users → stores → products → orders → ...`).
 - 로컬 docker compose DB 는 머지 후 적용. 개발 중엔 Testcontainers 만 사용.
 

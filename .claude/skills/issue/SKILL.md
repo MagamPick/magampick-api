@@ -77,9 +77,9 @@ gh issue create `
 - 다른 type 면 해당 이모지 / type 으로 (`🐛 fix:` 등)
 - subject 50자 이내, 마침표 X, 명사형 종결 ([commit-convention §4](../../../docs/commit-convention.md))
 
-### 7. 작업 브랜치 + worktree 생성
+### 7. 작업 브랜치 + 슬롯 attach
 
-이슈 생성 직후, 작업할 worktree 를 만든다 (주 디렉터리에서 실행). 이후 `/spec`·`/impl` 은 이 worktree 안에서 진행.
+이슈 생성 직후, origin 에 브랜치를 만들고 비어 있는 슬롯에 attach 한다 (메인 디렉터리에서 실행). 이후 `/spec`·`/impl` 은 그 슬롯 안에서 진행.
 
 **슬러그 추출**:
 1. 이슈 제목에서 type prefix 제거 (`^[이모지] [type]: ` 패턴)
@@ -88,29 +88,35 @@ gh issue create `
 
 glossary 에 없는 용어는 사용자에게 옵션 제시 + 확정. 추출 결과는 **사용자에게 확인 후 사용**.
 
-**브랜치 + worktree 생성** (슬러그 확정 후):
+**빈 슬롯 찾기**:
+```powershell
+git worktree list
+```
+`(detached HEAD)` 로 표시된 슬롯이 빈 슬롯. 기본 슬롯 풀은 `magampick-api-wt1/wt2/wt3` ([AGENTS.md §"병렬 운영"](../../../AGENTS.md)). 모두 점유 중이면 사용자에게 슬롯 정리 안내 후 중단 (또는 임시 슬롯 추가 여부 확인).
+
+**브랜치 생성 + 슬롯 attach** (슬러그 + 빈 슬롯 확정 후):
 ```powershell
 $gh = 'C:\Program Files\GitHub CLI\gh.exe'
 & $gh issue develop {N} --repo MagamPick/magampick-api --base develop --name "feat/{N}-{슬러그}"
-git worktree add ../magampick-api-{N}-{슬러그} "feat/{N}-{슬러그}"
+git -C ../magampick-api-wtX switch "feat/{N}-{슬러그}"
 ```
-- `gh issue develop` — GitHub 이슈에 연결된 브랜치를 origin 에 생성 (PR 머지 시 이슈 자동 클로즈). `--checkout` 안 함 — 주 디렉터리는 `develop` 고정
-- `git worktree add` — 그 브랜치를 sibling 디렉터리에 checkout
-- type 이 feat 가 아니면 prefix 조정 (`fix/`, `refactor/` 등)
+- `gh issue develop` — GitHub 이슈에 연결된 브랜치를 origin 에 생성 (PR 머지 시 이슈 자동 클로즈). `--checkout` 안 함 — 메인 디렉터리는 `develop` 고정
+- `git -C ../magampick-api-wtX switch` — 선택한 빈 슬롯에 그 브랜치 attach (`wtX` 는 실제 빈 슬롯 번호로 치환)
+- type 이 feat 가 아니면 prefix 조정 (`fix/`, `refactor/`, `docs/` 등)
 
 ### 8. 결과 보고
 
-생성된 이슈 번호 + URL + worktree 경로를 사용자에게 알림. 다음 단계 안내:
+생성된 이슈 번호 + URL + attach 된 슬롯 경로를 사용자에게 알림. 다음 단계 안내:
 
-> ✅ 이슈 #{N} 생성 + worktree 준비됨: `../magampick-api-{N}-{슬러그}`
+> ✅ 이슈 #{N} 생성 + 슬롯 attach: `../magampick-api-wtX`
 > 그 디렉터리에서 에이전트를 새로 띄운 뒤 `/spec {N}` 진행:
 > ```
-> cd ../magampick-api-{N}-{슬러그}
+> cd ../magampick-api-wtX
 > claude   # 또는 codex
 > /spec {N}
 > ```
 
-> **Claude Code 한정 편의**: 같은 세션을 이어가고 싶으면 위 relaunch 대신 `EnterWorktree` 로 worktree 에 진입해도 된다 (세션 앵커가 worktree 로 이동). Codex 에는 없는 기능이라 canonical 절차는 relaunch 기준.
+> **Claude Code 한정 편의**: 같은 세션을 이어가고 싶으면 위 relaunch 대신 `EnterWorktree` 로 슬롯에 진입해도 된다 (세션 앵커가 슬롯으로 이동). Codex 에는 없는 기능이라 canonical 절차는 relaunch 기준.
 
 ## 에러 처리
 
