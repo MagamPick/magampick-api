@@ -44,7 +44,10 @@ erDiagram
         bigint id PK
         bigint customer_id FK
         varchar label
-        varchar address
+        varchar road_address
+        varchar jibun_address
+        varchar detail_address
+        varchar zonecode
         geography location
         boolean is_default
     }
