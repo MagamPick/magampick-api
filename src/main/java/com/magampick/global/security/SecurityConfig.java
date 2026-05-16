@@ -59,6 +59,8 @@ public class SecurityConfig {
                     .permitAll()
                     .requestMatchers(HttpMethod.GET, PUBLIC_GET_PATHS)
                     .permitAll()
+                    .requestMatchers("/api/v1/customers/me/**")
+                    .hasRole("CUSTOMER")
                     .requestMatchers("/api/v1/seller/**")
                     .hasRole("SELLER")
                     .requestMatchers("/api/v1/admin/**")
