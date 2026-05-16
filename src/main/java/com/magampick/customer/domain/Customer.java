@@ -58,4 +58,13 @@ public class Customer extends BaseEntity {
   public boolean isDeleted() {
     return deletedAt != null;
   }
+
+  public void changeNickname(String newNickname) {
+    this.nickname = newNickname;
+  }
+
+  public void changePhone(String newPhone, LocalDateTime verifiedAt) {
+    this.phone = newPhone;
+    this.phoneVerifiedAt = verifiedAt;
+  }
 }

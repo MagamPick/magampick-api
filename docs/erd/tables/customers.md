@@ -10,8 +10,8 @@
 | email | VARCHAR(255) | N | UNIQUE | 로그인 이메일 |
 | password_hash | VARCHAR(60) | Y |  | BCrypt 해시. 소셜 전용 계정은 NULL 가능 |
 | nickname | VARCHAR(20) | N |  | 닉네임 |
-| phone | VARCHAR(20) | Y |  | 후속 본인인증 이슈에서 사용 |
-| phone_verified_at | TIMESTAMP | Y |  | 후속 본인인증 완료 시각 |
+| phone | VARCHAR(20) | Y |  | 소비자 프로필에서 수정 가능. 변경 시 본인인증 stub 통과로 간주. |
+| phone_verified_at | TIMESTAMP | Y |  | 휴대폰 변경 시 함께 갱신되는 본인인증 통과 시각. |
 | deleted_at | TIMESTAMP | Y |  | 소프트 삭제 시각 |
 | created_at | TIMESTAMP | N |  | 생성 시각 |
 | updated_at | TIMESTAMP | N |  | 수정 시각 |
