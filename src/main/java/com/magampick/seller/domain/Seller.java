@@ -75,4 +75,16 @@ public class Seller extends BaseEntity {
   public boolean isApproved() {
     return verificationStatus == SellerVerificationStatus.APPROVED;
   }
+
+  public void changeOwnerName(String newOwnerName) {
+    if (newOwnerName == null || newOwnerName.isBlank()) {
+      throw new IllegalArgumentException("ownerName must not be blank");
+    }
+    this.ownerName = newOwnerName;
+  }
+
+  public void changePhone(String newPhone, LocalDateTime verifiedAt) {
+    this.phone = newPhone;
+    this.phoneVerifiedAt = verifiedAt;
+  }
 }
