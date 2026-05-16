@@ -75,4 +75,13 @@ public class Seller extends BaseEntity {
   public boolean isApproved() {
     return verificationStatus == SellerVerificationStatus.APPROVED;
   }
+
+  public void changeOwnerName(String newOwnerName) {
+    this.ownerName = newOwnerName;
+  }
+
+  public void changePhone(String newPhone, LocalDateTime verifiedAt) {
+    this.phone = newPhone;
+    this.phoneVerifiedAt = verifiedAt;
+  }
 }
