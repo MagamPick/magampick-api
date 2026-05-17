@@ -22,9 +22,13 @@ $gh = 'C:\Program Files\GitHub CLI\gh.exe'
 ```
 
 가져온 이슈에서:
-- **title** → 기능명 추출 (`✨ feat: ` prefix 제거)
+- **title** → 기능명 추출 (`✨ feat: ` / `🐛 fix: ` 등 prefix 제거)
 - **body** → 4섹션 파싱 (Context / Scope / 핵심 정책 결정 / Business Logic 큰 그림)
-- **labels** → domain 라벨로 도메인 그룹 추정
+- **labels** → type 라벨 + domain 라벨
+
+**Type 가드** — labels 의 type 라벨 확인:
+- `feat` / `fix` → 계속 진행 (spec 필요)
+- `refactor` / `docs` / `chore` → "`/spec` 불필요. 바로 `/impl {N}` 호출" 안내, **중단** (워크플로우 분기는 [AGENTS.md §"워크플로우"](../../../AGENTS.md) 참조)
 
 ### 2. 작업 위치 확인 (슬롯 가드)
 

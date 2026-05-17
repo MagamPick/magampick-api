@@ -19,7 +19,12 @@ Extract:
 
 - Feature name from title after removing the emoji/type prefix.
 - Four issue sections from the body.
-- Domain label from labels.
+- Type label and domain label from labels.
+
+**Type gate** — check the type label:
+
+- `feat` / `fix` → continue (spec required).
+- `refactor` / `docs` / `chore` → stop and tell the user `/spec` is not needed; run `/impl {N}` directly (workflow branching: see `AGENTS.md` §"워크플로우").
 
 If the issue is missing required sections or still has undecided policy/scope, stop and send the user back to `/issue`.
 

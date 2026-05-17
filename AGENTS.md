@@ -69,14 +69,20 @@
 
 ## 워크플로우
 
-새 기능 개발은 **4단계**로 진행.
+작업은 **4단계** (이슈 → 명세 → 구현 → 머지). type 별 단계 분기:
 
 | 단계 | 명령/스킬 | 산출물 | 사용자 검토 |
 |---|---|---|---|
-| 1. 이슈 | `/issue {기능명}` | GitHub Issue (정책 / scope 결정) + 작업 브랜치를 슬롯에 attach | 생성 전 |
-| 2. 명세 | `/spec {이슈번호}` | `docs/specs/{N}-{기능명}.md` (정책 결정 + API 계약 + 도메인 특수 동작 — mechanical detail 은 convention 위임) | 저장 전 |
-| 3. 구현 | `/impl {이슈번호}` | 코드 + 테스트 + 빌드 통과 | 진행 중 선택 |
+| 1. 이슈 | `/issue {기능명}` | GitHub Issue (type 결정 + 정책 / scope) + 작업 브랜치를 슬롯에 attach | 생성 전 |
+| 2. 명세 ※ | `/spec {이슈번호}` | `docs/specs/{N}-{기능명}.md` (정책 결정 + API 계약 + 도메인 특수 동작 — mechanical detail 은 convention 위임) | 저장 전 |
+| 3. 구현 | `/impl {이슈번호}` | 코드 / 파일 편집 + (해당 시) 테스트 + 빌드 통과 | 진행 중 선택 |
 | 4. 머지 | `/impl` 끝에서 이어 진행 | 커밋 → 푸시 → PR 생성 → CI watch → CI green 시 자동 머지 → 슬롯 정리 → develop pull | 커밋 메시지 전, PR 본문 전 |
+
+> ※ **Type 별 워크플로우 분기**:
+> - `feat` / `fix` → 전체 4단계 (이슈 → spec → impl → 머지)
+> - `refactor` / `docs` / `chore` → 3단계 (이슈 → impl → 머지). `/spec` 호출 시 type 가드로 즉시 중단. 큰 정책 결정이 있는 refactor 만 예외적으로 `/spec` 명시 호출.
+>
+> `/impl` 의 type 별 적용 단계 표는 [`.claude/skills/impl/SKILL.md`](.claude/skills/impl/SKILL.md) §"흐름 > Type 분기" 참조.
 
 > **`main` / `develop` 으로 직접 push 금지.** 항상 작업 브랜치 (`{type}/{이슈번호}-{설명}`) → PR (`base: develop`) → 머지. 예외 없음.
 >
@@ -86,13 +92,15 @@
 
 ### 단계별 docs 수정 범위
 
+**`feat` / `fix` 워크플로우 기준** — `refactor` / `docs` / `chore` 는 이슈의 `Changes` (또는 `변경 방향`) scope 안에서 자유롭게 수정:
+
 | 단계 | 수정 OK | 수정 X (별도 이슈) |
 |---|---|---|
 | `/issue` | `product.md` / `features.md` / `policy.md` / `glossary.md` | 전역 코딩 컨벤션 |
 | `/spec` | `docs/erd/overview.md` 의 미정 사항 | 전역 코딩 컨벤션 |
 | `/impl` | `docs/erd/tables/{table}.md` (해당 도메인 ERD) / `auth.md` (인증·인가 정책) / `docs/roadmap.md` (해당 기능 행 상태·이슈 번호) | api-convention / coding-convention / test-convention / commit-convention / git-workflow |
 
-> 한 이슈 = 한 PR. 컨벤션 수정 같이 가면 PR 비대 → 별도 이슈로 분리.
+> 한 이슈 = 한 PR. 컨벤션 수정 같이 가면 PR 비대 → 별도 이슈로 분리 (`docs` / `chore` / `refactor` 도 동일 — 별개 컨벤션 변경이 섞이면 별도 이슈).
 
 ### spec 미정 발견 시
 `/spec` 작성 중 정책 / scope 미정 발견 → **`/issue` 로 돌아가 결정** → `/spec` 재호출.

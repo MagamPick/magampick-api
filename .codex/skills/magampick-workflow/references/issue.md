@@ -1,33 +1,68 @@
 # /issue Workflow
 
-Create a GitHub Issue for a new feature. This is the policy and scope decision stage; do not decide missing product behavior yourself.
+Create a GitHub Issue. Pick the type (`feat` / `fix` / `refactor` / `docs` / `chore`) first; the type drives the template, label, title emoji, and downstream workflow. This is the policy and scope decision stage; do not decide missing product behavior yourself.
 
 ## Input
 
 - `{기능명}`: Korean free-form feature name.
 - If missing, ask the user for the feature name.
 
-## 1. Read-Only Context Check
+## 1. Type Decision + Read-Only Context Check
 
-Read only the relevant context before drafting:
+**Type decision first** — it drives the template, label, emoji, and downstream workflow:
 
-- `docs/features.md`: confirm the feature is in scope.
-- `docs/product.md`: confirm it does not conflict with Out of Scope or Pending Decisions.
-- `docs/glossary.md`: collect domain terms and English mappings.
-- `docs/policy.md`: check policy impact.
-- `docs/erd/overview.md`: infer the domain label.
-- `.github/ISSUE_TEMPLATE/feature.md`: use the repository issue template.
+| Type | Template | Downstream workflow |
+|---|---|---|
+| `feat` | `.github/ISSUE_TEMPLATE/feature.md` | `/issue` → `/spec` → `/impl` (full) |
+| `fix` | `.github/ISSUE_TEMPLATE/fix.md` | `/issue` → `/spec` → `/impl` (full) |
+| `refactor` | `.github/ISSUE_TEMPLATE/refactor.md` | `/issue` → `/impl` (spec skipped) |
+| `docs` / `chore` | `.github/ISSUE_TEMPLATE/docs.md` | `/issue` → `/impl` (spec skipped) |
 
-If the feature is out of scope or depends on a pending decision, stop and discuss the decision with the user.
+How to choose:
+- New / changed code behavior → `feat`
+- Bug fix → `fix`
+- Code structure / readability / performance, same behavior → `refactor`
+- Documentation / convention / workflow / build / infrastructure → `docs` (also use this template for `chore`)
 
-## 2. Draft The Four Sections
+Confirm the type with the user (default = `feat`).
 
-Fill one section at a time, show it to the user, and continue only after approval:
+**Read-only context check** — by type:
+
+- `feat` / `fix`: `docs/features.md`, `docs/product.md`, `docs/glossary.md`, `docs/policy.md`, `docs/erd/overview.md`.
+- `refactor` / `docs` / `chore`: the target files, related SKILLs, related convention docs.
+
+If a `feat` / `fix` is out of scope or depends on a pending decision, stop and discuss with the user.
+
+## 2. Draft The Body (Conversational)
+
+Follow the template for the chosen type. Fill one section at a time, show it to the user, and continue only after approval.
+
+### Type = feat → `.github/ISSUE_TEMPLATE/feature.md` (4 sections)
 
 1. Context: why the feature exists and business background.
-2. Scope: In Scope and Out of Scope for this issue.
-3. Core Policy Decisions: decisions from `policy.md` / `product.md` needed for this feature (including role-based authorization branching when relevant).
+2. Scope: In Scope and Out of Scope.
+3. Core Policy Decisions: decisions from `policy.md` / `product.md` (including role-based authorization branching when relevant).
 4. Business Logic: high-level flow only; mark actors when multiple roles are involved (e.g. `seller publishes → customer redeems`). Detailed design belongs in `/spec`.
+
+### Type = fix → `.github/ISSUE_TEMPLATE/fix.md`
+
+1. Symptom: what's wrong.
+2. Reproduction: steps / inputs.
+3. Expected behavior.
+4. References: screenshots / logs / environment (when relevant).
+
+### Type = refactor → `.github/ISSUE_TEMPLATE/refactor.md`
+
+1. Current pain point.
+2. Change direction.
+3. Expected benefit.
+
+### Type = docs / chore → `.github/ISSUE_TEMPLATE/docs.md` (4 sections)
+
+1. Context: why the change, background, trigger.
+2. Changes: which files / sections, high-level (precise diff lives in the PR).
+3. Out of Scope: what is intentionally not touched.
+4. Impact / Follow-up (when relevant): other docs to sync, one-time setup, post-merge work, other slots to update.
 
 ## 3. Docs Updates
 
@@ -42,9 +77,10 @@ Global conventions such as API, coding, test, commit, and git workflow docs requ
 
 ## 4. Labels And Title
 
-- Type label: usually `feat`; confirm with the user if uncertain.
-- Domain label: choose one from `users`, `stores`, `products`, `orders`, `payments`, `reviews`, `notifications`, `benefits`, `operations`, `statistics`.
-- Title format follows `docs/commit-convention.md`, e.g. `✨ feat: 매장 등록 신청`.
+- Type label: the type chosen in §1 (`feat` / `fix` / `refactor` / `docs` / `chore`).
+- Domain label: only `feat` / `fix` — choose one from `users`, `stores`, `products`, `orders`, `payments`, `reviews`, `notifications`, `benefits`, `operations`, `statistics`. `refactor` / `docs` / `chore` skip domain labels (workflow / meta changes are domain-agnostic).
+- Title format follows `docs/commit-convention.md`, type emoji by type:
+  - `✨ feat:` / `🐛 fix:` / `♻️ refactor:` / `📝 docs:` / `🔧 chore:`
 - Assume labels already exist. If a required label is missing, report and stop.
 
 ## 5. Final Approval Before Creating Issue
@@ -56,11 +92,11 @@ Use a PowerShell here-string for Korean multiline body:
 ```powershell
 gh issue create `
   --repo MagamPick/magampick-api `
-  --title "✨ feat: {기능명}" `
+  --title "<emoji> <type>: {기능명}" `
   --body @'
 {body}
 '@ `
-  --label "feat,{domain}"
+  --label "<type>[,<domain>]"
 ```
 
 ## 6. Create Working Branch And Attach To A Slot
