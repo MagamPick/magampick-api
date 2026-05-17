@@ -184,7 +184,7 @@ spec 의 Business Logic / Test Cases 가 **핵심 비즈니스 흐름 (회원가
 
 보고 직후 머지까지 같은 세션에서 끝낸다 ([`AGENTS.md` 워크플로우 4단계](../../../AGENTS.md) / [`git-workflow.md §4`](../../../docs/git-workflow.md)):
 
-1. **커밋 메시지 검토** — 작성한 커밋 메시지 전문 + 커밋 파일 목록을 사용자에게 보여주고 OK 받기 ([`AGENTS.md` Git 섹션](../../../AGENTS.md))
+1. **커밋 메시지 검토** — `<emoji> <type>: <subject>` **한 줄만** ([`commit-convention.md` §2](../../../docs/commit-convention.md) — body / footer 사용 안 함). 작성한 커밋 메시지 + 커밋 파일 목록을 사용자에게 보여주고 OK 받기 ([`AGENTS.md` Git 섹션](../../../AGENTS.md)). `commit-msg` hook 이 body 있는 커밋을 reject 하므로 우회 / `--no-verify` 금지
 2. **커밋 + 푸시**
 3. **PR 본문 검토** — `gh pr create` 호출 전 제목 / 본문을 사용자에게 보여주고 OK 받기. **이 시점이 머지까지 위임받는 동의 시점**
 4. **PR 생성** — `gh pr create --base develop ...`

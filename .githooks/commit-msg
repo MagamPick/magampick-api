@@ -1,0 +1,33 @@
+#!/bin/sh
+# commit-msg — body 금지 (docs/commit-convention.md §2)
+#
+# 마감픽 커밋 메시지는 "<emoji> <type>: <subject>" 한 줄만 사용한다.
+# body / footer 는 사용하지 않으므로 첫 줄 외에 비어있지 않은 내용이
+# 있으면 거절한다.
+#
+# 예외:
+#   - Git 자동 생성 merge 커밋 (`Merge ...`)
+#   - 자동 생성 revert 커밋 (`Revert "..."`)
+#   - 수동 작성 머지 커밋 (`🔀 merge: ...`)
+#
+# 설치: git config core.hooksPath .githooks  (clone 후 1회)
+set -eu
+
+msg_file="$1"
+head_line=$(sed -n '1p' "$msg_file")
+
+case "$head_line" in
+  "Merge "*|"Revert "*|"🔀 "*) exit 0 ;;
+esac
+
+extra=$(sed '1d' "$msg_file" | grep -v '^#' | grep -v '^[[:space:]]*$' | head -1 || true)
+if [ -n "$extra" ]; then
+  cat >&2 <<EOF
+❌ commit body / footer 금지 (docs/commit-convention.md §2).
+   subject 한 줄로만 커밋하세요.
+
+   거절된 메시지:
+$(sed 's/^/   | /' "$msg_file")
+EOF
+  exit 1
+fi

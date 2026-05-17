@@ -60,9 +60,10 @@
 - **이미 머지된 마이그레이션 파일은 절대 수정하지 않는다** — 변경은 새 파일로
 
 ### Git
-- 커밋 메시지: [`docs/commit-convention.md`](docs/commit-convention.md)
+- 커밋 메시지: [`docs/commit-convention.md`](docs/commit-convention.md) — `<emoji> <type>: <subject>` 한 줄만. **body / footer 사용 안 함**
 - 브랜치·PR·머지: [`docs/git-workflow.md`](docs/git-workflow.md)
 - **커밋 전 메시지 검토 필수** — `git commit` 실행 **전에** 작성한 커밋 메시지 전문과 해당 커밋에 포함될 파일 목록을 사용자에게 보여주고 확인받는다. 검토 없이 임의로 메시지를 작성해 커밋 / 푸시 금지. 여러 커밋이면 각각 보여줄 것
+- **commit-msg hook 1회 셋업** — clone 후 메인 디렉터리에서 한 번: `git config core.hooksPath .githooks`. 모든 worktree 가 같은 `.git/config` 를 공유하므로 슬롯에서 다시 할 필요 없음. body 가 들어간 커밋을 자동 reject 해서 [`commit-convention.md §2`](docs/commit-convention.md) 위반 차단
 
 ---
 

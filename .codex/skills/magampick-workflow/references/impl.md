@@ -133,7 +133,7 @@ After the build passes, report:
 
 Then continue the merge cycle in the same session, per `AGENTS.md` workflow step 4 and `docs/git-workflow.md §4`:
 
-1. **Commit message review** — Show the exact commit message and file list to the user; wait for approval.
+1. **Commit message review** — Subject line only (`<emoji> <type>: <subject>`); no body or footer (see `docs/commit-convention.md` §2). Show the exact commit message and file list to the user; wait for approval. The `commit-msg` hook will reject commits that include a body — do not bypass it with `--no-verify`.
 2. **Commit + push.**
 3. **PR body review** — Show the PR title and body to the user; wait for approval. This approval also delegates the rest of the merge cycle.
 4. **Create the PR** with `gh pr create --base develop ...`.
