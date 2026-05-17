@@ -86,9 +86,6 @@ public class Store extends BaseEntity {
 
     // 비즈니스 메서드 (Setter 대신)
     public void changeName(String newName) {
-        if (newName == null || newName.isBlank()) {
-            throw new IllegalArgumentException("name required");
-        }
         this.name = newName;
     }
 }
@@ -103,6 +100,25 @@ public class Store extends BaseEntity {
 - `@AllArgsConstructor` 사용 금지 — 생성자 레벨 `@Builder` 패턴이면 불필요하고, `id`/`createdAt` 같은 자동 생성 필드까지 빌더에 노출되어 안티패턴
 - `@Setter` 금지 → 상태 변경은 **의미 있는 비즈니스 메서드** 로 표현 (`order.complete()`, `store.changeName(...)`)
 - `@ToString`, `@EqualsAndHashCode` 금지 — 양방향 관계 시 무한 루프 / lazy loading 호출 / 민감 정보 노출 위험
+
+### 검증 책임 분담
+
+**Entity 의 비즈니스 메서드는 lean** — 인자 형식 / null 검증을 메서드 안에서 다시 하지 않는다.
+
+| 책임 | 위치 | 무엇 |
+|---|---|---|
+| 입력 형식 (null, blank, regex, 길이, 범위) | **DTO + Bean Validation** | `@NotBlank` `@Pattern` `@Size` 등 |
+| 비즈니스 규칙 (다른 entity / 외부 상태 필요) | **Service** | 중복 / 권한 / 조건 검사 등 |
+| 최종 backstop | **DB constraint** | `NOT NULL` / `UNIQUE` / `CHECK` |
+
+**Entity 가 직접 검증하는 예외 케이스** (이때만 entity 에서 throw):
+- Cross-field 불변식 (예: "A 가 set 되면 B 도 set")
+- 상태 머신 전이 (예: "REFUNDED 에서 PAID 로 못 돌아감")
+- DTO 로 표현 불가능한 도메인 규칙
+
+위 예외 케이스에서 던지는 예외는 `IllegalArgumentException` / `IllegalStateException` 등 표준 unchecked 예외. Entity 는 HTTP / `BusinessException` / 도메인 `ErrorCode` 같은 애플리케이션 계층 개념에 의존하지 않는다.
+
+**근거**: 진입점이 Controller 하나로 명확 → trust boundary 검증을 신뢰하는 게 표준 Spring Boot 관행. DDD always-valid 학파도 있지만 이 프로젝트는 Value Object 도입 없이 단순 String 필드 위주라 과함.
 
 ### BaseEntity
 
