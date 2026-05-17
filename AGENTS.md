@@ -38,11 +38,11 @@
 - API URL·응답·에러·날짜·Swagger: [`docs/api-convention.md`](docs/api-convention.md)
 - 인증·인가: [`docs/auth.md`](docs/auth.md)
 
-### 명세 / 구현 책임 분리
-- **spec (`docs/specs/`)** = 정책 결정 + API 계약 (필드 / 제약 / 에러 매핑) + 도메인 특수 동작만
+### 결정 / 구현 책임 분리
+- **이슈 본문 + plan mode (in-session)** = 정책 / scope / 영향도 큰 결정. `/issue` 단계에서 박고, `/impl` 진입 시 plan mode 로 사용자와 합의. 휘발성 — 문서 안 남김
 - **convention 문서** = mechanical detail 의 single source (Swagger 어노테이션 본문 / 패키지 경로 / `@Transactional` 위치 / MapStruct / 로그 포맷 / ErrorCode 분리 / 표준 Processing Flow / Test Cases 표준 케이스 / 마이그레이션 형식 / 인가 매처 등)
-- `/spec` 은 mechanical 영역을 spec 에 적지 않는다 (자세한 "Don't write" 리스트: [`.claude/skills/spec/SKILL.md`](.claude/skills/spec/SKILL.md) §4 §0)
-- `/impl` 은 spec + convention 을 함께 본다. spec 침묵은 convention 에서 가져오고, 둘 다 침묵하면 사용자에게 질문
+- **spec (`docs/specs/`)** = **옵트인 handoff 도구**. 다른 세션 / 모델 / 에이전트로 위임 / 외주 / 다중 stakeholder 사전 리뷰가 필요할 때만 명시적으로 `/spec` 호출. 자동 워크플로우엔 포함 X (자세한 "Don't write" 리스트: [`.claude/skills/spec/SKILL.md`](.claude/skills/spec/SKILL.md) §4 §0)
+- `/impl` 은 이슈 본문 + plan 합의 + convention 을 본다 (spec 이 있으면 함께). plan / convention 둘 다 침묵하는 결정은 사용자에게 질문
 
 ### 테스트
 - [`docs/test-convention.md`](docs/test-convention.md) 의 B 강도 정책 따름
@@ -69,26 +69,23 @@
 
 ## 워크플로우
 
-작업은 **4단계** (이슈 → 명세 → 구현 → 머지). type 별 단계 분기:
+작업은 **3단계** (이슈 → 구현 → 머지). 모든 type 동일:
 
 | 단계 | 명령/스킬 | 산출물 | 사용자 검토 |
 |---|---|---|---|
-| 1. 이슈 | `/issue {기능명}` | GitHub Issue (type 결정 + 정책 / scope) + 작업 브랜치를 슬롯에 attach | 생성 전 |
-| 2. 명세 ※ | `/spec {이슈번호}` | `docs/specs/{N}-{기능명}.md` (정책 결정 + API 계약 + 도메인 특수 동작 — mechanical detail 은 convention 위임) | 저장 전 |
-| 3. 구현 | `/impl {이슈번호}` | 코드 / 파일 편집 + (해당 시) 테스트 + 빌드 통과 | 진행 중 선택 |
-| 4. 머지 | `/impl` 끝에서 이어 진행 | 커밋 → 푸시 → PR 생성 → CI watch → CI green 시 자동 머지 → 슬롯 정리 → develop pull | 커밋 메시지 전, PR 본문 전 |
+| 1. 이슈 | `/issue {기능명}` | GitHub Issue (type 결정 + 정책 / scope + 영향도 큰 결정) + 작업 브랜치를 슬롯에 attach | 생성 전 |
+| 2. 구현 | `/impl {이슈번호}` | plan mode 진입 → 사용자 합의 → 코드 / 파일 편집 + (해당 시) 테스트 + 빌드 통과 | plan 합의 전, 진행 중 선택 |
+| 3. 머지 | `/impl` 끝에서 이어 진행 | 커밋 → 푸시 → PR 생성 → CI watch → CI green 시 자동 머지 → 슬롯 정리 → develop pull | 커밋 메시지 전, PR 본문 전 |
 
-> ※ **Type 별 워크플로우 분기**:
-> - `feat` / `fix` → 전체 4단계 (이슈 → spec → impl → 머지)
-> - `refactor` / `docs` / `chore` → 3단계 (이슈 → impl → 머지). `/spec` 호출 시 type 가드로 즉시 중단. 큰 정책 결정이 있는 refactor 만 예외적으로 `/spec` 명시 호출.
+> **모든 type 동일 (3단계)**: `/issue` → `/impl` → 머지. 적용 단계는 type 에 따라 다름 (예: `docs` / `chore` 는 코드 / 테스트 단계 skip) — [`.claude/skills/impl/SKILL.md`](.claude/skills/impl/SKILL.md) §"흐름 > Type 분기" 참조.
 >
-> `/impl` 의 type 별 적용 단계 표는 [`.claude/skills/impl/SKILL.md`](.claude/skills/impl/SKILL.md) §"흐름 > Type 분기" 참조.
+> **`/spec` 은 옵트인 handoff 도구**: 다른 세션 / 모델 / 에이전트로 위임 / 외주 / 다중 stakeholder 사전 리뷰가 필요할 때만 명시적으로 호출. 자동 흐름에 포함되지 않음 ([`.claude/skills/spec/SKILL.md`](.claude/skills/spec/SKILL.md)).
 
 > **`main` / `develop` 으로 직접 push 금지.** 항상 작업 브랜치 (`{type}/{이슈번호}-{설명}`) → PR (`base: develop`) → 머지. 예외 없음.
 >
-> **4단계 = 머지까지 같은 세션에서 끝.** `/impl` 의 빌드 통과 후 사용자가 커밋 메시지 + PR 본문을 OK 하면, 그 시점에 머지까지 위임된다. CI green = 머지 게이트 ([`git-workflow.md §4`](docs/git-workflow.md)). 세션은 `gh pr checks --watch` 로 CI 결과를 기다리다가 green 즉시 머지 → 슬롯 정리 → develop pull → 사이클 완료 보고. CI red 면 원인 보고 후 다음 액션은 사용자와 결정. 단순 docs 메타 작업처럼 `/spec` 없이 바로 `/impl` 의 흐름만 거치는 경우에도 동일하게 4단계까지 같은 세션에서 끝낸다.
+> **3단계 = 머지까지 같은 세션에서 끝.** `/impl` 의 빌드 통과 후 사용자가 커밋 메시지 + PR 본문을 OK 하면, 그 시점에 머지까지 위임된다. CI green = 머지 게이트 ([`git-workflow.md §4`](docs/git-workflow.md)). 세션은 `gh pr checks --watch` 로 CI 결과를 기다리다가 green 즉시 머지 → 슬롯 정리 → develop pull → 사이클 완료 보고. CI red 면 원인 보고 후 다음 액션은 사용자와 결정.
 >
-> **작업 브랜치는 `/issue` 끝에서 슬롯에 attach** — `gh issue develop {이슈번호}` 로 GitHub 이슈에 연결된 브랜치 (`feat/{이슈번호}-{슬러그}`) 를 만들고, 비어 있는 슬롯 (`magampick-api-wt1/wt2/wt3` 중 detached HEAD 인 곳) 에 `git -C ../magampick-api-wtX switch ...` 로 attach 한다. `/spec`·`/impl` 은 **그 슬롯 디렉터리에서 에이전트(`claude`/`codex`)를 띄워** 실행한다 — `cd` 로 옮겨 다니지 않는다. 둘 다 시작 시 슬롯 위치인지 확인하고 메인 디렉터리 (`develop`/`main`) 이면 중단. (`/issue` 를 거치지 않은 이슈는 `/spec` 이 슬롯에 attach 한다.) 자세한 슬롯 운영 룰은 §"병렬 운영" 참조.
+> **작업 브랜치는 `/issue` 끝에서 슬롯에 attach** — `gh issue develop {이슈번호}` 로 GitHub 이슈에 연결된 브랜치 (`feat/{이슈번호}-{슬러그}`) 를 만들고, 비어 있는 슬롯 (`magampick-api-wt1/wt2/wt3` 중 detached HEAD 인 곳) 에 `git -C ../magampick-api-wtX switch ...` 로 attach 한다. `/impl` 은 **그 슬롯 디렉터리에서 에이전트(`claude`/`codex`)를 띄워** 실행한다 — `cd` 로 옮겨 다니지 않는다. 시작 시 슬롯 위치인지 확인하고 메인 디렉터리 (`develop`/`main`) 이면 중단. (`/issue` 를 거치지 않은 이슈는 `/impl` 이 슬롯에 attach 한다.) 자세한 슬롯 운영 룰은 §"병렬 운영" 참조.
 
 ### 단계별 docs 수정 범위
 
@@ -97,13 +94,12 @@
 | 단계 | 수정 OK | 수정 X (별도 이슈) |
 |---|---|---|
 | `/issue` | `product.md` / `features.md` / `policy.md` / `glossary.md` | 전역 코딩 컨벤션 |
-| `/spec` | `docs/erd/overview.md` 의 미정 사항 | 전역 코딩 컨벤션 |
-| `/impl` | `docs/erd/tables/{table}.md` (해당 도메인 ERD) / `auth.md` (인증·인가 정책) / `docs/roadmap.md` (해당 기능 행 상태·이슈 번호) | api-convention / coding-convention / test-convention / commit-convention / git-workflow |
+| `/impl` | `docs/erd/overview.md` 의 미정 사항 / `docs/erd/tables/{table}.md` (해당 도메인 ERD) / `auth.md` (인증·인가 정책) / `docs/roadmap.md` (해당 기능 행 상태·이슈 번호) | api-convention / coding-convention / test-convention / commit-convention / git-workflow |
 
 > 한 이슈 = 한 PR. 컨벤션 수정 같이 가면 PR 비대 → 별도 이슈로 분리 (`docs` / `chore` / `refactor` 도 동일 — 별개 컨벤션 변경이 섞이면 별도 이슈).
 
-### spec 미정 발견 시
-`/spec` 작성 중 정책 / scope 미정 발견 → **`/issue` 로 돌아가 결정** → `/spec` 재호출.
+### plan / 구현 중 미정 발견 시
+`/impl` 의 plan mode 또는 구현 중 정책 / scope 미정 발견 → **`/issue` 로 돌아가 결정** → `/impl` 재호출. 임의 가정 금지.
 
 ### 병렬 운영
 
@@ -134,9 +130,9 @@ git worktree add ../magampick-api-wt3 --detach origin/develop
 **규칙**:
 
 - **메인 디렉터리 `magampick-api` 는 항상 `develop` 고정** — pull / `/issue` 실행 / 슬롯 정리 / PR 웹 리뷰의 홈베이스. 여기서 작업 브랜치로 checkout 하지 않는다.
-- **모든 작업 브랜치는 슬롯에서** — spec·impl 뿐 아니라 문서 / 컨벤션 수정도 예외 없이 (docs 도 슬롯 사용).
-- **슬롯 attach = `/issue` 끝에서 1회** — `gh issue develop {이슈번호} --name {type}/{이슈번호}-{슬러그}` 로 origin 브랜치 생성 후 빈 슬롯에 `git -C ../magampick-api-wtX switch {type}/{이슈번호}-{슬러그}`. 빈 슬롯은 `git worktree list` 에서 `(detached HEAD)` 표시. (`/issue` 안 거친 이슈는 `/spec` 이 attach 한다.)
-- **`/spec`·`/impl` 은 그 슬롯 디렉터리에서 에이전트를 띄워 실행한다.** 도구 앵커(파일 탐색·셸 cwd·스킬)가 그 디렉터리 기준이어야 하므로, 메인에서 `cd` 로 옮기는 것에 의존하지 않는다.
+- **모든 작업 브랜치는 슬롯에서** — impl 뿐 아니라 문서 / 컨벤션 수정도 예외 없이 (docs 도 슬롯 사용).
+- **슬롯 attach = `/issue` 끝에서 1회** — `gh issue develop {이슈번호} --name {type}/{이슈번호}-{슬러그}` 로 origin 브랜치 생성 후 빈 슬롯에 `git -C ../magampick-api-wtX switch {type}/{이슈번호}-{슬러그}`. 빈 슬롯은 `git worktree list` 에서 `(detached HEAD)` 표시. (`/issue` 안 거친 이슈는 `/impl` 이 attach 한다.)
+- **`/impl` 은 그 슬롯 디렉터리에서 에이전트를 띄워 실행한다.** 도구 앵커(파일 탐색·셸 cwd·스킬)가 그 디렉터리 기준이어야 하므로, 메인에서 `cd` 로 옮기는 것에 의존하지 않는다.
 - **빈 슬롯 표시 = detached HEAD on `origin/develop`**. 한 슬롯은 attach 된 동안 한 브랜치만 점유 (git 제약). `develop` 은 메인이 점유 중이라 슬롯에서 `switch develop` 은 실패 — 항상 `--detach origin/develop` 사용.
 - **PR 머지 후 정리** — 슬롯 안의 브랜치 떼기 + 로컬·원격 브랜치 삭제. **`git worktree remove` 호출 X** (OS lock 회피):
   ```sh
