@@ -1,6 +1,16 @@
-# /spec Workflow
+# /spec Workflow (Opt-In Handoff Tool)
 
-Create an implementation spec from an approved GitHub Issue. The spec captures policy decisions, the API contract, and domain-specific behavior. Mechanical details (Swagger annotations, package layout, transaction placement, logging, test case enumeration, etc.) live in the convention docs as single source of truth — do not duplicate them here. `/impl` reads the spec together with the conventions.
+`/spec` is **not part of the default workflow** (which is `/issue` → `/impl` with plan mode → merge). Invoke it explicitly only for handoff scenarios:
+
+- Delegating implementation to another session / model / agent.
+- Handing off to another developer or external contractor.
+- Multi-stakeholder pre-implementation review.
+- Parallel agent implementation that all read the same spec.
+- Genuinely policy-heavy areas (payment / settlement / refund / auth) where the spec itself will be referenced by future features — though `docs/policy.md` updates often handle this better.
+
+Outside those cases, `/impl`'s plan mode plays the same "decision review before implementation" role in-session.
+
+Create an implementation spec from an approved GitHub Issue. The spec captures policy decisions, the API contract, and domain-specific behavior. Mechanical details (Swagger annotations, package layout, transaction placement, logging, test case enumeration, etc.) live in the convention docs as single source of truth — do not duplicate them here. `/impl` reads the spec together with the conventions when present.
 
 ## Input
 
@@ -23,8 +33,8 @@ Extract:
 
 **Type gate** — check the type label:
 
-- `feat` / `fix` → continue (spec required).
-- `refactor` / `docs` / `chore` → stop and tell the user `/spec` is not needed; run `/impl {N}` directly (workflow branching: see `AGENTS.md` §"워크플로우").
+- `feat` / `fix` → continue (spec is suitable for handoff scenarios).
+- `refactor` / `docs` / `chore` → stop and tell the user `/spec` is not appropriate; run `/impl {N}` directly (workflow branching: see `AGENTS.md` §"워크플로우").
 
 If the issue is missing required sections or still has undecided policy/scope, stop and send the user back to `/issue`.
 
@@ -160,4 +170,4 @@ If the file already exists, ask before overwriting.
 
 ## Result Report
 
-Report the saved file path and suggest `/impl {N}` as the next workflow.
+Report the saved file path and suggest `/impl {N}` as the next step. When the spec file exists, `/impl`'s §3b step will auto-discover and read it together with the issue body (opt-in but used when present).

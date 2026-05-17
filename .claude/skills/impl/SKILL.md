@@ -1,17 +1,19 @@
 ---
 name: impl
-description: spec + convention 기반 도메인 코드 구현. Type 분기 — feat/fix 는 전체 흐름 (spec 로드 → 옵션 X 순서 → 빌드 → 머지), refactor 는 spec 없이 해당 단계만, docs/chore 는 파일 직접 편집 → 빌드 sanity check → 머지. spec = 정책 + API 계약 + 도메인 특수 결정 / convention = mechanical 표준. spec 결정은 따르고, spec 침묵은 convention 에서 가져온다 — 둘 다 침묵할 때만 사용자에게 질문.
+description: 이슈 + plan mode 합의 + convention 기반 도메인 코드 구현. Type 분기 — feat/fix 는 plan mode → 옵션 X 순서 → 빌드 → 머지, refactor 는 plan mode → 해당 단계만, docs/chore 는 파일 직접 편집 → 빌드 sanity check → 머지. 이슈 본문 + plan 합의 = 정책 / API 계약 / 도메인 특수 결정 / convention = mechanical 표준. spec 파일이 있으면 함께 읽지만 자동 흐름엔 옵트인. plan / convention 둘 다 침묵할 때만 사용자에게 질문.
 ---
 
 # /impl — 구현
 
-마감픽 워크플로우 3단계. `/spec` 으로 작성된 spec 파일 + 관련 convention 문서를 함께 읽고, 옵션 X 순서로 도메인 코드를 한 번에 구현. 빌드 / 테스트 통과까지 확인 후 사용자에게 결과 보고.
+마감픽 워크플로우 2~3단계 (plan mode → 구현 → 머지). 이슈 본문 + plan mode 합의 + 관련 convention 문서를 함께 읽고, 옵션 X 순서로 도메인 코드를 한 번에 구현. 빌드 / 테스트 통과까지 확인 후 사용자에게 결과 보고 → 같은 세션에서 머지까지.
 
-> spec 결정 따름. spec 에 없는 mechanical detail 은 convention 문서 (`coding-convention` / `api-convention` / `test-convention` / `auth.md` / `erd/overview`) 가 single source. spec / convention 둘 다 침묵하는 결정이 필요할 때만 사용자에게 질문.
+> 이슈 본문 + plan 합의 따름. mechanical detail 은 convention 문서 (`coding-convention` / `api-convention` / `test-convention` / `auth.md` / `erd/overview`) 가 single source. plan / convention 둘 다 침묵하는 결정이 필요할 때만 사용자에게 질문.
+>
+> **spec 파일** (`docs/specs/{N}-*.md`) 은 옵트인 — 있으면 함께 읽고 따른다. 자동 흐름에서 부재가 차단 조건 아님. handoff 가 필요한 경우 (다른 세션 / 모델 / 외주) 만 `/spec` 을 먼저 명시 호출.
 
 ## 입력
 - `{이슈번호}` — GitHub Issue 번호 (필수, 예: `/impl 12`)
-- spec 파일은 자동 탐색: `docs/specs/{N}-*.md`
+- spec 파일은 자동 탐색 (있으면): `docs/specs/{N}-*.md`
 
 ## 흐름
 
@@ -19,7 +21,7 @@ description: spec + convention 기반 도메인 코드 구현. Type 분기 — f
 > `/impl` 은 이슈 #{N} 의 브랜치가 attach 된 **슬롯 안에서** 실행되어야 한다 (`/issue` 가 attach 한 `../magampick-api-wtX`).
 > - 현재 브랜치가 `<type>/{N}-*` (이슈 type prefix — `feat` / `fix` / `refactor` / `docs` / `chore`) 이면 → 진행
 > - `develop` / `main` (= 메인 디렉터리) 이면 **즉시 중단** — 이슈 #{N} 의 브랜치가 어느 슬롯에 attach 돼 있는지 (`git worktree list` 로 확인) 안내하고 "그 디렉터리에서 에이전트 띄워 `/impl {N}` 재실행" 안내
-> - 어느 슬롯에도 attach 안 돼 있으면 → `/issue` 또는 `/spec {N}` 먼저 안내, 중단
+> - 어느 슬롯에도 attach 안 돼 있으면 → `/issue` 먼저 안내 (또는 fallback: 빈 슬롯에 브랜치 직접 attach 후 재실행), 중단
 > - (Claude Code 한정 편의: relaunch 대신 `EnterWorktree` 로 슬롯 진입 후 진행해도 됨. Codex 엔 없음)
 > - 슬롯 운영 룰 자세히는 [AGENTS.md §"병렬 운영"](../../../AGENTS.md) 참조
 
@@ -27,8 +29,9 @@ description: spec + convention 기반 도메인 코드 구현. Type 분기 — f
 >
 > | Step | feat / fix | refactor | docs / chore |
 > |---|---|---|---|
-> | §1 spec 파일 로드 | ✓ | ✓ (있으면) | skip |
-> | §2 spec 파싱 | ✓ | ✓ (있으면) | skip |
+> | §0 plan mode 진입 + 합의 | ✓ | ✓ | ✓ (간단 plan — 편집 파일 목록 확인) |
+> | §1 이슈 + (옵션) spec 로드 | ✓ | ✓ | ✓ |
+> | §2 입력 파싱 (이슈 / spec / convention) | ✓ | ✓ | skip (코드 입력 없음) |
 > | §3 마이그레이션 V 번호 | 필요 시 | 필요 시 | skip |
 > | §4-1 ~ §4-7 (Entity ~ Controller+테스트) | 전체 | 해당 단계만 | skip |
 > | §4-8 통합 테스트 | 핵심 흐름 시 | 해당 시 | skip |
@@ -37,34 +40,61 @@ description: spec + convention 기반 도메인 코드 구현. Type 분기 — f
 > | §4-11 roadmap 갱신 | ✓ | 해당 시 | 해당 시 |
 > | §5 결과 보고 + 머지 | ✓ | ✓ | ✓ |
 >
-> **`docs` / `chore` 흐름**: spec / 코드 단계 모두 skip. 작업 = 이슈 `Changes` 섹션에 명시된 파일 직접 편집 → §4-10 build (sanity check) → §4-11 roadmap (해당 시) → §5 머지.
-> **`refactor` 흐름**: 큰 정책 결정 / API 변경이 있으면 `/spec {N}` 명시 호출 후 진행. 그 외엔 spec 없이 §4-1~§4-7 중 해당 단계만.
+> **`docs` / `chore` 흐름**: 코드 단계 모두 skip. 작업 = §0 간단 plan (편집 파일 / 변경 범위 확인) → 이슈 `Changes` 섹션에 명시된 파일 직접 편집 → §4-10 build (sanity check) → §4-11 roadmap (해당 시) → §5 머지.
+> **`refactor` 흐름**: §0 plan mode 에서 정책 결정 / API 변경 영향 합의. 큰 handoff 가 필요하면 사용자가 `/spec {N}` 을 명시 호출 후 진행 (드문 케이스).
 
-### 1. spec 파일 로드
+### 0. plan mode 진입 + 합의 (모든 type 필수)
 
-> 적용: `feat` / `fix` (필수), `refactor` (있으면). `docs` / `chore` 는 **skip → §4-10 으로**.
+> 첫 코드 / 파일 편집 **전**에 plan mode 로 들어가서 사용자와 합의한다. plan mode 가 spec 의 "구현 전 결정 검토" 역할을 in-session 휘발성으로 수행한다.
 
-- `docs/specs/{이슈번호}-*.md` 패턴 탐색
-- 매칭 0개 → `feat` / `fix` 면 `/spec {N}` 먼저 호출 안내, 중단. `refactor` 면 spec 없이 §4 로 진행
-- 매칭 2개 이상 → 사용자에게 선택 받기
-- 매칭 1개 → 그대로 사용
+**입력 수집** (plan mode 안에서):
+1. **이슈 본문 로드** — `gh issue view {N} --repo MagamPick/magampick-api --json title,body,labels` 로 가져온다. 이슈의 Context / Scope / 핵심 정책 결정 / Business Logic 큰 그림 / (docs 면) Changes 가 plan 의 1차 입력.
+2. **spec 파일 탐색 (옵션)** — `docs/specs/{N}-*.md` 매칭이 있으면 함께 읽고 plan 에 반영. 없으면 그대로 진행. 부재는 차단 조건 아님.
+3. **convention 사전 점검** — feat/fix 면 변경 영향 받는 convention 섹션을 머릿속에 두고 plan 짠다.
 
-### 2. spec 파싱
-7섹션 다 읽음:
-- 1~2. Context / Scope → 컨텍스트
-- 3. **API Specification** → Controller / DTO 작성 근거 (필드 / 제약 / 에러 표 — Swagger 어노테이션 본문은 spec 에 없으니 api-convention §12 룰로 부착)
-- 4. **Data Model** → Entity / 마이그레이션 / ERD doc 작성 근거
-- 5. **Business Logic** → Service 로직 + Validation / Error / Edge (표준 Processing Flow / 표준 Test Cases 는 spec 에 없으니 convention + 표준 흐름으로 도출)
-- 6. **External Dependencies** (해당 시) → 외부 API 어댑터
-- 7. **Implementation Notes** (해당 시) → convention 밖 결정만 들어 있음 — 그대로 적용
+**plan 에 포함할 내용** (type 에 따라 적절히):
+- 영향 받는 엔드포인트 / 엔티티 / 마이그레이션 목록
+- 영향도 높은 결정 — **이슈에 명시되지 않았거나 모호한 부분만** 옵션으로 명시:
+  - 다중성 / 카디널리티 (1:1 vs 1:N, 단일 vs 다중 선택)
+  - 권한 분기 (role 별 차이)
+  - 인덱스 / 유니크 영향
+  - 마이그레이션 영향 (기존 컬럼 NOT NULL 추가 등)
+  - Enum 후보 / 상태값 누락
+  - 외부 시스템 의존 (Mock vs 실제 연동)
+- 적용 단계 (Type 분기 표 기준 — 어디부터 어디까지)
+- (docs/chore) 편집 대상 파일 목록
 
-> **spec 침묵 → convention single source**: spec 은 정책 / API 계약 / 도메인 특수 동작만 담는다 (`/spec` SKILL §4 §0 "Don't write" 리스트). mechanical detail 은 다음 convention 문서에서 가져온다 — 추측 X, 일관 적용:
+**합의 룰**:
+- **영향도 높은 결정 / `features.md` / `policy.md` 와 충돌하는 가정**은 임의 가정 금지. 옵션을 명시적으로 제시 (Claude Code 는 AskUserQuestion, Codex 는 native 프롬프트 — 에이전트별 적합한 방식)
+- 이슈 본문 / spec 에 이미 명확히 박힌 결정은 plan 에 다시 적지 않는다 (중복 검토 피하기)
+- plan 합의 = "이렇게 진행" 동의. plan exit 후 §1~§5 진행
+
+### 1. 이슈 + (옵션) spec 로드
+
+§0 에서 plan 합의 시 이미 로드. 이 단계는 재확인:
+- 이슈 본문 (Context / Scope / 정책 결정 / Business Logic) — 항상 1차 source
+- spec 파일 (`docs/specs/{이슈번호}-*.md`) — 매칭 시 함께 사용. 매칭 2개 이상이면 사용자에게 선택 받기. 매칭 0개는 정상 (옵트인이므로 차단 X)
+
+### 2. 입력 파싱 (이슈 / spec / convention)
+
+> 적용: `feat` / `fix` / `refactor`. `docs` / `chore` 는 **skip → §4-10 으로**.
+
+이슈 본문 + spec (있으면) 을 다음과 같이 매핑:
+- 이슈 Context / Scope → 컨텍스트
+- 이슈 핵심 정책 결정 + plan 합의 → 권한 / 다중성 / 분기 결정의 source of truth
+- 이슈 Business Logic 큰 그림 → Service 로직 골격
+- spec 이 있고 § 3 API Specification / §4 Data Model / §5 Business Logic 이 채워져 있으면 → Controller / DTO / Entity / 마이그레이션 작성 근거 (필드 / 제약 / 에러 표 — Swagger 어노테이션 본문은 spec 에 없으니 api-convention §12 룰로 부착)
+- spec §7 Implementation Notes (있으면) → convention 밖 결정만 들어 있음 — 그대로 적용
+
+> **이슈 / spec 침묵 → convention single source**: mechanical detail 은 다음 convention 문서에서 가져온다 — 추측 X, 일관 적용:
 > - Swagger / OpenAPI 어노테이션 부착 → [`api-convention.md`](../../../docs/api-convention.md) §12
 > - 패키지 / 레이어 / `@Transactional` 위치 / 예외 / 로깅 / MapStruct → [`coding-convention.md`](../../../docs/coding-convention.md) §1~3, §7, §8, §10
 > - 테스트 종류 / 강도 / Fixture / 한국어 메서드명 → [`test-convention.md`](../../../docs/test-convention.md)
 > - 인증 / 인가 / 본인 리소스 접근 → [`auth.md`](../../../docs/auth.md)
 > - 마이그레이션 / Enum CHECK / Point / KST → [`erd/overview.md`](../../../docs/erd/overview.md)
 > - 표준 Processing Flow (JWT 추출 → repository.findById → 404 → dirty checking → Mapper) 는 별도 명시 없이 표준대로
+>
+> 이슈 / spec / convention 셋 다 침묵하는 결정만 사용자에게 질문 (§0 에서 이미 합의됐어야 정상).
 
 ### 3. 마이그레이션 V 번호 결정
 - **timestamp 형식**: `V{YYYYMMDDHHMMSS}__{설명}.sql` (예: `V20260514153022__create_stores.sql`)
@@ -73,7 +103,7 @@ description: spec + convention 기반 도메인 코드 구현. Type 분기 — f
 
 ### 4. 구현 순서 (옵션 X)
 
-각 단계 끝에서 명시적 검토 X. 한 번에 진행. 막힘 / spec 누락 발견 시에만 사용자에게.
+각 단계 끝에서 명시적 검토 X. 한 번에 진행. §0 plan 합의 범위 안에서만 — 벗어나는 결정 필요 시 사용자에게.
 
 #### 4-1. Entity
 - `@Entity` + JPA 어노테이션 ([coding-convention.md](../../../docs/coding-convention.md))
@@ -104,19 +134,19 @@ description: spec + convention 기반 도메인 코드 구현. Type 분기 — f
 
 **단위 테스트**:
 - 위치 = `src/test/java/{package}/{domain}/service/{Name}ServiceTest.java`
-- spec Test Cases 의 Service 단위 테스트 케이스 그대로
+- 이슈 Business Logic + plan 합의 + (spec 있으면) Test Cases 에서 표준 케이스 도출
 - **한국어 메서드명** (예: `매장_등록_성공`) + `// given-when-then` 주석
 - Mockito + AssertJ
 
 **Service 구현**:
 - 위치 = `src/main/java/{package}/{domain}/service/{Name}Service.java`
-- 비즈니스 로직 = spec Business Logic 따름
-- 트랜잭션 경계 = spec Implementation Notes 따름 (기본 = Service 메서드 단위)
+- 비즈니스 로직 = 이슈 Business Logic + plan 합의 (+ spec 있으면 Business Logic) 따름
+- 트랜잭션 경계 = plan 합의 (+ spec Implementation Notes 있으면) 따름. 기본 = Service 메서드 단위
 - 예외 = `BusinessException` + `BaseErrorCode` ([coding-convention.md](../../../docs/coding-convention.md))
 
 #### 4-6. DTO + MapStruct Mapper
 - Request / Response 분리 ([api-convention.md](../../../docs/api-convention.md))
-- 검증 = Bean Validation 어노테이션 (spec Validation Rules 따름)
+- 검증 = Bean Validation 어노테이션 (이슈 / plan / (있으면) spec Validation Rules 따름)
 - Mapper = MapStruct (coding-convention §8)
 - DTO / Mapper 자체 테스트 X
 
@@ -126,13 +156,13 @@ description: spec + convention 기반 도메인 코드 구현. Type 분기 — f
 
 **@WebMvcTest**:
 - 위치 = `src/test/java/{package}/{domain}/controller/{Name}ControllerTest.java`
-- spec Test Cases 의 Controller 테스트 케이스 그대로
+- 이슈 API 표 + plan 합의 + (spec 있으면) Test Cases 에서 표준 Controller 테스트 케이스 도출
 - MockMvc + Mockito (Service mock)
 - 인증 필요 시 `@WithMockUser` 또는 SecurityContext 설정 ([auth.md](../../../docs/auth.md))
 
 **Controller 구현**:
 - 위치 = `src/main/java/{package}/{domain}/controller/{Name}Controller.java`
-- URL / 메서드 / 상태 코드 = spec API Specification 따름
+- URL / 메서드 / 상태 코드 = 이슈 + plan 합의 (+ spec 있으면 API Specification) 따름
 - `@RestController` + `@RequestMapping` (api-convention URL 룰)
 - 응답은 `ApiResponse<T>` 자동 wrap (ResponseBodyAdvice — payload 만 반환)
 - Springdoc OpenAPI 어노테이션 부착 (api-convention Swagger / OpenAPI 룰)
@@ -144,12 +174,12 @@ description: spec + convention 기반 도메인 코드 구현. Type 분기 — f
 
 #### 4-8. 통합 테스트 (핵심 흐름인 경우만)
 
-spec 의 Business Logic / Test Cases 가 **핵심 비즈니스 흐름 (회원가입 / 주문 / 결제 / 환불)** 에 해당하면 통합 테스트 작성. 그 외 부수 기능은 이 단계 skip.
+이슈 / plan / (있으면) spec Business Logic 이 **핵심 비즈니스 흐름 (회원가입 / 주문 / 결제 / 환불)** 에 해당하면 통합 테스트 작성. 그 외 부수 기능은 이 단계 skip.
 
 - 위치 = `src/test/java/{package}/{domain}/{Name}IntegrationTest.java`
 - `@SpringBootTest @AutoConfigureMockMvc @Transactional` + `extends PostgresTestBase` ([test-convention.md §8 / §10](../../../docs/test-convention.md))
 - 실제 DB (Testcontainers PostGIS) + 실제 Service ↔ Repository 협업
-- 검증 시나리오 = spec Test Cases 의 통합 시나리오 그대로
+- 검증 시나리오 = 이슈 Business Logic + plan + (있으면) spec Test Cases 의 통합 시나리오 도출
 - **목적**: 단위/슬라이스 테스트의 mock 가정이 어긋나는 부분 (트랜잭션 경계 / FK / 보안 필터 / Validation 흐름) 을 여기서 드러냄. AI 의 자기참조 검증 위험 차단
 - 핵심 흐름이 아니면 skip — `test-convention.md §2` 의 🟢 선택 항목들 (Repository 커스텀 쿼리 / E2E) 은 명시 요청 시만
 
@@ -165,7 +195,7 @@ spec 의 Business Logic / Test Cases 가 **핵심 비즈니스 흐름 (회원가
 
 빌드 / 테스트 통과 확인. 실패 시:
 - **단순 실패** (오타 / import 누락 / 포맷) → 자동 수정 후 재실행 (1~2회)
-- **복잡한 실패** (로직 / spec 해석) → 사용자에게 보고 + 결정 받기
+- **복잡한 실패** (로직 / 이슈·spec 해석) → 사용자에게 보고 + 결정 받기
 
 #### 4-11. roadmap 갱신
 
@@ -198,11 +228,11 @@ spec 의 Business Logic / Test Cases 가 **핵심 비즈니스 흐름 (회원가
 ✅ ./gradlew build 통과
 (또는 ❌ 실패 — 원인 + 후속 안내)
 
-### spec + convention 밖 결정 (있는 경우만)
-- {spec 도 convention 도 다루지 않아 만든 결정만. convention 따라 자동 적용된 mechanical detail (패키지 경로 / @Transactional 위치 / Swagger 어노테이션 / MapStruct / 로그 포맷 등) 은 적지 않음}
+### plan + convention 밖 결정 (있는 경우만)
+- {§0 plan 합의 / 이슈 / (있으면) spec / convention 어디에도 없어 구현 중 새로 만든 결정만. convention 따라 자동 적용된 mechanical detail (패키지 경로 / @Transactional 위치 / Swagger 어노테이션 / MapStruct / 로그 포맷 등) 은 적지 않음}
 ```
 
-보고 직후 머지까지 같은 세션에서 끝낸다 ([`AGENTS.md` 워크플로우 4단계](../../../AGENTS.md) / [`git-workflow.md §4`](../../../docs/git-workflow.md)):
+보고 직후 머지까지 같은 세션에서 끝낸다 ([`AGENTS.md` 워크플로우 3단계](../../../AGENTS.md) / [`git-workflow.md §4`](../../../docs/git-workflow.md)):
 
 1. **커밋 메시지 검토** — `<emoji> <type>: <subject>` **한 줄만** ([`commit-convention.md` §2](../../../docs/commit-convention.md) — body / footer 사용 안 함). 작성한 커밋 메시지 + 커밋 파일 목록을 사용자에게 보여주고 OK 받기 ([`AGENTS.md` Git 섹션](../../../AGENTS.md)). `commit-msg` hook 이 body 있는 커밋을 reject 하므로 우회 / `--no-verify` 금지
 2. **커밋 + 푸시**
@@ -222,14 +252,12 @@ spec 의 Business Logic / Test Cases 가 **핵심 비즈니스 흐름 (회원가
 
 CI red 인 경우: watch 결과의 실패 원인 + 다음 액션 후보 (수정 후 추가 커밋 vs 롤백 vs 상의) 를 보고 후 사용자 결정 대기. 임의로 강제 머지 / 머지 시도 X.
 
-`/spec` 을 건너뛰고 `/impl` 만 진행한 경우 (단순 docs 메타 작업 등) 도 위 흐름은 동일.
-
 ## 중간 질문 — 자연스럽게 (강제 검토 X)
 
-다음 상황에서만 사용자에게 묻기:
-- **spec + convention 둘 다 침묵하는 결정 발견** — mechanical 이면 convention 에서 가져오고, 정책성이면 사용자에게. 예: 외부 API URL / 시크릿 / 환경 변수, spec 에 없는 도메인 특수 분기
+다음 상황에서만 사용자에게 묻기 (대부분은 §0 plan 단계에서 이미 합의돼 있어야 정상):
+- **plan + 이슈 + (있으면) spec + convention 모두 침묵하는 결정 발견** — mechanical 이면 convention 에서 가져오고, 정책성이면 사용자에게. 예: 외부 API URL / 시크릿 / 환경 변수, 명시되지 않은 도메인 특수 분기
 - 빌드 / 테스트가 단순 수정으로 안 되는 실패
-- spec 해석이 두 가지 이상 가능한 모호함
+- 이슈 / spec / plan 해석이 두 가지 이상 가능한 모호함
 - `auth.md` / `docs/erd/tables/` 갱신 시 정책 결정 필요
 
 ## 단계별 docs 수정 권한 ([CLAUDE.md](../../../CLAUDE.md))
@@ -246,8 +274,8 @@ CI red 인 경우: watch 결과의 실패 원인 + 다음 액션 후보 (수정 
 
 | 상황 | 처리 |
 |---|---|
-| spec 파일 없음 | `/spec {N}` 먼저 호출 안내, 중단 |
-| spec 파일 여러 개 매칭 | 사용자에게 선택 받기 |
+| 이슈 본문 부재 / `gh issue view` 실패 | 사용자에게 알리고 중단 |
+| spec 파일 여러 개 매칭 | 사용자에게 선택 받기 (옵트인이므로 부재는 정상) |
 | 마이그레이션 V 번호 중복 | timestamp 형식이라 거의 없음. 발생 시 +1초로 조정 |
 | 빌드 실패 (단순) | 자동 수정 후 재실행 (1~2회) |
 | 빌드 실패 (복잡) | 사용자에게 원인 보고 + 결정 받기 |
@@ -256,9 +284,11 @@ CI red 인 경우: watch 결과의 실패 원인 + 다음 액션 후보 (수정 
 ## 주의
 
 - **worktree 안에서 실행** — 시작 가드 필수. 주 디렉터리(`develop`/`main`)면 중단하고 worktree 로 안내
-- **spec 결정 따름 + convention 위임** — spec 결정은 그대로 적용. spec 침묵은 convention 문서에서 가져온다 (mechanical 표준). 둘 다 침묵하면 사용자에게 질문 (§2 spec 파싱의 convention 매핑 표 참조)
+- **plan mode 필수 (§0)** — 첫 코드 / 파일 편집 전 무조건 plan mode 진입. 영향도 높은 결정은 옵션으로 던지고 사용자 합의 후 진행. plan 합의 = spec 의 "구현 전 결정 검토" in-session 대체
+- **이슈 + plan 따름 + convention 위임** — 이슈 본문 + plan 합의 가 1차 source. mechanical detail 은 convention 문서에서 가져온다 (§2 convention 매핑 표 참조). 셋 다 침묵하면 사용자에게 질문
+- **spec 파일은 옵트인** — 있으면 함께 따르고, 없어도 차단되지 않음. handoff 가 필요한 케이스에서만 `/spec` 명시 호출
 - **마이그레이션 V 번호 = timestamp** — 머지된 파일 수정 X (CLAUDE.md)
 - **테스트 동시 작성** — Service 단위 + Controller @WebMvcTest 항상. 핵심 흐름 (가입 / 주문 / 결제 / 환불) 은 통합 테스트도 (단계 4-8). 작성 순서보다 *함께 있는지* 가 중요 (AI 자기참조 검증 위험 보완)
 - **한국어 테스트 메서드명** ([test-convention.md](../../../docs/test-convention.md))
-- **결과 보고 = 사용자 검토 시점** — `/impl` 끝나면 사용자가 검토 → OK 면 커밋 / PR (4단계, 스킬 없음)
+- **결과 보고 = 사용자 검토 시점** — `/impl` 끝나면 사용자가 검토 → OK 면 커밋 / PR (3단계 머지, 스킬 없음)
 - **PowerShell 5.1**: 한글 메서드명 / 주석은 UTF-8 (Write tool 기본). Gradle 인코딩 이슈는 빌드 실패 시점에 진단

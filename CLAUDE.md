@@ -6,18 +6,18 @@
 
 ## Claude Code Dispatch
 
-- `/issue`, `/spec`, `/impl` 워크플로우는 `.claude/skills/` 아래의 Claude Skill 을 따른다.
-- `/issue`, `/spec`, 사용자 대화 / 결정은 기본 모델인 Opus 에 적합하다.
-- `/impl` 구현은 시작 전에 Sonnet 전환 또는 Sonnet Agent 위임을 검토한다.
+- `/issue`, `/impl` 워크플로우는 `.claude/skills/` 아래의 Claude Skill 을 따른다 (3단계: 이슈 → impl → 머지).
+- `/issue`, plan mode 합의, 사용자 대화 / 결정은 기본 모델인 Opus 에 적합하다.
+- `/impl` 의 plan 합의 이후 코드 생성 구간은 Sonnet 전환 또는 Sonnet Agent 위임을 검토한다.
 - Agent 위임 시 가능하면 `isolation=worktree` 를 사용하고, 동시 Agent 는 1~2개 정도로 제한한다.
 - Claude Code 전용 설정과 권한은 `.claude/settings.json` 을 따른다.
 
 ## Claude Code Skills
 
-| 명령 | Skill |
-|---|---|
-| `/issue {기능명}` | `.claude/skills/issue/SKILL.md` |
-| `/spec {이슈번호}` | `.claude/skills/spec/SKILL.md` |
-| `/impl {이슈번호}` | `.claude/skills/impl/SKILL.md` |
+| 명령 | Skill | 비고 |
+|---|---|---|
+| `/issue {기능명}` | `.claude/skills/issue/SKILL.md` | 워크플로우 1단계 |
+| `/impl {이슈번호}` | `.claude/skills/impl/SKILL.md` | 워크플로우 2~3단계 (plan mode → 구현 → 머지) |
+| `/spec {이슈번호}` | `.claude/skills/spec/SKILL.md` | **옵트인** — handoff 필요 시 수동 호출 (자동 흐름에 미포함) |
 
 Claude Skill 내부의 상세 절차가 `AGENTS.md` 의 공통 규칙보다 구체적이면, 해당 Skill 을 우선 적용한다.

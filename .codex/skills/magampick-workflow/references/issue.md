@@ -13,10 +13,12 @@ Create a GitHub Issue. Pick the type (`feat` / `fix` / `refactor` / `docs` / `ch
 
 | Type | Template | Downstream workflow |
 |---|---|---|
-| `feat` | `.github/ISSUE_TEMPLATE/feature.md` | `/issue` → `/spec` → `/impl` (full) |
-| `fix` | `.github/ISSUE_TEMPLATE/fix.md` | `/issue` → `/spec` → `/impl` (full) |
-| `refactor` | `.github/ISSUE_TEMPLATE/refactor.md` | `/issue` → `/impl` (spec skipped) |
-| `docs` / `chore` | `.github/ISSUE_TEMPLATE/docs.md` | `/issue` → `/impl` (spec skipped) |
+| `feat` | `.github/ISSUE_TEMPLATE/feature.md` | `/issue` → `/impl` (plan mode → code → merge) |
+| `fix` | `.github/ISSUE_TEMPLATE/fix.md` | `/issue` → `/impl` (plan mode → code → merge) |
+| `refactor` | `.github/ISSUE_TEMPLATE/refactor.md` | `/issue` → `/impl` (applicable steps only) |
+| `docs` / `chore` | `.github/ISSUE_TEMPLATE/docs.md` | `/issue` → `/impl` (edit files → build sanity → merge) |
+
+> `/spec` is opt-in for handoff scenarios (delegation to another session/model, external contractor, multi-stakeholder review). Not part of the default flow — invoke explicitly only when needed.
 
 How to choose:
 - New / changed code behavior → `feat`
@@ -41,8 +43,16 @@ Follow the template for the chosen type. Fill one section at a time, show it to 
 
 1. Context: why the feature exists and business background.
 2. Scope: In Scope and Out of Scope.
-3. Core Policy Decisions: decisions from `policy.md` / `product.md` (including role-based authorization branching when relevant).
-4. Business Logic: high-level flow only; mark actors when multiple roles are involved (e.g. `seller publishes → customer redeems`). Detailed design belongs in `/spec`.
+3. Core Policy Decisions: decisions from `policy.md` / `product.md` plus impactful decisions that `/impl`'s plan mode will use as the agreement baseline. Check the following list for omissions:
+   - Cardinality (1:1 vs 1:N, single vs multi-select for collection fields)
+   - Role-based branching (consumer / seller / admin differences)
+   - Index / unique impact (new search patterns, unique constraints like email/nickname)
+   - Migration impact (adding NOT NULL columns to existing tables, FK changes)
+   - Enum candidates / state values (missing candidates cause downstream branching loss)
+   - External system dependency (external API / email / notification — including Mock decision)
+
+   If a decision conflicts with `features.md` / `policy.md` or is ambiguous, do not assume — surface options and confirm.
+4. Business Logic: high-level flow only; mark actors when multiple roles are involved (e.g. `seller publishes → customer redeems`). Detailed design happens in `/impl`'s plan mode.
 
 ### Type = fix → `.github/ISSUE_TEMPLATE/fix.md`
 
@@ -131,8 +141,10 @@ Report the issue number, URL, and the slot path the branch was attached to. Tell
 ```
 cd ../magampick-api-wtX
 codex   # or claude
-/spec {N}
+/impl {N}
 ```
+
+If handoff is needed (delegate to another session / model / external contractor / pre-implementation review), the user may invoke `/spec {N}` first before `/impl`.
 
 ## Error Handling
 
