@@ -11,11 +11,31 @@ Implement code from a completed spec and the convention docs together. The spec 
 
 `/impl` must run inside the slot where issue #{N}'s branch is attached (`../magampick-api-wtX`, attached by `/issue`). See `AGENTS.md` §"병렬 운영" for the slot pool model.
 
-- If on `feat/{N}-*` (the issue type prefix) and `docs/specs/{N}-*.md` is present: continue.
+- If on `<type>/{N}-*` (issue type prefix — `feat` / `fix` / `refactor` / `docs` / `chore`): continue.
 - If on `develop` or `main` (the main directory): stop. Report which slot holds issue #{N}'s branch (`git worktree list`) and ask the user to launch the agent there and re-run `/impl {N}`.
 - If the branch is not attached to any slot: tell the user to run `/issue` or `/spec {N}` first, then stop.
 
-## 2. Load Spec
+## 2. Type Branching (Required)
+
+Issue type label decides which steps apply. Check via `gh issue view {N} --json labels` or the `<type>/...` prefix from `git branch --show-current`.
+
+| Step | feat / fix | refactor | docs / chore |
+|---|---|---|---|
+| §3 Load Spec | ✓ | ✓ (if present) | skip |
+| §4 Migration Version | when needed | when needed | skip |
+| §5 Implementation Order steps 1–9 (Entity → Controller) | full | applicable steps only | skip |
+| §5 Step 10 (integration test) | golden path only | applicable only | skip |
+| §5 Step 11 (`./gradlew spotlessApply`) | ✓ | ✓ | skip (no code change) |
+| §5 Step 12 (`./gradlew build`, sanity check) | ✓ | ✓ | ✓ |
+| §5 Step 13 (roadmap update) | ✓ | when applicable | when applicable |
+| §9 Completion report + merge cycle | ✓ | ✓ | ✓ |
+
+- **`docs` / `chore` flow**: skip spec and code steps. Work = edit the files listed in the issue's `Changes` section → `./gradlew build` (sanity check) → roadmap update (when applicable) → merge cycle.
+- **`refactor` flow**: if the change carries a large policy decision or API change, invoke `/spec {N}` explicitly first. Otherwise proceed without a spec, applying only the relevant steps.
+
+## 3. Load Spec
+
+> Applies to: `feat` / `fix` (required), `refactor` (when present). `docs` / `chore` skip this step.
 
 Read all spec sections:
 
@@ -26,7 +46,8 @@ Read all spec sections:
 - External Dependencies
 - Implementation Notes (only decisions that depart from the conventions — apply as written)
 
-If no spec exists, tell the user to run `/spec {N}` first. If multiple specs match, ask the user to choose.
+If no spec exists: for `feat` / `fix`, tell the user to run `/spec {N}` first. For `refactor`, proceed without a spec.
+If multiple specs match, ask the user to choose.
 
 ### Convention as Single Source When Spec Is Silent
 
@@ -43,7 +64,7 @@ The spec is intentionally thin (see `/spec` reference, §4 Convention-Delegated 
 
 Ask the user only when both spec and convention are silent.
 
-## 3. Migration Version
+## 4. Migration Version
 
 Use the current timestamp:
 
@@ -53,7 +74,7 @@ V{YYYYMMDDHHMMSS}__{description}.sql
 
 If a timestamp collision occurs, add one second. Never edit already-merged migration files.
 
-## 4. Implementation Order
+## 5. Implementation Order
 
 Follow this order unless the existing codebase makes a small local adjustment necessary:
 
@@ -66,7 +87,7 @@ Follow this order unless the existing codebase makes a small local adjustment ne
 7. DTOs and MapStruct mapper
 8. Controller `@WebMvcTest` (written alongside the controller, not strictly before)
 9. Controller implementation
-10. Integration test when the feature is a golden-path flow (signup / order / payment / refund) — see §5. Skip otherwise.
+10. Integration test when the feature is a golden-path flow (signup / order / payment / refund) — see §6. Skip otherwise.
 11. `./gradlew spotlessApply`
 12. `./gradlew build`
 13. Update `docs/roadmap.md`
@@ -80,7 +101,7 @@ Update the roadmap only after the build passes:
 - If the feature row does not exist because the approved scope added a new feature, add the row in the appropriate dependency layer.
 - If the build failed or implementation stopped, do not mark the roadmap row complete.
 
-## 5. Coding Rules
+## 6. Coding Rules
 
 - Entity path: `src/main/java/{package}/{domain}/entity/{Name}.java`.
 - Repository extends `JpaRepository<Entity, Long>`.
@@ -94,7 +115,7 @@ Update the roadmap only after the build passes:
 - Controllers and DTOs include Springdoc OpenAPI annotations per `docs/api-convention.md` §12 (single source — do not infer placement or wording from the spec).
 - Exceptions follow `BusinessException` + `BaseErrorCode` patterns from `docs/coding-convention.md`.
 
-## 6. Docs Allowed During /impl
+## 7. Docs Allowed During /impl
 
 Allowed:
 
@@ -110,7 +131,7 @@ Not allowed without a separate issue:
 - `docs/commit-convention.md`
 - `docs/git-workflow.md`
 
-## 7. Verification
+## 8. Verification
 
 Run:
 
@@ -121,7 +142,7 @@ Run:
 
 If build fails from simple compile/import/format issues, fix and rerun once or twice. If the failure depends on ambiguous business logic or spec interpretation, stop and report the decision needed.
 
-## 8. Completion Report + Merge Cycle
+## 9. Completion Report + Merge Cycle
 
 After the build passes, report:
 
@@ -151,4 +172,4 @@ Then continue the merge cycle in the same session, per `AGENTS.md` workflow step
 
 On CI red: report the failure cause and candidate next actions (fix and add a commit, revert, discuss). Do not force-merge or retry merge without user direction.
 
-This also applies when `/impl` is run without a prior `/spec` (e.g. simple docs/meta updates) — the merge cycle still completes in the same session.
+This also applies when `/impl` is run without a prior `/spec` (e.g. docs / chore / refactor without spec) — the merge cycle still completes in the same session.

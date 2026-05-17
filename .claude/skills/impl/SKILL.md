@@ -1,6 +1,6 @@
 ---
 name: impl
-description: spec + convention 기반 도메인 코드 구현. spec = 정책 + API 계약 + 도메인 특수 결정 / convention = mechanical 표준 (Swagger / 패키지 / 트랜잭션 / 로깅 / 테스트 등). 옵션 X 순서 (Entity → 마이그레이션 → ERD → Repository → Service+테스트 → DTO+Mapper → Controller+테스트 → 통합 테스트(핵심 흐름) → spotlessApply → build). spec 결정은 따르고, spec 침묵은 convention 에서 가져온다 — 둘 다 침묵할 때만 사용자에게 질문.
+description: spec + convention 기반 도메인 코드 구현. Type 분기 — feat/fix 는 전체 흐름 (spec 로드 → 옵션 X 순서 → 빌드 → 머지), refactor 는 spec 없이 해당 단계만, docs/chore 는 파일 직접 편집 → 빌드 sanity check → 머지. spec = 정책 + API 계약 + 도메인 특수 결정 / convention = mechanical 표준. spec 결정은 따르고, spec 침묵은 convention 에서 가져온다 — 둘 다 침묵할 때만 사용자에게 질문.
 ---
 
 # /impl — 구현
@@ -17,15 +17,35 @@ description: spec + convention 기반 도메인 코드 구현. spec = 정책 + A
 
 > **시작 전 — 작업 위치 확인 (필수)**
 > `/impl` 은 이슈 #{N} 의 브랜치가 attach 된 **슬롯 안에서** 실행되어야 한다 (`/issue` 가 attach 한 `../magampick-api-wtX`).
-> - 현재 브랜치가 `feat/{N}-*` (이슈 type prefix) 이고 `docs/specs/{N}-*.md` 가 보이면 → 진행
+> - 현재 브랜치가 `<type>/{N}-*` (이슈 type prefix — `feat` / `fix` / `refactor` / `docs` / `chore`) 이면 → 진행
 > - `develop` / `main` (= 메인 디렉터리) 이면 **즉시 중단** — 이슈 #{N} 의 브랜치가 어느 슬롯에 attach 돼 있는지 (`git worktree list` 로 확인) 안내하고 "그 디렉터리에서 에이전트 띄워 `/impl {N}` 재실행" 안내
 > - 어느 슬롯에도 attach 안 돼 있으면 → `/issue` 또는 `/spec {N}` 먼저 안내, 중단
 > - (Claude Code 한정 편의: relaunch 대신 `EnterWorktree` 로 슬롯 진입 후 진행해도 됨. Codex 엔 없음)
 > - 슬롯 운영 룰 자세히는 [AGENTS.md §"병렬 운영"](../../../AGENTS.md) 참조
 
+> **Type 분기 (필수)** — 이슈 type 라벨에 따라 적용 단계가 다르다. Type 확인: `gh issue view {N} --json labels` 또는 `git branch --show-current` 의 `<type>/...` prefix.
+>
+> | Step | feat / fix | refactor | docs / chore |
+> |---|---|---|---|
+> | §1 spec 파일 로드 | ✓ | ✓ (있으면) | skip |
+> | §2 spec 파싱 | ✓ | ✓ (있으면) | skip |
+> | §3 마이그레이션 V 번호 | 필요 시 | 필요 시 | skip |
+> | §4-1 ~ §4-7 (Entity ~ Controller+테스트) | 전체 | 해당 단계만 | skip |
+> | §4-8 통합 테스트 | 핵심 흐름 시 | 해당 시 | skip |
+> | §4-9 spotlessApply | ✓ | ✓ | skip (코드 변경 없음) |
+> | §4-10 build (sanity check) | ✓ | ✓ | ✓ |
+> | §4-11 roadmap 갱신 | ✓ | 해당 시 | 해당 시 |
+> | §5 결과 보고 + 머지 | ✓ | ✓ | ✓ |
+>
+> **`docs` / `chore` 흐름**: spec / 코드 단계 모두 skip. 작업 = 이슈 `Changes` 섹션에 명시된 파일 직접 편집 → §4-10 build (sanity check) → §4-11 roadmap (해당 시) → §5 머지.
+> **`refactor` 흐름**: 큰 정책 결정 / API 변경이 있으면 `/spec {N}` 명시 호출 후 진행. 그 외엔 spec 없이 §4-1~§4-7 중 해당 단계만.
+
 ### 1. spec 파일 로드
+
+> 적용: `feat` / `fix` (필수), `refactor` (있으면). `docs` / `chore` 는 **skip → §4-10 으로**.
+
 - `docs/specs/{이슈번호}-*.md` 패턴 탐색
-- 매칭 0개 → `/spec {N}` 먼저 호출 안내, 중단
+- 매칭 0개 → `feat` / `fix` 면 `/spec {N}` 먼저 호출 안내, 중단. `refactor` 면 spec 없이 §4 로 진행
 - 매칭 2개 이상 → 사용자에게 선택 받기
 - 매칭 1개 → 그대로 사용
 
