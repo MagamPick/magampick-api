@@ -1,6 +1,6 @@
 ---
 name: issue
-description: 새 기능에 대한 GitHub Issue 를 생성한다. .github/ISSUE_TEMPLATE/feature.md 의 5섹션을 사용자와 대화로 채우고 gh CLI 로 이슈를 만든다. 정책·scope 결정 단계 — 임의 결정 금지.
+description: 새 기능에 대한 GitHub Issue 를 생성한다. .github/ISSUE_TEMPLATE/feature.md 의 4섹션을 사용자와 대화로 채우고 gh CLI 로 이슈를 만든다. 정책·scope 결정 단계 — 임의 결정 금지.
 ---
 
 # /issue — GitHub Issue 생성
@@ -25,15 +25,14 @@ description: 새 기능에 대한 GitHub Issue 를 생성한다. .github/ISSUE_T
 
 scope 밖이면 → 사용자에게 알리고 `product.md` / `features.md` 갱신 여부 논의.
 
-### 2. 5섹션 본문 작성 (대화)
+### 2. 4섹션 본문 작성 (대화)
 
 [`feature.md` 템플릿](../../../.github/ISSUE_TEMPLATE/feature.md) 따름. **한 섹션씩 채우고 사용자 검토 → 다음 섹션** 흐름:
 
 1. **Context** — 왜 만드는가 / 비즈니스 맥락
 2. **Scope** — In Scope / Out of Scope (이 이슈 범위 내 / 외)
-3. **User Roles** (해당 시) — Customer / Seller / Admin
-4. **핵심 정책 결정** (해당 시) — `policy.md` / `product.md` 의 미정 사항 중 이 기능에 필요한 결정
-5. **Business Logic (큰 그림)** — 핵심 흐름 요약. **상세는 `/spec` 에서**
+3. **핵심 정책 결정** (해당 시) — `policy.md` / `product.md` 의 미정 사항 중 이 기능에 필요한 결정 (role 별 권한 분기 발견 시도 여기서)
+4. **Business Logic (큰 그림)** — 핵심 흐름 요약. 다중 role 흐름은 actor 로 표기 (`셀러: 발행 → 소비자: 사용`). **상세는 `/spec` 에서**
 
 원칙:
 - **섹션마다 검토** — 한 섹션 채우면 사용자에게 보여주고 OK 받은 후 다음 섹션

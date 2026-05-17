@@ -20,15 +20,14 @@ Read only the relevant context before drafting:
 
 If the feature is out of scope or depends on a pending decision, stop and discuss the decision with the user.
 
-## 2. Draft The Five Sections
+## 2. Draft The Four Sections
 
 Fill one section at a time, show it to the user, and continue only after approval:
 
 1. Context: why the feature exists and business background.
 2. Scope: In Scope and Out of Scope for this issue.
-3. User Roles: Customer / Seller / Admin when relevant.
-4. Core Policy Decisions: decisions from `policy.md` / `product.md` needed for this feature.
-5. Business Logic: high-level flow only; detailed design belongs in `/spec`.
+3. Core Policy Decisions: decisions from `policy.md` / `product.md` needed for this feature (including role-based authorization branching when relevant).
+4. Business Logic: high-level flow only; mark actors when multiple roles are involved (e.g. `seller publishes → customer redeems`). Detailed design belongs in `/spec`.
 
 ## 3. Docs Updates
 

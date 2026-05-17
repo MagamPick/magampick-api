@@ -30,13 +30,13 @@ description: spec + convention 기반 도메인 코드 구현. spec = 정책 + A
 - 매칭 1개 → 그대로 사용
 
 ### 2. spec 파싱
-8섹션 다 읽음:
-- 1~3. Context / Scope / User Roles → 컨텍스트
-- 4. **API Specification** → Controller / DTO 작성 근거 (필드 / 제약 / 에러 표 — Swagger 어노테이션 본문은 spec 에 없으니 api-convention §12 룰로 부착)
-- 5. **Data Model** → Entity / 마이그레이션 / ERD doc 작성 근거
-- 6. **Business Logic** → Service 로직 + Validation / Error / Edge (표준 Processing Flow / 표준 Test Cases 는 spec 에 없으니 convention + 표준 흐름으로 도출)
-- 7. **External Dependencies** (해당 시) → 외부 API 어댑터
-- 8. **Implementation Notes** (해당 시) → convention 밖 결정만 들어 있음 — 그대로 적용
+7섹션 다 읽음:
+- 1~2. Context / Scope → 컨텍스트
+- 3. **API Specification** → Controller / DTO 작성 근거 (필드 / 제약 / 에러 표 — Swagger 어노테이션 본문은 spec 에 없으니 api-convention §12 룰로 부착)
+- 4. **Data Model** → Entity / 마이그레이션 / ERD doc 작성 근거
+- 5. **Business Logic** → Service 로직 + Validation / Error / Edge (표준 Processing Flow / 표준 Test Cases 는 spec 에 없으니 convention + 표준 흐름으로 도출)
+- 6. **External Dependencies** (해당 시) → 외부 API 어댑터
+- 7. **Implementation Notes** (해당 시) → convention 밖 결정만 들어 있음 — 그대로 적용
 
 > **spec 침묵 → convention single source**: spec 은 정책 / API 계약 / 도메인 특수 동작만 담는다 (`/spec` SKILL §4 §0 "Don't write" 리스트). mechanical detail 은 다음 convention 문서에서 가져온다 — 추측 X, 일관 적용:
 > - Swagger / OpenAPI 어노테이션 부착 → [`api-convention.md`](../../../docs/api-convention.md) §12
