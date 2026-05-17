@@ -1,6 +1,6 @@
 # /spec Workflow
 
-Create an implementation spec from an approved GitHub Issue. The spec is the single file `/impl` should be able to implement from.
+Create an implementation spec from an approved GitHub Issue. The spec captures policy decisions, the API contract, and domain-specific behavior. Mechanical details (Swagger annotations, package layout, transaction placement, logging, test case enumeration, etc.) live in the convention docs as single source of truth — do not duplicate them here. `/impl` reads the spec together with the conventions.
 
 ## Input
 
@@ -64,16 +64,39 @@ Read the relevant docs before drafting:
 
 Draft one section at a time and get user approval for each section. After all sections are complete, show the full spec and get final approval before saving.
 
-Required sections:
+### Convention-Delegated Areas (Don't Write)
+
+The spec is **policy + API contract + domain-specific behavior** only. The following live in convention docs as single source — do not duplicate them in the spec:
+
+| Item | Single source |
+|---|---|
+| Swagger annotation bodies (`@Tag` / `@Operation` / `@Schema` / `@ApiResponse` / `@Parameter`) | `docs/api-convention.md` §12 |
+| Package / file paths / layer separation | `docs/coding-convention.md` §1-2 |
+| Entity / Builder / `@Table` / business method patterns | `docs/coding-convention.md` §3 |
+| `@Transactional` placement (class-level readOnly / method-level override) | `docs/coding-convention.md` §2 |
+| MapStruct / Lombok / Builder usage decisions | `docs/coding-convention.md` §3, §8 |
+| Exception / `BaseErrorCode` / per-domain ErrorCode placement | `docs/coding-convention.md` §7 |
+| Log format strings / levels | `docs/coding-convention.md` §10 |
+| Standard processing flow (extract JWT → repository.findById → 404 → dirty checking → mapper) | Do not describe — derived from convention + the spec's API table and validation rules |
+| Test case enumeration | `docs/test-convention.md` — `/impl` derives standard cases from API table + Edge Cases |
+| Migration format / Enum CHECK / Point indexing / KST timezone | `docs/erd/overview.md` |
+| Authentication / authorization / self-resource matcher | `docs/auth.md` |
+| Self-evident edge cases (same-value update, null body, idempotency, etc.) | Do not write — only meaningful policy-driven edge cases |
+
+Only **decisions that depart from the conventions** (e.g. a new SecurityConfig matcher, domain-specific concurrency control, a non-standard flow) belong in section 8 Implementation Notes.
+
+> Test: "If I delete this line, can `/impl` still produce the same code from the conventions alone?" Yes → delete it.
+
+### Required Sections
 
 1. Context: copy issue context, with an issue link line at the top.
 2. Scope: copy issue scope.
 3. User Roles: copy from issue when relevant.
-4. API Specification: endpoints, auth, params, request/response payloads, errors.
+4. API Specification: endpoints, auth, params, request/response payload shapes (field / type / constraint), error code mapping. No Swagger annotation bodies — those live in the convention.
 5. Data Model: new tables, existing table changes, migration plan, ERD docs.
-6. Business Logic: processing flow, validation, state transitions, errors, edge cases, side effects, test cases.
+6. Business Logic: validation rules, error cases, policy-driven edge cases, side effects. Processing flow only when the flow is domain-specific (skip the standard flow). Test cases only for meaningful integration / domain-specific scenarios (skip per-case enumeration).
 7. External Dependencies: external APIs, environment variables, failure handling when relevant.
-8. Implementation Notes: transaction boundaries, relationships, async, adapter, cache, concurrency, exceptions when relevant.
+8. Implementation Notes: only decisions that depart from the conventions (new security matcher, async, adapter abstraction, cache, concurrency control). Skip when nothing departs.
 
 ## 5. API Specification Format
 
@@ -99,17 +122,10 @@ For each endpoint:
 
 **Error Responses**
 | 상태 | 에러 코드 | 상황 |
-
-**OpenAPI / Swagger**
-- Controller `@Tag` name / description
-- Method `@Operation` summary / description
-- Success and major error `@ApiResponse`
-- DTO / field `@Schema` descriptions and examples
-- Path / query `@Parameter` descriptions and examples when useful
 ```
 
 Follow `docs/api-convention.md`. Specify the payload only; the `ApiResponse<T>` envelope is applied globally.
-Include enough descriptions, examples, and constraints in the spec so `/impl` can add Springdoc OpenAPI annotations without guessing.
+Do not write Swagger annotation bodies — `docs/api-convention.md` §12 is the single source. If the spec's field / constraint / error-code table is accurate enough, `/impl` derives `@Schema`, `@Operation`, and related annotations from it.
 
 ## 6. Length And Range Constraints
 

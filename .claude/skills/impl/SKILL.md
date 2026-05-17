@@ -1,13 +1,13 @@
 ---
 name: impl
-description: spec 파일 기반으로 도메인 코드 구현. 옵션 X 순서 (Entity → 마이그레이션 → ERD → Repository → Service+테스트 → DTO+Mapper → Controller+테스트 → 통합 테스트(핵심 흐름) → spotlessApply → build) 로 한 번에 진행. spec 결정을 기계적으로 코드로 변환 — 임의 결정 X.
+description: spec + convention 기반 도메인 코드 구현. spec = 정책 + API 계약 + 도메인 특수 결정 / convention = mechanical 표준 (Swagger / 패키지 / 트랜잭션 / 로깅 / 테스트 등). 옵션 X 순서 (Entity → 마이그레이션 → ERD → Repository → Service+테스트 → DTO+Mapper → Controller+테스트 → 통합 테스트(핵심 흐름) → spotlessApply → build). spec 결정은 따르고, spec 침묵은 convention 에서 가져온다 — 둘 다 침묵할 때만 사용자에게 질문.
 ---
 
 # /impl — 구현
 
-마감픽 워크플로우 3단계. `/spec` 으로 작성된 spec 파일을 읽고, 옵션 X 순서로 도메인 코드를 한 번에 구현. 빌드 / 테스트 통과까지 확인 후 사용자에게 결과 보고.
+마감픽 워크플로우 3단계. `/spec` 으로 작성된 spec 파일 + 관련 convention 문서를 함께 읽고, 옵션 X 순서로 도메인 코드를 한 번에 구현. 빌드 / 테스트 통과까지 확인 후 사용자에게 결과 보고.
 
-> spec 결정 따름. 임의 결정 X. spec 누락 / 막힘 발견 시에만 사용자에게 질문.
+> spec 결정 따름. spec 에 없는 mechanical detail 은 convention 문서 (`coding-convention` / `api-convention` / `test-convention` / `auth.md` / `erd/overview`) 가 single source. spec / convention 둘 다 침묵하는 결정이 필요할 때만 사용자에게 질문.
 
 ## 입력
 - `{이슈번호}` — GitHub Issue 번호 (필수, 예: `/impl 12`)
@@ -32,11 +32,19 @@ description: spec 파일 기반으로 도메인 코드 구현. 옵션 X 순서 (
 ### 2. spec 파싱
 8섹션 다 읽음:
 - 1~3. Context / Scope / User Roles → 컨텍스트
-- 4. **API Specification** → Controller / DTO 작성 근거
+- 4. **API Specification** → Controller / DTO 작성 근거 (필드 / 제약 / 에러 표 — Swagger 어노테이션 본문은 spec 에 없으니 api-convention §12 룰로 부착)
 - 5. **Data Model** → Entity / 마이그레이션 / ERD doc 작성 근거
-- 6. **Business Logic** → Service 로직 + Validation / Error / Edge / Test Cases
+- 6. **Business Logic** → Service 로직 + Validation / Error / Edge (표준 Processing Flow / 표준 Test Cases 는 spec 에 없으니 convention + 표준 흐름으로 도출)
 - 7. **External Dependencies** (해당 시) → 외부 API 어댑터
-- 8. **Implementation Notes** (해당 시) → 구현 결정 그대로 적용
+- 8. **Implementation Notes** (해당 시) → convention 밖 결정만 들어 있음 — 그대로 적용
+
+> **spec 침묵 → convention single source**: spec 은 정책 / API 계약 / 도메인 특수 동작만 담는다 (`/spec` SKILL §4 §0 "Don't write" 리스트). mechanical detail 은 다음 convention 문서에서 가져온다 — 추측 X, 일관 적용:
+> - Swagger / OpenAPI 어노테이션 부착 → [`api-convention.md`](../../../docs/api-convention.md) §12
+> - 패키지 / 레이어 / `@Transactional` 위치 / 예외 / 로깅 / MapStruct → [`coding-convention.md`](../../../docs/coding-convention.md) §1~3, §7, §8, §10
+> - 테스트 종류 / 강도 / Fixture / 한국어 메서드명 → [`test-convention.md`](../../../docs/test-convention.md)
+> - 인증 / 인가 / 본인 리소스 접근 → [`auth.md`](../../../docs/auth.md)
+> - 마이그레이션 / Enum CHECK / Point / KST → [`erd/overview.md`](../../../docs/erd/overview.md)
+> - 표준 Processing Flow (JWT 추출 → repository.findById → 404 → dirty checking → Mapper) 는 별도 명시 없이 표준대로
 
 ### 3. 마이그레이션 V 번호 결정
 - **timestamp 형식**: `V{YYYYMMDDHHMMSS}__{설명}.sql` (예: `V20260514153022__create_stores.sql`)
@@ -170,13 +178,13 @@ spec 의 Business Logic / Test Cases 가 **핵심 비즈니스 흐름 (회원가
 ✅ ./gradlew build 통과
 (또는 ❌ 실패 — 원인 + 후속 안내)
 
-### spec 외 결정 (있는 경우만)
-- {네이밍 / 컨벤션 선택 등 spec 에 없던 작은 결정}
+### spec + convention 밖 결정 (있는 경우만)
+- {spec 도 convention 도 다루지 않아 만든 결정만. convention 따라 자동 적용된 mechanical detail (패키지 경로 / @Transactional 위치 / Swagger 어노테이션 / MapStruct / 로그 포맷 등) 은 적지 않음}
 ```
 
 보고 직후 머지까지 같은 세션에서 끝낸다 ([`AGENTS.md` 워크플로우 4단계](../../../AGENTS.md) / [`git-workflow.md §4`](../../../docs/git-workflow.md)):
 
-1. **커밋 메시지 검토** — 작성한 커밋 메시지 전문 + 커밋 파일 목록을 사용자에게 보여주고 OK 받기 ([`AGENTS.md` Git 섹션](../../../AGENTS.md))
+1. **커밋 메시지 검토** — `<emoji> <type>: <subject>` **한 줄만** ([`commit-convention.md` §2](../../../docs/commit-convention.md) — body / footer 사용 안 함). 작성한 커밋 메시지 + 커밋 파일 목록을 사용자에게 보여주고 OK 받기 ([`AGENTS.md` Git 섹션](../../../AGENTS.md)). `commit-msg` hook 이 body 있는 커밋을 reject 하므로 우회 / `--no-verify` 금지
 2. **커밋 + 푸시**
 3. **PR 본문 검토** — `gh pr create` 호출 전 제목 / 본문을 사용자에게 보여주고 OK 받기. **이 시점이 머지까지 위임받는 동의 시점**
 4. **PR 생성** — `gh pr create --base develop ...`
@@ -199,7 +207,7 @@ CI red 인 경우: watch 결과의 실패 원인 + 다음 액션 후보 (수정 
 ## 중간 질문 — 자연스럽게 (강제 검토 X)
 
 다음 상황에서만 사용자에게 묻기:
-- spec 에 명백히 빠진 결정 발견 (예: 외부 API URL / 시크릿 / 환경 변수)
+- **spec + convention 둘 다 침묵하는 결정 발견** — mechanical 이면 convention 에서 가져오고, 정책성이면 사용자에게. 예: 외부 API URL / 시크릿 / 환경 변수, spec 에 없는 도메인 특수 분기
 - 빌드 / 테스트가 단순 수정으로 안 되는 실패
 - spec 해석이 두 가지 이상 가능한 모호함
 - `auth.md` / `docs/erd/tables/` 갱신 시 정책 결정 필요
@@ -228,7 +236,7 @@ CI red 인 경우: watch 결과의 실패 원인 + 다음 액션 후보 (수정 
 ## 주의
 
 - **worktree 안에서 실행** — 시작 가드 필수. 주 디렉터리(`develop`/`main`)면 중단하고 worktree 로 안내
-- **spec 결정 따름** — 임의 변경 X. spec 누락은 사용자에게 질문
+- **spec 결정 따름 + convention 위임** — spec 결정은 그대로 적용. spec 침묵은 convention 문서에서 가져온다 (mechanical 표준). 둘 다 침묵하면 사용자에게 질문 (§2 spec 파싱의 convention 매핑 표 참조)
 - **마이그레이션 V 번호 = timestamp** — 머지된 파일 수정 X (CLAUDE.md)
 - **테스트 동시 작성** — Service 단위 + Controller @WebMvcTest 항상. 핵심 흐름 (가입 / 주문 / 결제 / 환불) 은 통합 테스트도 (단계 4-8). 작성 순서보다 *함께 있는지* 가 중요 (AI 자기참조 검증 위험 보완)
 - **한국어 테스트 메서드명** ([test-convention.md](../../../docs/test-convention.md))

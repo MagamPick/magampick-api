@@ -1,11 +1,11 @@
 ---
 name: spec
-description: GitHub Issue 기반 구현 명세 작성. 이슈에서 결정된 정책/scope 를 가져와 API/Data Model/Business Logic/구현 결정까지 채워 docs/specs/ 에 저장. 명세-설계가 한 파일에 다 들어가는 단계 — /impl 은 이 파일만 보고 코드 작성.
+description: GitHub Issue 기반 구현 명세 작성. 정책 결정 + API 계약 + 도메인 특수 동작을 docs/specs/ 에 저장. mechanical detail (Swagger / 패키지 / 트랜잭션 / 로깅 / Test Cases 열거 등) 은 convention 문서가 single source — spec 에 적지 않는다. /impl 은 spec + convention 을 함께 본다.
 ---
 
 # /spec — 구현 명세 작성
 
-마감픽 워크플로우 2단계. `/issue` 로 결정된 정책 / scope 를 받아, 구현에 필요한 모든 결정 (API, DB, 로직, 구현 디테일) 을 spec 파일로 박는다.
+마감픽 워크플로우 2단계. `/issue` 로 결정된 정책 / scope 를 받아, **정책 결정 + API 계약 + 도메인 특수 동작** 만 spec 파일로 박는다. mechanical detail 은 convention 문서가 끌고 간다 — spec 은 그것을 *전제* 하고 차이만 적는다 (§4 §0 "Don't write" 리스트 참조).
 
 > 임의 결정 금지 ([CLAUDE.md 의사결정 룰](../../../CLAUDE.md)). 정책 / scope 미정 발견 시 → `/issue` 로 돌아가 결정 후 재호출.
 
@@ -61,6 +61,29 @@ $gh = 'C:\Program Files\GitHub CLI\gh.exe'
 
 **섹션마다 채우고 사용자 검토 → 다음 섹션** 흐름. `/issue` 와 일관.
 
+#### 0. "Don't write" 리스트 — convention 위임 영역 (필수 원칙)
+
+spec 은 *정책 결정* + *API 계약* + *도메인 특수 동작* 만 담는다. 다음 항목들은 convention 문서가 single source 이므로 **spec 에 적지 않는다**:
+
+| 항목 | Single source |
+|---|---|
+| Swagger 어노테이션 본문 (`@Tag` / `@Operation` / `@Schema` / `@ApiResponse` / `@Parameter`) | [`api-convention.md`](../../../docs/api-convention.md) §12 |
+| 패키지 / 파일 경로 / 레이어 분리 | [`coding-convention.md`](../../../docs/coding-convention.md) §1~2 |
+| Entity / Builder / `@Table` / 비즈니스 메서드 패턴 | [`coding-convention.md`](../../../docs/coding-convention.md) §3 |
+| `@Transactional` 위치 (클래스 단 readOnly / 메서드 단 override) | [`coding-convention.md`](../../../docs/coding-convention.md) §2 |
+| MapStruct / Lombok / Builder 사용 결정 | [`coding-convention.md`](../../../docs/coding-convention.md) §3, §8 |
+| 예외 / `BaseErrorCode` / 도메인별 ErrorCode 분리 위치 | [`coding-convention.md`](../../../docs/coding-convention.md) §7 |
+| 로그 포맷 문자열 / 레벨 | [`coding-convention.md`](../../../docs/coding-convention.md) §10 |
+| Processing Flow 의 표준 흐름 (JWT 추출 → repository.findById → 404 → dirty checking → Mapper) | 별도 설명 X — 표준 흐름은 convention + spec 의 API 표 / Validation Rules 로 도출 |
+| Test Cases 의 case 단위 enumeration | [`test-convention.md`](../../../docs/test-convention.md) — /impl 이 API 표 + Edge Cases 보고 도출 |
+| 마이그레이션 형식 / Enum CHECK / Point 인덱스 / KST | [`erd/overview.md`](../../../docs/erd/overview.md) |
+| 인증 / 인가 / 본인 리소스 접근 매처 | [`auth.md`](../../../docs/auth.md) |
+| self-evident edge case (같은 값으로 갱신 / null body / 멱등성 등) | 적지 않는다 — 의미 있는 정책성 edge case 만 |
+
+위 항목 중 **convention 에서 벗어나는 결정** (예: 신규 SecurityConfig 매처 추가, 도메인 특수 동시성 처리, 표준 흐름 안 따르는 분산 락) 만 §8 Implementation Notes 에 적는다.
+
+> 판단 기준: "이 줄을 빼도 /impl 이 convention 만 보고 같은 코드를 짤 수 있는가?" Yes → 빼라.
+
 #### 1. Context (필수)
 - 이슈 Context 를 **그대로 복사** (다음 세션 / `/impl` 호출 시 spec 만 읽어도 컨텍스트 파악 가능하게)
 - 이슈 링크는 맨 위에 한 줄 (예: `> 이슈: #12`)
@@ -94,13 +117,6 @@ $gh = 'C:\Program Files\GitHub CLI\gh.exe'
 
 **Error Responses**
 | 상태 | 에러 코드 | 상황 |
-
-**OpenAPI / Swagger**
-- Controller `@Tag` name / description
-- Method `@Operation` summary / description
-- Success and major error `@ApiResponse`
-- DTO / field `@Schema` descriptions and examples
-- Path / query `@Parameter` descriptions and examples when useful
 ```
 
 룰:
@@ -108,7 +124,7 @@ $gh = 'C:\Program Files\GitHub CLI\gh.exe'
 - 응답은 `ApiResponse<T>` envelope 자동 적용 (api-convention §3) — payload 만 명시
 - 페이지네이션이면 `PageResponse<T>` / 무한 스크롤은 `SliceResponse<T>`
 - 에러 코드 — [coding-convention.md](../../../docs/coding-convention.md) 의 `BaseErrorCode` 패턴
-- Springdoc OpenAPI 어노테이션을 `/impl` 이 추측 없이 붙일 수 있도록 설명 / 예시 / 제약을 spec 에 포함
+- Swagger 어노테이션 부착 위치 / 본문 텍스트 / 예시는 적지 않는다 → [api-convention.md](../../../docs/api-convention.md) §12 가 single source. spec 의 **필드 / 제약 / 에러 표** 가 충분히 정확하면 `/impl` 이 그것을 바탕으로 `@Schema` 등을 자동 부착
 - Request / Response DTO 필드는 문자열 길이, 숫자 범위, 컬렉션 크기, 형식 제약을 가능한 한 명시
 - 길이 / 범위 제약이 이슈나 문서에 없으면 임의로 확정하지 않고 사용자에게 확인
 - 사용자에게 확인할 때는 추천값과 이유를 함께 제시
@@ -143,10 +159,9 @@ $gh = 'C:\Program Files\GitHub CLI\gh.exe'
 #### 6. Business Logic (필수)
 
 ```markdown
-### Processing Flow
-1. 입력 검증
-2. 핵심 로직
-3. 출력
+### Processing Flow (해당 시)
+**표준 흐름은 적지 않는다** — JWT 추출 → repository.findById → 404 → dirty checking → Mapper 호출 류는 convention 으로 자명.
+도메인 특수 단계만 적는다 — 외부 API 호출 + 실패 보상, 분산 락, 상태 전이 트리거, 멀티 엔티티 트랜잭션 경계 등.
 
 ### Validation Rules
 - 구체적 수치로 (예: 1-500자, 양수만 등)
@@ -157,42 +172,33 @@ $gh = 'C:\Program Files\GitHub CLI\gh.exe'
 ### Error Cases
 | 상황 | 예외 | HTTP |
 
-### Edge Cases
-이 기능에서 발생 가능한 경계 / 특수 케이스 자유롭게 서술.
-참고할 만한 패턴: 시간 경계, 동시성, 중복 호출, null / 빈 값, 권한 경계, 외부 API 실패
-— **단, 해당하는 것만 다룬다. 억지로 채우지 않음.**
+### Edge Cases (해당 시)
+**정책성 / 도메인 특수 케이스만** — 같은 값 갱신 / null body / 멱등성 같은 self-evident 케이스는 적지 않는다.
+참고할 만한 패턴: 시간 경계, 동시성, 중복 호출, 권한 경계, 외부 API 실패, 상태 충돌
 
 ### Side Effects (해당 시)
 - 알림 발송 / 환불 트리거 / 이벤트 publish 등 부수 효과
 - State Transition 과 함께 나오면 매핑 명시
 
 ### Test Cases (해당 시)
-한국어 메서드명으로 (test-convention.md 따름):
-
-#### Service 단위 테스트
-- `매장_등록_성공`
-- `매장_등록_실패_사업자번호_중복`
-
-#### Controller @WebMvcTest
-- `POST_stores_201_성공`
-- `POST_stores_400_사업자번호_누락`
+**case 단위 enumeration 은 적지 않는다** — `/impl` 이 API 표 + Validation Rules + Error Cases + Edge Cases 보고 표준 케이스를 도출한다.
+**적는 경우**: 의미 있는 정책성 / 도메인 특수 시나리오만 — 통합 흐름 (회원가입 / 주문 / 결제 / 환불), 외부 API 실패 보상, 상태 전이 검증 등. 한국어 메서드명 ([test-convention.md](../../../docs/test-convention.md)).
 ```
 
 #### 7. External Dependencies (해당 시)
 - 외부 API (토스페이, 카카오맵, 국세청, FCM 등) 와 연동 시 호출 흐름 / 실패 처리 / 환경 변수
 
 #### 8. Implementation Notes (해당 시)
-구현 결정 사항. 단순 기능은 섹션 생략:
+**convention 에서 벗어나는 결정만** 적는다. convention 으로 자명한 mechanical detail (패키지 / 트랜잭션 / 로깅 / MapStruct / ErrorCode 분리 위치 / Entity Builder 등) 은 §4 §0 "Don't write" 리스트로 위임. 적을 게 없으면 섹션 생략.
 
 ```markdown
-- **Entity 관계**: 단방향 / 양방향, mappedBy 위치
-- **트랜잭션 경계**: Service 메서드 단위 / Facade 패턴 / Propagation
-- **비동기 처리**: 알림 = `@Async` / 메시지 큐 / 동기
-- **외부 API 어댑터 구조**: 직접 호출 / Adapter 추상화
+- **convention 밖 보안 매처 추가**: 예 — `/api/v1/customers/me/**` → `hasRole("CUSTOMER")` 매처 신규 (기존 매처 패턴과 비대칭)
+- **Entity 관계 (도메인 특수)**: 양방향 + mappedBy 가 필요한 이유
+- **비동기 처리**: 알림 = `@Async` / 메시지 큐 (기본 동기에서 벗어나는 경우만)
+- **외부 API 어댑터 추상화**: 직접 호출 대신 Adapter 가 필요한 이유
 - **캐시**: 사용 여부 / 키 / TTL
-- **동시성**: 재고 차감 = pessimistic lock / optimistic lock / DB level
-- **예외 클래스 분리**: 도메인별 / 공통
-- 기타 구현 결정
+- **동시성**: 재고 차감 = pessimistic lock / optimistic lock 등
+- 기타 convention 밖 결정
 ```
 
 ### 5. 저장 위치 / 명명
@@ -243,7 +249,7 @@ $gh = 'C:\Program Files\GitHub CLI\gh.exe'
 - **worktree 안에서 실행** — 2번 단계 가드. 주 디렉터리(`develop`/`main`)면 중단하고 worktree 로 안내
 - **임의 결정 X** — 미정 사항 발견 시 `/issue` 로 돌아가기
 - **사용자 검토 없이 파일 저장 X** — 6번 단계 강제
-- **명세 + 설계 한 파일** — `/impl` 은 이 파일만 보고 코드 작성하므로 누락 없게
+- **spec + convention 분리** — spec = 정책 / API 계약 / 도메인 특수 동작. mechanical detail (Swagger / 패키지 / 트랜잭션 / 로깅 / Test 열거 등) 은 convention 문서에 위임 (§4 §0 "Don't write" 리스트). `/impl` 은 spec + convention 을 함께 본다
 - **Context / Scope 그대로 복사** — spec 파일만 읽어도 모든 정보 파악 가능 (다음 세션 재현용)
 - **테스트 케이스 목록은 한국어** ([test-convention](../../../docs/test-convention.md))
 - **PowerShell 5.1 호환**: gh CLI 호출 시 `--repo MagamPick/magampick-api` 명시 (현재 디렉토리가 git repo 아닐 수 있음)

@@ -35,8 +35,14 @@
 
 ### 코드 작성
 - 패키지·Entity·DTO·예외: [`docs/coding-convention.md`](docs/coding-convention.md)
-- API URL·응답·에러·날짜: [`docs/api-convention.md`](docs/api-convention.md)
+- API URL·응답·에러·날짜·Swagger: [`docs/api-convention.md`](docs/api-convention.md)
 - 인증·인가: [`docs/auth.md`](docs/auth.md)
+
+### 명세 / 구현 책임 분리
+- **spec (`docs/specs/`)** = 정책 결정 + API 계약 (필드 / 제약 / 에러 매핑) + 도메인 특수 동작만
+- **convention 문서** = mechanical detail 의 single source (Swagger 어노테이션 본문 / 패키지 경로 / `@Transactional` 위치 / MapStruct / 로그 포맷 / ErrorCode 분리 / 표준 Processing Flow / Test Cases 표준 케이스 / 마이그레이션 형식 / 인가 매처 등)
+- `/spec` 은 mechanical 영역을 spec 에 적지 않는다 (자세한 "Don't write" 리스트: [`.claude/skills/spec/SKILL.md`](.claude/skills/spec/SKILL.md) §4 §0)
+- `/impl` 은 spec + convention 을 함께 본다. spec 침묵은 convention 에서 가져오고, 둘 다 침묵하면 사용자에게 질문
 
 ### 테스트
 - [`docs/test-convention.md`](docs/test-convention.md) 의 B 강도 정책 따름
@@ -54,9 +60,10 @@
 - **이미 머지된 마이그레이션 파일은 절대 수정하지 않는다** — 변경은 새 파일로
 
 ### Git
-- 커밋 메시지: [`docs/commit-convention.md`](docs/commit-convention.md)
+- 커밋 메시지: [`docs/commit-convention.md`](docs/commit-convention.md) — `<emoji> <type>: <subject>` 한 줄만. **body / footer 사용 안 함**
 - 브랜치·PR·머지: [`docs/git-workflow.md`](docs/git-workflow.md)
 - **커밋 전 메시지 검토 필수** — `git commit` 실행 **전에** 작성한 커밋 메시지 전문과 해당 커밋에 포함될 파일 목록을 사용자에게 보여주고 확인받는다. 검토 없이 임의로 메시지를 작성해 커밋 / 푸시 금지. 여러 커밋이면 각각 보여줄 것
+- **commit-msg hook 1회 셋업** — clone 후 메인 디렉터리에서 한 번: `git config core.hooksPath .githooks`. 모든 worktree 가 같은 `.git/config` 를 공유하므로 슬롯에서 다시 할 필요 없음. body 가 들어간 커밋을 자동 reject 해서 [`commit-convention.md §2`](docs/commit-convention.md) 위반 차단
 
 ---
 
@@ -67,7 +74,7 @@
 | 단계 | 명령/스킬 | 산출물 | 사용자 검토 |
 |---|---|---|---|
 | 1. 이슈 | `/issue {기능명}` | GitHub Issue (정책 / scope 결정) + 작업 브랜치를 슬롯에 attach | 생성 전 |
-| 2. 명세 | `/spec {이슈번호}` | `docs/specs/{N}-{기능명}.md` (구현 명세 + 구현 결정) | 저장 전 |
+| 2. 명세 | `/spec {이슈번호}` | `docs/specs/{N}-{기능명}.md` (정책 결정 + API 계약 + 도메인 특수 동작 — mechanical detail 은 convention 위임) | 저장 전 |
 | 3. 구현 | `/impl {이슈번호}` | 코드 + 테스트 + 빌드 통과 | 진행 중 선택 |
 | 4. 머지 | `/impl` 끝에서 이어 진행 | 커밋 → 푸시 → PR 생성 → CI watch → CI green 시 자동 머지 → 슬롯 정리 → develop pull | 커밋 메시지 전, PR 본문 전 |
 
