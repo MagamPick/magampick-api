@@ -16,10 +16,6 @@ labels: feat
 ### Out of Scope
 - 
 
-## User Roles (해당 시)
-<!-- 누가 사용하는가 (Customer / Seller / Admin) -->
-- 
-
 ## 핵심 정책 결정 (해당 시)
 <!-- policy.md / product.md 의 미정 사항 중 이 기능에 필요한 결정 -->
 - 

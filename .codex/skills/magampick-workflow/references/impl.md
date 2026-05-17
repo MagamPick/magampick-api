@@ -19,7 +19,7 @@ Implement code from a completed spec and the convention docs together. The spec 
 
 Read all spec sections:
 
-- Context / Scope / User Roles
+- Context / Scope
 - API Specification (field / type / constraint / error-code tables — Swagger annotation bodies are not in the spec; derive them via `docs/api-convention.md` §12)
 - Data Model
 - Business Logic (Validation / Error / Edge cases — the standard processing flow and standard test cases are not enumerated in the spec; derive them from conventions + the standard flow)

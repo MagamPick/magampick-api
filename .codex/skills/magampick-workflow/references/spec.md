@@ -18,7 +18,7 @@ gh issue view {N} --repo MagamPick/magampick-api --json number,title,body,labels
 Extract:
 
 - Feature name from title after removing the emoji/type prefix.
-- Five issue sections from the body.
+- Four issue sections from the body.
 - Domain label from labels.
 
 If the issue is missing required sections or still has undecided policy/scope, stop and send the user back to `/issue`.
@@ -83,7 +83,7 @@ The spec is **policy + API contract + domain-specific behavior** only. The follo
 | Authentication / authorization / self-resource matcher | `docs/auth.md` |
 | Self-evident edge cases (same-value update, null body, idempotency, etc.) | Do not write — only meaningful policy-driven edge cases |
 
-Only **decisions that depart from the conventions** (e.g. a new SecurityConfig matcher, domain-specific concurrency control, a non-standard flow) belong in section 8 Implementation Notes.
+Only **decisions that depart from the conventions** (e.g. a new SecurityConfig matcher, domain-specific concurrency control, a non-standard flow) belong in section 7 Implementation Notes.
 
 > Test: "If I delete this line, can `/impl` still produce the same code from the conventions alone?" Yes → delete it.
 
@@ -91,12 +91,11 @@ Only **decisions that depart from the conventions** (e.g. a new SecurityConfig m
 
 1. Context: copy issue context, with an issue link line at the top.
 2. Scope: copy issue scope.
-3. User Roles: copy from issue when relevant.
-4. API Specification: endpoints, auth, params, request/response payload shapes (field / type / constraint), error code mapping. No Swagger annotation bodies — those live in the convention.
-5. Data Model: new tables, existing table changes, migration plan, ERD docs.
-6. Business Logic: validation rules, error cases, policy-driven edge cases, side effects. Processing flow only when the flow is domain-specific (skip the standard flow). Test cases only for meaningful integration / domain-specific scenarios (skip per-case enumeration).
-7. External Dependencies: external APIs, environment variables, failure handling when relevant.
-8. Implementation Notes: only decisions that depart from the conventions (new security matcher, async, adapter abstraction, cache, concurrency control). Skip when nothing departs.
+3. API Specification: endpoints, auth, params, request/response payload shapes (field / type / constraint), error code mapping. No Swagger annotation bodies — those live in the convention.
+4. Data Model: new tables, existing table changes, migration plan, ERD docs.
+5. Business Logic: validation rules, error cases, policy-driven edge cases, side effects. Processing flow only when the flow is domain-specific (skip the standard flow). Test cases only for meaningful integration / domain-specific scenarios (skip per-case enumeration).
+6. External Dependencies: external APIs, environment variables, failure handling when relevant.
+7. Implementation Notes: only decisions that depart from the conventions (new security matcher, async, adapter abstraction, cache, concurrency control). Skip when nothing departs.
 
 ## 5. API Specification Format
 
