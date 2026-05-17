@@ -1,6 +1,6 @@
 # /impl Workflow
 
-Implement code from a completed spec. Follow the spec mechanically. Ask the user only when the spec is missing a decision or a complex build/test failure requires interpretation.
+Implement code from a completed spec and the convention docs together. The spec carries policy decisions, the API contract, and domain-specific behavior. The convention docs carry mechanical detail (Swagger annotations, package layout, transaction placement, logging, test enumeration, etc.). Follow the spec where it speaks, fall back to the conventions when the spec is silent on mechanical detail, and ask the user only when both are silent on a decision or a complex build/test failure requires interpretation.
 
 ## Input
 
@@ -20,13 +20,28 @@ Implement code from a completed spec. Follow the spec mechanically. Ask the user
 Read all spec sections:
 
 - Context / Scope / User Roles
-- API Specification
+- API Specification (field / type / constraint / error-code tables — Swagger annotation bodies are not in the spec; derive them via `docs/api-convention.md` §12)
 - Data Model
-- Business Logic
+- Business Logic (Validation / Error / Edge cases — the standard processing flow and standard test cases are not enumerated in the spec; derive them from conventions + the standard flow)
 - External Dependencies
-- Implementation Notes
+- Implementation Notes (only decisions that depart from the conventions — apply as written)
 
 If no spec exists, tell the user to run `/spec {N}` first. If multiple specs match, ask the user to choose.
+
+### Convention as Single Source When Spec Is Silent
+
+The spec is intentionally thin (see `/spec` reference, §4 Convention-Delegated Areas). When the spec does not specify a mechanical detail, do not invent one — pull it from the convention docs and apply it consistently:
+
+| Topic | Source |
+|---|---|
+| Swagger / OpenAPI annotation placement and content | `docs/api-convention.md` §12 |
+| Package / layer / `@Transactional` placement / exceptions / logging / MapStruct | `docs/coding-convention.md` §1-3, §7, §8, §10 |
+| Test kinds / depth / fixtures / Korean test method names | `docs/test-convention.md` |
+| Authentication / authorization / self-resource access | `docs/auth.md` |
+| Migration format / Enum CHECK / Point / KST | `docs/erd/overview.md` |
+| Standard processing flow (JWT → repository.findById → 404 → dirty checking → mapper) | Apply as the default — no spec narration needed |
+
+Ask the user only when both spec and convention are silent.
 
 ## 3. Migration Version
 
@@ -76,11 +91,7 @@ Update the roadmap only after the build passes:
 - Use `@WithMockUser` or security context setup when auth is required.
 - Integration tests for golden-path flows (signup / order / payment / refund) use `@SpringBootTest @AutoConfigureMockMvc @Transactional` and `extends PostgresTestBase`. They exist to break the AI self-reference risk that mock-heavy unit/slice tests cannot catch — real DB, real service↔repository wiring, real transaction boundary, real security filter. Skip for non-golden-path features.
 - DTO request/response shapes follow `docs/api-convention.md`.
-- Controllers and DTOs must include Springdoc OpenAPI annotations from `docs/api-convention.md`.
-  - Controller class: `@Tag`.
-  - Controller method: `@Operation` and success / major error `@ApiResponse`.
-  - DTO record and components: `@Schema`.
-  - Path / query parameters: `@Parameter` when useful.
+- Controllers and DTOs include Springdoc OpenAPI annotations per `docs/api-convention.md` §12 (single source — do not infer placement or wording from the spec).
 - Exceptions follow `BusinessException` + `BaseErrorCode` patterns from `docs/coding-convention.md`.
 
 ## 6. Docs Allowed During /impl
@@ -116,7 +127,7 @@ After the build passes, report:
 
 - Created/modified files grouped by Entity, migration, ERD, repository, service/test, DTO/mapper, controller/test, and roadmap.
 - Build result.
-- Any small spec-adjacent implementation choices made.
+- Only decisions made when both the spec and the conventions were silent — skip anything that was simply applied per convention.
 - Remaining blockers, if any.
 - Confirm whether `docs/roadmap.md` was updated to `완료` with the issue number, or explain why it was not updated.
 
