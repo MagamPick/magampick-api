@@ -337,6 +337,28 @@ throw new BusinessException(StoreErrorCode.STORE_NOT_FOUND);
 throw new BusinessException(CommonErrorCode.INVALID_INPUT);
 ```
 
+### ErrorCode 소속 판단 기준
+
+ErrorCode 는 **"어느 자원의 문제인가"** 기준으로 그 자원이 속한 도메인 enum 에 정의한다 — 던지는 쪽 도메인이 아님.
+
+| 케이스 | 정의 위치 | 던지는 위치 |
+|---|---|---|
+| store 조회 실패 | `StoreErrorCode.STORE_NOT_FOUND` | store / order / 어디서든 |
+| seller 조회 실패 | `SellerErrorCode.SELLER_NOT_FOUND` | store / auth / 어디서든 |
+| 입력 검증 / 인증 / 서버 오류 등 도메인 무관 | `CommonErrorCode` | 어디서든 |
+
+cross-domain 예시 — store 서비스에서 seller 를 조회하다 못 찾으면, `StoreErrorCode` 에 `SELLER_NOT_FOUND` 를 추가하지 말고 `SellerErrorCode.SELLER_NOT_FOUND` 를 import 해서 던진다:
+
+```java
+// store/service/StoreService.java
+import com.magampick.seller.exception.SellerErrorCode;
+
+Seller seller = sellerRepository.findById(sellerId)
+    .orElseThrow(() -> new BusinessException(SellerErrorCode.SELLER_NOT_FOUND));
+```
+
+이렇게 두면 같은 자원의 NOT_FOUND 가 여러 도메인 enum 에 중복되는 것을 막을 수 있다.
+
 ### 통일 응답 envelope — `ApiResponse<T>` / `ErrorResponse`
 
 모든 응답은 `ApiResponse<T>` 로 wrap (성공/실패 일관). 자세한 응답 포맷은 [`api-convention.md`](api-convention.md) 참조.
