@@ -29,10 +29,11 @@ Issue type label decides which steps apply. Check via `gh issue view {N} --json 
 | §5 Step 10 (integration test) | golden path only | applicable only | skip |
 | §5 Step 11 (`./gradlew spotlessApply`) | ✓ | ✓ | skip (no code change) |
 | §5 Step 12 (`./gradlew build`, sanity check) | ✓ | ✓ | ✓ |
-| §5 Step 13 (roadmap update) | ✓ | when applicable | when applicable |
+| §5 Step 13 (external model review) | ✓ | ✓ | skip (on explicit request only) |
+| §5 Step 14 (roadmap update) | ✓ | when applicable | when applicable |
 | §9 Completion report + merge cycle | ✓ | ✓ | ✓ |
 
-- **`docs` / `chore` flow**: skip code steps. Work = §3a light plan (confirm files / scope) → edit the files listed in the issue's `Changes` section → `./gradlew build` (sanity check) → roadmap update (when applicable) → merge cycle.
+- **`docs` / `chore` flow**: skip code steps. Work = §3a light plan (confirm files / scope) → edit the files listed in the issue's `Changes` section → `./gradlew build` (sanity check) → roadmap update (when applicable) → merge cycle. (External review at Step 13 only on explicit request.)
 - **`refactor` flow**: §3a plan mode agrees on policy / API change impact. If a heavy handoff is genuinely needed, the user invokes `/spec {N}` explicitly first (rare).
 
 ## 3a. Plan Mode Entry + Agreement (required for all types)
@@ -121,9 +122,27 @@ Follow this order unless the existing codebase makes a small local adjustment ne
 10. Integration test when the feature is a golden-path flow (signup / order / payment / refund) — see §6. Skip otherwise.
 11. `./gradlew spotlessApply`
 12. `./gradlew build`
-13. Update `docs/roadmap.md`
+13. External model review (read-only consultation)
+14. Update `docs/roadmap.md`
 
-Update the roadmap only after the build passes:
+Run the external model review only after the build passes (Step 13):
+
+- Model default: **Codex 5.5 medium**. The user may pick a different model at the start (Codex 5.5 high / Opus 4.7 / another Sonnet instance) based on remaining tokens and work importance. Prefer a model from a different family than the implementer (different blindspots).
+- Read-only consultation — no separate worktree needed.
+- Invocation: agent-appropriate mechanism (Claude Code: Agent tool or headless `claude -p ...`; Codex: new session; etc.).
+- Prompt — ask the reviewer to cover all 8 categories, critiquing case-fit even when conventions are ticked off:
+  1. Intent alignment with issue + plan agreement (no over-engineering)
+  2. Encapsulation / OO — Tell-Don't-Ask, predicate naming (state vs capability), SRP, creation pattern consistency
+  3. Spring Boot practices — `@Transactional` boundaries, exception handling, multipart config, MapStruct, `@PageableDefault`, validation
+  4. Security — auth matchers, input validation, privilege bypass, sensitive data exposure
+  5. Performance — N+1, fetch strategy, missing pagination
+  6. Convention adherence — fit for case, consistency in silent areas, better alternatives
+  7. API / response — HTTP status correctness, response envelope, `@ApiResponses` coverage (incl. 401/403), idempotence
+  8. Tests — coverage (happy + edge + authz), assertion meaningfulness, integration test necessity
+- Reflection: implementer does NOT auto-apply. The user reads the review, selects items to address, and the implementer (current session) applies the changes. If changes are made, re-run `./gradlew spotlessApply` and `./gradlew build` before proceeding to roadmap.
+- Skip for `docs` / `chore` types unless explicitly requested.
+
+Update the roadmap only after the build passes (and external review reflections, if any):
 
 - Find the row for the implemented feature.
 - Change status from `미착수` to `완료`.
