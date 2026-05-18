@@ -74,7 +74,7 @@
 | 단계 | 명령/스킬 | 산출물 | 사용자 검토 |
 |---|---|---|---|
 | 1. 이슈 | `/issue {기능명}` | GitHub Issue (type 결정 + 정책 / scope + 영향도 큰 결정) + 작업 브랜치를 슬롯에 attach | 생성 전 |
-| 2. 구현 | `/impl {이슈번호}` | plan mode 진입 → 사용자 합의 → 코드 / 파일 편집 + (해당 시) 테스트 + 빌드 통과 | plan 합의 전, 진행 중 선택 |
+| 2. 구현 | `/impl {이슈번호}` | plan mode 진입 → 사용자 합의 → 코드 / 파일 편집 + (해당 시) 테스트 + 빌드 통과 + (feat/fix/refactor) 외부 모델 리뷰 → 반영 | plan 합의 전, 리뷰 결과 검토 시, 진행 중 선택 |
 | 3. 머지 | `/impl` 끝에서 이어 진행 | 커밋 → 푸시 → PR 생성 → CI watch → CI green 시 자동 머지 → 슬롯 정리 → develop pull | 커밋 메시지 전, PR 본문 전 |
 
 > **모든 type 동일 (3단계)**: `/issue` → `/impl` → 머지. 적용 단계는 type 에 따라 다름 (예: `docs` / `chore` 는 코드 / 테스트 단계 skip) — [`.claude/skills/impl/SKILL.md`](.claude/skills/impl/SKILL.md) §"흐름 > Type 분기" 참조.
