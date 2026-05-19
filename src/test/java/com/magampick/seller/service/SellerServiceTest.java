@@ -8,7 +8,6 @@ import static org.mockito.BDDMockito.verify;
 
 import com.magampick.global.exception.BusinessException;
 import com.magampick.seller.domain.Seller;
-import com.magampick.seller.domain.SellerVerificationStatus;
 import com.magampick.seller.dto.SellerPhoneUpdateRequest;
 import com.magampick.seller.dto.SellerProfileResponse;
 import com.magampick.seller.dto.SellerProfileUpdateRequest;
@@ -38,7 +37,6 @@ class SellerServiceTest {
             .passwordHash("hash")
             .ownerName("홍길동")
             .businessNumber("1234567890")
-            .verificationStatus(SellerVerificationStatus.APPROVED)
             .build();
     ReflectionTestUtils.setField(seller, "id", 1L);
     return seller;
@@ -52,7 +50,6 @@ class SellerServiceTest {
         seller.getBusinessNumber(),
         seller.getPhone(),
         null,
-        seller.getVerificationStatus().name(),
         OffsetDateTime.now());
   }
 

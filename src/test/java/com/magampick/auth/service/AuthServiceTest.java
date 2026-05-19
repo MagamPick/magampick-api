@@ -24,7 +24,6 @@ import com.magampick.global.exception.BusinessException;
 import com.magampick.global.security.JwtProvider;
 import com.magampick.global.security.Role;
 import com.magampick.seller.domain.Seller;
-import com.magampick.seller.domain.SellerVerificationStatus;
 import com.magampick.seller.repository.SellerRepository;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -100,7 +99,6 @@ class AuthServiceTest {
             .passwordHash("encoded")
             .ownerName(request.ownerName())
             .businessNumber(request.businessNumber())
-            .verificationStatus(SellerVerificationStatus.APPROVED)
             .build();
     ReflectionTestUtils.setField(savedSeller, "id", 11L);
 
@@ -133,26 +131,6 @@ class AuthServiceTest {
     assertThatThrownBy(() -> authService.loginCustomer(request))
         .isInstanceOf(BusinessException.class)
         .hasFieldOrPropertyWithValue("errorCode", AuthErrorCode.INVALID_CREDENTIALS);
-  }
-
-  @Test
-  void 사장_로그인_미승인시_예외() {
-    // given
-    LoginRequest request = new LoginRequest("seller@test.com", "Abcd1234!");
-    Seller seller =
-        Seller.builder()
-            .email("seller@test.com")
-            .passwordHash("encoded")
-            .ownerName("owner")
-            .businessNumber("1234567890")
-            .verificationStatus(SellerVerificationStatus.PENDING)
-            .build();
-    given(sellerRepository.findByEmail(request.email())).willReturn(Optional.of(seller));
-
-    // when / then
-    assertThatThrownBy(() -> authService.loginSeller(request))
-        .isInstanceOf(BusinessException.class)
-        .hasFieldOrPropertyWithValue("errorCode", AuthErrorCode.SELLER_NOT_APPROVED);
   }
 
   @Test

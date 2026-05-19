@@ -13,7 +13,6 @@
 | business_number | VARCHAR(10) | N |  | 숫자 10자리. 중복 허용 |
 | phone | VARCHAR(20) | Y |  | 사장 프로필에서 수정 가능. 변경 시 본인인증 stub 통과로 간주. |
 | phone_verified_at | TIMESTAMP | Y |  | 휴대폰 변경 시 함께 갱신되는 본인인증 통과 시각. |
-| verification_status | VARCHAR(20) | N | CHECK | `PENDING`, `APPROVED`, `REJECTED` |
 | deleted_at | TIMESTAMP | Y |  | 소프트 삭제 시각 |
 | created_at | TIMESTAMP | N |  | 생성 시각 |
 | updated_at | TIMESTAMP | N |  | 수정 시각 |
@@ -25,5 +24,4 @@
 
 ## 제약
 
-- `chk_sellers_verification_status`  
-  `verification_status IN ('PENDING', 'APPROVED', 'REJECTED')`
+- (없음)

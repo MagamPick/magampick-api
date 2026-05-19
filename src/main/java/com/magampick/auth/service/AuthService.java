@@ -19,7 +19,6 @@ import com.magampick.global.exception.BusinessException;
 import com.magampick.global.security.JwtProvider;
 import com.magampick.global.security.Role;
 import com.magampick.seller.domain.Seller;
-import com.magampick.seller.domain.SellerVerificationStatus;
 import com.magampick.seller.repository.SellerRepository;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
@@ -89,7 +88,6 @@ public class AuthService {
                 .passwordHash(passwordEncoder.encode(request.password()))
                 .ownerName(request.ownerName())
                 .businessNumber(request.businessNumber())
-                .verificationStatus(SellerVerificationStatus.APPROVED)
                 .build());
     log.info("seller signup completed. sellerId={}", seller.getId());
     return refreshTokenService.issueTokens(seller.getId(), Role.SELLER);
@@ -101,9 +99,6 @@ public class AuthService {
         sellerRepository.findByEmail(request.email()).orElseThrow(this::invalidCredentials);
     if (seller.isDeleted()) {
       throw invalidCredentials();
-    }
-    if (!seller.isApproved()) {
-      throw new BusinessException(AuthErrorCode.SELLER_NOT_APPROVED);
     }
     if (!passwordEncoder.matches(request.password(), seller.getPasswordHash())) {
       throw invalidCredentials();
