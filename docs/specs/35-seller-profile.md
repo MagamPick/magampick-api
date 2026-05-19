@@ -252,9 +252,9 @@
   - `void changePhone(String newPhone, LocalDateTime verifiedAt)` — `phone`, `phoneVerifiedAt` 동시 갱신
 - **트랜잭션 경계**: `SellerService` 클래스 `@Transactional(readOnly = true)`, 수정 메서드는 메서드 단 `@Transactional` override (#15 의 `AuthService` 패턴과 동일)
 - **인증 주체 추출**: Controller 메서드 시그니처에 `@AuthenticationPrincipal CustomUserDetails userDetails` 사용 → `userDetails.getUserId()` 가 sellerId
-- **DTO 변환**: 모두 MapStruct `SellerMapper` 로 통일. record 내 `toEntity()` / `from()` 두지 않음 (coding-convention §5)
-- **에러 코드 위치**: `SELLER_NOT_FOUND` 는 도메인별 분리 원칙(coding-convention §7)에 따라 `seller/exception/SellerErrorCode` 에 신규 enum 정의. `AuthErrorCode` 와 분리
-- **로깅** (`coding-convention §10`): Service 도메인 이벤트만 `INFO` — `"사장 이름 변경됨. sellerId={}"`, `"사장 휴대폰 변경됨. sellerId={}"`. 조회 로그 X
+- **DTO 변환**: 모두 MapStruct `SellerMapper` 로 통일. record 내 `toEntity()` / `from()` 두지 않음 (coding-convention §6)
+- **에러 코드 위치**: `SELLER_NOT_FOUND` 는 도메인별 분리 원칙(coding-convention §8)에 따라 `seller/exception/SellerErrorCode` 에 신규 enum 정의. `AuthErrorCode` 와 분리
+- **로깅** (`coding-convention §11`): Service 도메인 이벤트만 `INFO` — `"사장 이름 변경됨. sellerId={}"`, `"사장 휴대폰 변경됨. sellerId={}"`. 조회 로그 X
 - **마스킹**: 미적용 (이슈 §4 정책). 응답·로그 모두 raw phone 노출
 - **OpenAPI 그룹**: `SecurityConfig` 의 `/api/v1/seller/**` 매처 + `SwaggerConfig` 의 `2. Seller (사장)` 그룹에 자동 포함
 

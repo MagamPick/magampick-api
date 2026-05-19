@@ -86,12 +86,12 @@ The spec is **policy + API contract + domain-specific behavior** only. The follo
 | Item | Single source |
 |---|---|
 | Swagger annotation bodies (`@Tag` / `@Operation` / `@Schema` / `@ApiResponse` / `@Parameter`) | `docs/api-convention.md` §12 |
-| Package / file paths / layer separation | `docs/coding-convention.md` §1-2 |
-| Entity / Builder / `@Table` / business method patterns | `docs/coding-convention.md` §3 |
-| `@Transactional` placement (class-level readOnly / method-level override) | `docs/coding-convention.md` §2 |
-| MapStruct / Lombok / Builder usage decisions | `docs/coding-convention.md` §3, §8 |
-| Exception / `BaseErrorCode` / per-domain ErrorCode placement | `docs/coding-convention.md` §7 |
-| Log format strings / levels | `docs/coding-convention.md` §10 |
+| Package / file paths / layer separation | `docs/coding-convention.md` §1-3 |
+| Entity / Builder / `@Table` / business method patterns | `docs/coding-convention.md` §4 |
+| `@Transactional` placement (class-level readOnly / method-level override) | `docs/coding-convention.md` §3 |
+| MapStruct / Lombok / Builder usage decisions | `docs/coding-convention.md` §4, §9 |
+| Exception / `BaseErrorCode` / per-domain ErrorCode placement | `docs/coding-convention.md` §8 |
+| Log format strings / levels | `docs/coding-convention.md` §11 |
 | Standard processing flow (extract JWT → repository.findById → 404 → dirty checking → mapper) | Do not describe — derived from convention + the spec's API table and validation rules |
 | Test case enumeration | `docs/test-convention.md` — `/impl` derives standard cases from API table + Edge Cases |
 | Migration format / Enum CHECK / Point indexing / KST timezone | `docs/erd/overview.md` |
