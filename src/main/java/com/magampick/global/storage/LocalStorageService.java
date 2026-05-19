@@ -33,7 +33,7 @@ public class LocalStorageService implements StorageService {
     } catch (IOException e) {
       throw new BusinessException(StorageErrorCode.IMAGE_UPLOAD_FAILED, e);
     }
-    log.info("file uploaded. path={}", target);
+    log.info("파일 업로드 완료. path={}", target);
     return "/uploads/" + relativePath;
   }
 

@@ -56,7 +56,7 @@ public class AuthService {
                 .nickname(request.nickname())
                 .build());
 
-    log.info("customer signup completed. customerId={}", customer.getId());
+    log.info("소비자 회원가입 완료. customerId={}", customer.getId());
     return refreshTokenService.issueTokens(customer.getId(), Role.CUSTOMER);
   }
 
@@ -70,7 +70,7 @@ public class AuthService {
     if (!passwordEncoder.matches(request.password(), customer.getPasswordHash())) {
       throw invalidCredentials();
     }
-    log.info("customer login succeeded. customerId={}", customer.getId());
+    log.info("소비자 로그인 성공. customerId={}", customer.getId());
     return refreshTokenService.issueTokens(customer.getId(), Role.CUSTOMER);
   }
 
@@ -89,7 +89,7 @@ public class AuthService {
                 .ownerName(request.ownerName())
                 .businessNumber(request.businessNumber())
                 .build());
-    log.info("seller signup completed. sellerId={}", seller.getId());
+    log.info("사장 회원가입 완료. sellerId={}", seller.getId());
     return refreshTokenService.issueTokens(seller.getId(), Role.SELLER);
   }
 
@@ -103,7 +103,7 @@ public class AuthService {
     if (!passwordEncoder.matches(request.password(), seller.getPasswordHash())) {
       throw invalidCredentials();
     }
-    log.info("seller login succeeded. sellerId={}", seller.getId());
+    log.info("사장 로그인 성공. sellerId={}", seller.getId());
     return refreshTokenService.issueTokens(seller.getId(), Role.SELLER);
   }
 
@@ -117,7 +117,7 @@ public class AuthService {
             .map(CustomerOAuthAccount::getCustomer)
             .orElseGet(() -> upsertKakaoCustomer(userInfo));
 
-    log.info("customer kakao login succeeded. customerId={}", customer.getId());
+    log.info("소비자 카카오 로그인 성공. customerId={}", customer.getId());
     return refreshTokenService.issueTokens(customer.getId(), Role.CUSTOMER);
   }
 
@@ -137,7 +137,7 @@ public class AuthService {
 
     refreshTokenService.revoke(refreshToken);
     TokenResponse tokens = refreshTokenService.issueTokens(payload.userId(), payload.role());
-    log.info("token rotated. ownerId={}, ownerRole={}", payload.userId(), payload.role());
+    log.info("토큰 갱신됨. ownerId={}, ownerRole={}", payload.userId(), payload.role());
     return tokens;
   }
 
@@ -149,7 +149,7 @@ public class AuthService {
           com.magampick.global.security.exception.AuthErrorCode.INVALID_TOKEN);
     }
     refreshTokenService.revoke(refreshToken);
-    log.info("logout completed. ownerId={}, ownerRole={}", userId, role);
+    log.info("로그아웃 완료. ownerId={}, ownerRole={}", userId, role);
   }
 
   private Customer upsertKakaoCustomer(OAuthUserInfo userInfo) {

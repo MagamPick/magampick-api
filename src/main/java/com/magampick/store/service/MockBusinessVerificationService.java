@@ -11,6 +11,6 @@ public class MockBusinessVerificationService implements BusinessVerificationServ
 
   @Override
   public void verify(String businessNumber) {
-    log.info("business verification skipped (mock). businessNumber={}", businessNumber);
+    log.info("사업자 인증 mock 통과. businessNumber={}", businessNumber);
   }
 }

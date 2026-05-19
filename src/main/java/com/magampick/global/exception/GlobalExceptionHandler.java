@@ -20,7 +20,7 @@ public class GlobalExceptionHandler {
   @ExceptionHandler(BusinessException.class)
   public ResponseEntity<ApiResponse<Void>> handleBusiness(BusinessException e) {
     BaseErrorCode errorCode = e.getErrorCode();
-    log.warn("BusinessException: {}", errorCode.getCode());
+    log.warn("비즈니스 예외 발생. code={}", errorCode.getCode());
     return ResponseEntity.status(errorCode.getStatus())
         .body(ApiResponse.error(ErrorResponse.from(errorCode)));
   }
@@ -48,7 +48,7 @@ public class GlobalExceptionHandler {
 
   @ExceptionHandler(Exception.class)
   public ResponseEntity<ApiResponse<Void>> handleAll(Exception e) {
-    log.error("Unhandled exception", e);
+    log.error("처리되지 않은 예외", e);
     return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
         .body(ApiResponse.error(ErrorResponse.from(CommonErrorCode.INTERNAL_ERROR)));
   }
