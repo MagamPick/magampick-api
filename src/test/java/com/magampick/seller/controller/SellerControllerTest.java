@@ -27,9 +27,9 @@ import java.time.OffsetDateTime;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(SellerController.class)
@@ -38,8 +38,8 @@ class SellerControllerTest {
 
   @Autowired MockMvc mockMvc;
   @Autowired ObjectMapper objectMapper;
-  @MockBean SellerService sellerService;
-  @MockBean JwtProvider jwtProvider;
+  @MockitoBean SellerService sellerService;
+  @MockitoBean JwtProvider jwtProvider;
 
   private static final CustomUserDetails SELLER_USER = new CustomUserDetails(1L, Role.SELLER);
   private static final CustomUserDetails CUSTOMER_USER = new CustomUserDetails(2L, Role.CUSTOMER);

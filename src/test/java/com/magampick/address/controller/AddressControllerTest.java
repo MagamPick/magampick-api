@@ -31,9 +31,9 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(AddressController.class)
@@ -42,8 +42,8 @@ class AddressControllerTest {
 
   @Autowired MockMvc mockMvc;
   @Autowired ObjectMapper objectMapper;
-  @MockBean AddressService addressService;
-  @MockBean JwtProvider jwtProvider;
+  @MockitoBean AddressService addressService;
+  @MockitoBean JwtProvider jwtProvider;
 
   private static final CustomUserDetails CUSTOMER_USER = new CustomUserDetails(1L, Role.CUSTOMER);
   private static final CustomUserDetails SELLER_USER = new CustomUserDetails(2L, Role.SELLER);
