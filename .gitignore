@@ -40,3 +40,6 @@ out/
 .env
 .env.*
 !.env.example
+
+### Claude Code (local-only) ###
+.claude/settings.local.json
