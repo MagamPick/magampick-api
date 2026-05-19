@@ -87,8 +87,7 @@ public class StoreService {
             .build();
 
     storeRepository.save(store);
-    log.info(
-        "store registered. storeId={}, sellerId={}, status={}", store.getId(), sellerId, status);
+    log.info("매장 등록됨. storeId={}, sellerId={}, status={}", store.getId(), sellerId, status);
     return new StoreRegisterResponse(store.getId(), store.getStatus());
   }
 
@@ -128,7 +127,7 @@ public class StoreService {
             .findById(storeId)
             .orElseThrow(() -> new BusinessException(StoreErrorCode.STORE_NOT_FOUND));
     store.approve();
-    log.info("store approved. storeId={}", storeId);
+    log.info("매장 승인됨. storeId={}", storeId);
   }
 
   @Transactional
@@ -138,7 +137,7 @@ public class StoreService {
             .findById(storeId)
             .orElseThrow(() -> new BusinessException(StoreErrorCode.STORE_NOT_FOUND));
     store.reject(rejectionReason);
-    log.info("store rejected. storeId={}, reason={}", storeId, rejectionReason);
+    log.info("매장 반려됨. storeId={}, reason={}", storeId, rejectionReason);
   }
 
   private String uploadStoreImage(MultipartFile image) {
