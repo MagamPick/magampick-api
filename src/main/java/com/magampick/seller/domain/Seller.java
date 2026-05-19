@@ -3,8 +3,6 @@ package com.magampick.seller.domain;
 import com.magampick.global.common.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -43,10 +41,6 @@ public class Seller extends BaseEntity {
   @Column(name = "phone_verified_at")
   private LocalDateTime phoneVerifiedAt;
 
-  @Enumerated(EnumType.STRING)
-  @Column(name = "verification_status", nullable = false, length = 20)
-  private SellerVerificationStatus verificationStatus;
-
   @Column(name = "deleted_at")
   private LocalDateTime deletedAt;
 
@@ -57,23 +51,17 @@ public class Seller extends BaseEntity {
       String ownerName,
       String businessNumber,
       String phone,
-      LocalDateTime phoneVerifiedAt,
-      SellerVerificationStatus verificationStatus) {
+      LocalDateTime phoneVerifiedAt) {
     this.email = email;
     this.passwordHash = passwordHash;
     this.ownerName = ownerName;
     this.businessNumber = businessNumber;
     this.phone = phone;
     this.phoneVerifiedAt = phoneVerifiedAt;
-    this.verificationStatus = verificationStatus;
   }
 
   public boolean isDeleted() {
     return deletedAt != null;
-  }
-
-  public boolean isApproved() {
-    return verificationStatus == SellerVerificationStatus.APPROVED;
   }
 
   public void changeOwnerName(String newOwnerName) {

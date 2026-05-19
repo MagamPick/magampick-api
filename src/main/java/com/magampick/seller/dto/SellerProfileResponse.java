@@ -11,9 +11,4 @@ public record SellerProfileResponse(
     @Schema(description = "사업자번호 10자리", example = "1234567890") String businessNumber,
     @Schema(description = "휴대폰 번호. 가입 직후엔 null 가능", example = "01012345678") String phone,
     @Schema(description = "휴대폰 인증/변경 시각") OffsetDateTime phoneVerifiedAt,
-    @Schema(
-            description = "인증 상태",
-            example = "APPROVED",
-            allowableValues = {"PENDING", "APPROVED", "REJECTED"})
-        String verificationStatus,
     @Schema(description = "가입 시각") OffsetDateTime createdAt) {}

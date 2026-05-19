@@ -52,7 +52,6 @@ class SellerControllerTest {
         "1234567890",
         "01012345678",
         OffsetDateTime.now(),
-        "APPROVED",
         OffsetDateTime.now());
   }
 
@@ -69,8 +68,7 @@ class SellerControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.id").value(1))
-        .andExpect(jsonPath("$.data.ownerName").value("홍길동"))
-        .andExpect(jsonPath("$.data.verificationStatus").value("APPROVED"));
+        .andExpect(jsonPath("$.data.ownerName").value("홍길동"));
   }
 
   @Test
@@ -118,7 +116,6 @@ class SellerControllerTest {
             "1234567890",
             "01012345678",
             OffsetDateTime.now(),
-            "APPROVED",
             OffsetDateTime.now());
     given(sellerService.updateProfile(eq(1L), any(SellerProfileUpdateRequest.class)))
         .willReturn(updated);

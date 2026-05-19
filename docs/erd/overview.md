@@ -32,7 +32,6 @@ erDiagram
         varchar business_number UK
         varchar owner_name
         varchar phone
-        varchar verification_status
         timestamp deleted_at
     }
     admins {
@@ -60,14 +59,24 @@ erDiagram
         bigint id PK
         varchar name UK
     }
+    store_store_categories {
+        bigint store_id PK_FK
+        bigint store_category_id PK_FK
+    }
     stores {
         bigint id PK
         bigint seller_id FK
-        bigint store_category_id FK
         varchar name
-        varchar address
+        varchar road_address
+        varchar jibun_address
+        varchar detail_address
+        varchar zonecode
         geography location
+        varchar phone
+        varchar description
+        varchar image_url
         varchar status
+        varchar rejection_reason
         timestamp deleted_at
     }
     store_business_hours {
@@ -297,7 +306,8 @@ erDiagram
     admins ||--o{ announcements : "publishes"
     admins ||--o{ inquiry_replies : "writes"
 
-    store_categories ||--o{ stores : "categorizes"
+    store_categories ||--o{ store_store_categories : "categorizes"
+    stores ||--o{ store_store_categories : "has"
     stores ||--o{ favorites : "favored_by"
     stores ||--o{ store_business_hours : "has"
     stores ||--o{ store_closed_days : "has"
