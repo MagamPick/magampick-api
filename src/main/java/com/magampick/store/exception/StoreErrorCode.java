@@ -13,6 +13,7 @@ public enum StoreErrorCode implements BaseErrorCode {
   STORE_CATEGORY_NOT_FOUND(
       HttpStatus.NOT_FOUND, "STORE_CATEGORY_NOT_FOUND", "존재하지 않는 카테고리가 포함되어 있습니다"),
   STORE_ACCESS_DENIED(HttpStatus.FORBIDDEN, "STORE_ACCESS_DENIED", "해당 매장에 대한 접근 권한이 없습니다"),
+  STORE_NOT_APPROVED(HttpStatus.FORBIDDEN, "STORE_NOT_APPROVED", "승인되지 않은 매장입니다"),
   STORE_ALREADY_REVIEWED(HttpStatus.CONFLICT, "STORE_ALREADY_REVIEWED", "이미 심사가 완료된 매장입니다"),
   STORE_IMAGE_TOO_LARGE(
       HttpStatus.BAD_REQUEST, "STORE_IMAGE_TOO_LARGE", "이미지 파일은 최대 5MB까지 업로드할 수 있습니다"),
