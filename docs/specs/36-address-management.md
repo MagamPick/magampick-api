@@ -433,7 +433,7 @@
 
 ## 8. Implementation Notes
 
-- **Entity 관계**: `Address` → `Customer` 단방향 `@ManyToOne(fetch = LAZY)`. Customer 쪽에 `@OneToMany` 컬렉션 두지 않음 (가입 시 0개 + 변경 빈도 낮음 + 컬렉션 lazy loading 위험 회피, coding-convention §3 의 양방향 관계 주의 일관).
+- **Entity 관계**: `Address` → `Customer` 단방향 `@ManyToOne(fetch = LAZY)`. Customer 쪽에 `@OneToMany` 컬렉션 두지 않음 (가입 시 0개 + 변경 빈도 낮음 + 컬렉션 lazy loading 위험 회피, coding-convention §4 의 양방향 관계 주의 일관).
 - **PostGIS Point 타입**: `org.locationtech.jts.geom.Point` (Hibernate Spatial). Entity 필드는 `Point`, DTO 는 `Double latitude / longitude`. Mapper (MapStruct) 에서 직접 변환은 어렵기 때문에 별도 변환 헬퍼 또는 `@Mapping(target = "location", expression = "...")` 사용 — `/impl` 시점에 결정. 기본 패턴:
   ```java
   // global/common/GeometryUtil.java 같은 헬퍼 (필요 시 신규 생성)

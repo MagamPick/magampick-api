@@ -9,7 +9,7 @@
 ## 2. Scope
 
 ### In Scope
-- `build.gradle` 의존성 추가 — coding-convention §8 의 7종 중 **미추가분(MapStruct, springdoc-openapi, JWT, Firebase Admin SDK)**. Flyway·hibernate-spatial 은 이미 존재
+- `build.gradle` 의존성 추가 — coding-convention §9 의 7종 중 **미추가분(MapStruct, springdoc-openapi, JWT, Firebase Admin SDK)**. Flyway·hibernate-spatial 은 이미 존재
 - `global/common/` — `BaseEntity`
 - `global/config/` — `JpaAuditingConfig`, `SwaggerConfig`
 - `global/exception/` — `BaseErrorCode`, `CommonErrorCode`, `BusinessException`, `ErrorResponse`, `GlobalExceptionHandler`
@@ -191,4 +191,4 @@ com.magampick
 - **보안 헤더**: `SecurityConfig` 에서 `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` 전 환경. HSTS 는 prod 만 (auth.md §10) — 프로필 분기 또는 `application-prod.yaml` 차원
 - **`ApiResponseAdvice` 적용 범위**: `@RestControllerAdvice(basePackages = "com.magampick")` 로 한정 → springdoc(`/v3/api-docs`)·actuator 응답은 wrap 대상에서 제외
 - **트랜잭션 / 동시성 / 비동기 / 캐시**: 해당 없음 (인프라 골격, 비즈니스 로직 없음)
-- **MagampickApiApplication 변경**: 없음. coding-convention §8 예시는 `@EnableJpaAuditing` 을 Application 에 달지만, 위 결정대로 별도 config 채택
+- **MagampickApiApplication 변경**: 없음. coding-convention §9 예시는 `@EnableJpaAuditing` 을 Application 에 달지만, 위 결정대로 별도 config 채택

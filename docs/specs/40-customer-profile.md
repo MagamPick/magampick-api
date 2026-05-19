@@ -253,9 +253,9 @@
 - **SecurityConfig 매처 신규 추가**: 사장(`/api/v1/seller/**` → `hasRole("SELLER")`) 과 비대칭이므로 본 이슈에서 `/api/v1/customers/me/**` → `hasRole("CUSTOMER")` 매처를 `SecurityConfig.filterChain` 의 `authorizeHttpRequests` 체인에 추가한다 (seller / admin 매처 사이에 끼움). 후속 customer-only API (즐겨찾기·주문 등) 도 자동으로 이 매처에 잡혀 의도된 보호를 받는다.
 - **트랜잭션 경계**: `CustomerService` 클래스 `@Transactional(readOnly = true)`, 수정 메서드는 메서드 단 `@Transactional` override (#15 의 `AuthService`, #35 의 `SellerService` 패턴과 동일)
 - **인증 주체 추출**: Controller 메서드 시그니처에 `@AuthenticationPrincipal CustomUserDetails userDetails` 사용 → `userDetails.getUserId()` 가 customerId
-- **DTO 변환**: 모두 MapStruct `CustomerMapper` 로 통일. record 내 `toEntity()` / `from()` 두지 않음 (coding-convention §5)
-- **에러 코드 위치**: `CUSTOMER_NOT_FOUND` 는 도메인별 분리 원칙(coding-convention §7)에 따라 `customer/exception/CustomerErrorCode` 에 신규 enum 정의. `AuthErrorCode` 와 분리
-- **로깅** (`coding-convention §10`): Service 도메인 이벤트만 `INFO` — `"소비자 닉네임 변경됨. customerId={}"`, `"소비자 휴대폰 변경됨. customerId={}"`. 조회 로그 X
+- **DTO 변환**: 모두 MapStruct `CustomerMapper` 로 통일. record 내 `toEntity()` / `from()` 두지 않음 (coding-convention §6)
+- **에러 코드 위치**: `CUSTOMER_NOT_FOUND` 는 도메인별 분리 원칙(coding-convention §8)에 따라 `customer/exception/CustomerErrorCode` 에 신규 enum 정의. `AuthErrorCode` 와 분리
+- **로깅** (`coding-convention §11`): Service 도메인 이벤트만 `INFO` — `"소비자 닉네임 변경됨. customerId={}"`, `"소비자 휴대폰 변경됨. customerId={}"`. 조회 로그 X
 - **마스킹**: 미적용 (이슈 §4 정책). 응답·로그 모두 raw phone 노출
 - **OpenAPI 그룹**: SwaggerConfig 의 `1. Public (소비자)` 그룹 (`/api/v1/**` minus seller/admin) 에 자동 포함
 

@@ -394,7 +394,7 @@ public class StoreController {
 
 ### 라이브러리
 
-`springdoc-openapi` (Spring Boot 3.x 표준). 의존성 추가 — [`coding-convention.md`](coding-convention.md) §8 참조.
+`springdoc-openapi` (Spring Boot 3.x 표준). 의존성 추가 — [`coding-convention.md`](coding-convention.md) §9 참조.
 
 ### 활성화 환경
 

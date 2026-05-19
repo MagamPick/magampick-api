@@ -88,7 +88,7 @@ The issue and spec are intentionally policy-and-contract-focused. When they do n
 | Topic | Source |
 |---|---|
 | Swagger / OpenAPI annotation placement and content | `docs/api-convention.md` §12 |
-| Package / layer / `@Transactional` placement / exceptions / logging / MapStruct | `docs/coding-convention.md` §1-3, §7, §8, §10 |
+| Package / layer / `@Transactional` placement / exceptions / logging / MapStruct | `docs/coding-convention.md` §1-4, §8, §9, §11 |
 | Test kinds / depth / fixtures / Korean test method names | `docs/test-convention.md` |
 | Authentication / authorization / self-resource access | `docs/auth.md` |
 | Migration format / Enum CHECK / Point / KST | `docs/erd/overview.md` |
