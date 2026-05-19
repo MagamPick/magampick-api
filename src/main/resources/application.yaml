@@ -9,6 +9,10 @@ spring:
       hibernate:
         jdbc:
           time_zone: Asia/Seoul
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
   jackson:
     time-zone: Asia/Seoul
     date-format: yyyy-MM-dd'T'HH:mm:ssXXX

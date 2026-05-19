@@ -93,16 +93,12 @@ erDiagram
         varchar reason
     }
 
-    product_categories {
-        bigint id PK
-        varchar name UK
-    }
     products {
         bigint id PK
         bigint store_id FK
-        bigint product_category_id FK
         varchar name
         decimal regular_price
+        varchar image_url
         varchar status
     }
     clearance_items {
@@ -119,21 +115,6 @@ erDiagram
         varchar status
         timestamp deleted_at
     }
-    product_images {
-        bigint id PK
-        bigint product_id FK
-        varchar url
-        int sort_order
-    }
-    hashtags {
-        bigint id PK
-        varchar name UK
-    }
-    product_hashtags {
-        bigint product_id PK_FK
-        bigint hashtag_id PK_FK
-    }
-
     orders {
         bigint id PK
         bigint customer_id FK
@@ -316,11 +297,7 @@ erDiagram
     stores ||--o{ orders : "receives"
     stores ||--o{ reviews : "receives"
 
-    product_categories ||--o{ products : "categorizes"
-    products ||--o{ product_images : "has"
     products ||--o{ clearance_items : "becomes"
-    products ||--o{ product_hashtags : "tagged"
-    hashtags ||--o{ product_hashtags : "tags"
 
     clearance_items ||--o{ order_items : "ordered_as"
 
@@ -361,12 +338,10 @@ erDiagram
 - `store_closed_days` — 정기/임시 휴무
 
 ### Products
-- `products` — 매장 일반 상품 (정상가 메뉴)
+- `products` — 매장 일반 상품 (정상가 메뉴, 대표 이미지 1장 `image_url`)
 - `clearance_items` — 마감 임박 상품 (떨이, 별도 엔티티)
-- `product_categories` — 상품 카테고리
-- `product_images` — 상품 이미지
-- `hashtags` — 해시태그 마스터
-- `product_hashtags` — 상품-해시태그 (M:N)
+
+> "상품 카테고리 / 상품 해시태그 / 다중 상품 이미지" 는 본 ERD 에 두지 않는다 (#56 정정). 매장 카테고리(`store_categories`) 와 별개이고, 해시태그는 리뷰 도메인 작업 시점에 재정의.
 
 ### Orders
 - `orders` — 주문 (당일 결제 = 당일 픽업, 상태 머신)

@@ -1,1 +1,9 @@
-{}
+{
+  "permissions": {
+    "allow": [
+      "Bash(./gradlew spotlessApply)",
+      "Bash(./gradlew build *)",
+      "Bash(./gradlew test *)"
+    ]
+  }
+}
