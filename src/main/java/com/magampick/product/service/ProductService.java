@@ -7,6 +7,7 @@ import com.magampick.product.domain.Product;
 import com.magampick.product.domain.ProductStatus;
 import com.magampick.product.dto.ProductCreateRequest;
 import com.magampick.product.dto.ProductResponse;
+import com.magampick.product.dto.ProductUpdateRequest;
 import com.magampick.product.exception.ProductErrorCode;
 import com.magampick.product.mapper.ProductMapper;
 import com.magampick.product.repository.ProductRepository;
@@ -14,6 +15,8 @@ import com.magampick.store.domain.Store;
 import com.magampick.store.domain.StoreStatus;
 import com.magampick.store.exception.StoreErrorCode;
 import com.magampick.store.repository.StoreRepository;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +29,7 @@ import org.springframework.web.multipart.MultipartFile;
 @Slf4j
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class ProductService {
 
   private static final long MAX_IMAGE_BYTES = 5 * 1024 * 1024L;
@@ -51,7 +55,7 @@ public class ProductService {
       throw new BusinessException(StoreErrorCode.STORE_NOT_APPROVED);
     }
 
-    if (productRepository.existsByStoreIdAndName(storeId, request.name())) {
+    if (productRepository.existsByStoreIdAndNameAndDeletedAtIsNull(storeId, request.name())) {
       throw new BusinessException(ProductErrorCode.PRODUCT_NAME_DUPLICATE);
     }
 
@@ -71,21 +75,94 @@ public class ProductService {
     return productMapper.toResponse(product);
   }
 
-  @Transactional(readOnly = true)
   public PageResponse<ProductResponse> getMyStoreProducts(
       Long sellerId, Long storeId, Pageable pageable) {
     verifyStoreOwnership(sellerId, storeId);
-    Page<Product> page = productRepository.findByStoreId(storeId, pageable);
+    Page<Product> page = productRepository.findByStoreIdAndDeletedAtIsNull(storeId, pageable);
     return PageResponse.of(page.map(productMapper::toResponse));
   }
 
-  @Transactional(readOnly = true)
   public ProductResponse getMyStoreProduct(Long sellerId, Long storeId, Long productId) {
     verifyStoreOwnership(sellerId, storeId);
     Product product =
         productRepository
-            .findByIdAndStoreId(productId, storeId)
+            .findByIdAndStoreIdAndDeletedAtIsNull(productId, storeId)
             .orElseThrow(() -> new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND));
+    return productMapper.toResponse(product);
+  }
+
+  @Transactional
+  public ProductResponse updateProduct(
+      Long sellerId,
+      Long storeId,
+      Long productId,
+      ProductUpdateRequest request,
+      MultipartFile image) {
+    validateImage(image);
+    verifyStoreOwnership(sellerId, storeId);
+
+    Product product =
+        productRepository
+            .findByIdAndStoreIdAndDeletedAtIsNull(productId, storeId)
+            .orElseThrow(() -> new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND));
+
+    if (request.name() != null
+        && productRepository.existsByStoreIdAndNameAndDeletedAtIsNullAndIdNot(
+            storeId, request.name(), productId)) {
+      throw new BusinessException(ProductErrorCode.PRODUCT_NAME_DUPLICATE);
+    }
+
+    String oldImageUrl = product.getImageUrl();
+    String imageUrl = hasImage(image) ? uploadProductImage(image) : null;
+    product.updateInfo(request.name(), request.regularPrice(), imageUrl);
+
+    log.info(
+        "상품 수정됨. productId={}, storeId={}, sellerId={}, oldImageUrl={}",
+        productId,
+        storeId,
+        sellerId,
+        oldImageUrl);
+    return productMapper.toResponse(product);
+  }
+
+  @Transactional
+  public void deleteProduct(Long sellerId, Long storeId, Long productId) {
+    verifyStoreOwnership(sellerId, storeId);
+
+    Product product =
+        productRepository
+            .findByIdAndStoreIdAndDeletedAtIsNull(productId, storeId)
+            .orElseThrow(() -> new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND));
+
+    product.softDelete();
+    log.info("상품 삭제됨. productId={}, storeId={}, sellerId={}", productId, storeId, sellerId);
+  }
+
+  @Transactional
+  public ProductResponse markSoldOut(Long sellerId, Long storeId, Long productId) {
+    verifyStoreOwnership(sellerId, storeId);
+
+    Product product =
+        productRepository
+            .findByIdAndStoreIdAndDeletedAtIsNull(productId, storeId)
+            .orElseThrow(() -> new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND));
+
+    product.markSoldOut();
+    log.info("상품 품절 처리됨. productId={}, storeId={}, sellerId={}", productId, storeId, sellerId);
+    return productMapper.toResponse(product);
+  }
+
+  @Transactional
+  public ProductResponse restock(Long sellerId, Long storeId, Long productId) {
+    verifyStoreOwnership(sellerId, storeId);
+
+    Product product =
+        productRepository
+            .findByIdAndStoreIdAndDeletedAtIsNull(productId, storeId)
+            .orElseThrow(() -> new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND));
+
+    product.restock();
+    log.info("상품 재입고 처리됨. productId={}, storeId={}, sellerId={}", productId, storeId, sellerId);
     return productMapper.toResponse(product);
   }
 
@@ -114,6 +191,46 @@ public class ProductService {
     if (contentType == null || !ALLOWED_CONTENT_TYPES.contains(contentType)) {
       throw new BusinessException(ProductErrorCode.PRODUCT_IMAGE_INVALID_TYPE);
     }
+    validateImageMagicBytes(image);
+  }
+
+  // Content-Type 헤더 스푸핑 방어 — 실제 파일 시그니처로 검증
+  private void validateImageMagicBytes(MultipartFile image) {
+    try (InputStream is = image.getInputStream()) {
+      byte[] header = is.readNBytes(12);
+      if (!isJpeg(header) && !isPng(header) && !isWebp(header)) {
+        throw new BusinessException(ProductErrorCode.PRODUCT_IMAGE_INVALID_TYPE);
+      }
+    } catch (BusinessException e) {
+      throw e;
+    } catch (IOException e) {
+      throw new BusinessException(ProductErrorCode.PRODUCT_IMAGE_INVALID_TYPE);
+    }
+  }
+
+  private boolean isJpeg(byte[] h) {
+    return h.length >= 3 && (h[0] & 0xFF) == 0xFF && (h[1] & 0xFF) == 0xD8 && (h[2] & 0xFF) == 0xFF;
+  }
+
+  private boolean isPng(byte[] h) {
+    return h.length >= 4
+        && (h[0] & 0xFF) == 0x89
+        && (h[1] & 0xFF) == 0x50
+        && (h[2] & 0xFF) == 0x4E
+        && (h[3] & 0xFF) == 0x47;
+  }
+
+  // WebP: "RIFF"(0-3) + 파일크기(4-7) + "WEBP"(8-11)
+  private boolean isWebp(byte[] h) {
+    return h.length >= 12
+        && (h[0] & 0xFF) == 0x52
+        && (h[1] & 0xFF) == 0x49
+        && (h[2] & 0xFF) == 0x46
+        && (h[3] & 0xFF) == 0x46
+        && (h[8] & 0xFF) == 0x57
+        && (h[9] & 0xFF) == 0x45
+        && (h[10] & 0xFF) == 0x42
+        && (h[11] & 0xFF) == 0x50;
   }
 
   private boolean hasImage(MultipartFile image) {

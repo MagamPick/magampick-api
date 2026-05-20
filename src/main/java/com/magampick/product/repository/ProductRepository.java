@@ -8,9 +8,12 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ProductRepository extends JpaRepository<Product, Long> {
 
-  boolean existsByStoreIdAndName(Long storeId, String name);
+  boolean existsByStoreIdAndNameAndDeletedAtIsNull(Long storeId, String name);
 
-  Page<Product> findByStoreId(Long storeId, Pageable pageable);
+  boolean existsByStoreIdAndNameAndDeletedAtIsNullAndIdNot(
+      Long storeId, String name, Long excludeId);
 
-  Optional<Product> findByIdAndStoreId(Long productId, Long storeId);
+  Page<Product> findByStoreIdAndDeletedAtIsNull(Long storeId, Pageable pageable);
+
+  Optional<Product> findByIdAndStoreIdAndDeletedAtIsNull(Long productId, Long storeId);
 }

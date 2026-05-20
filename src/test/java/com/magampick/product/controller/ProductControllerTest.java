@@ -4,9 +4,13 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willDoNothing;
+import static org.mockito.BDDMockito.willThrow;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -19,8 +23,10 @@ import com.magampick.global.security.JwtAuthenticationEntryPoint;
 import com.magampick.global.security.JwtProvider;
 import com.magampick.global.security.Role;
 import com.magampick.global.security.SecurityConfig;
+import com.magampick.product.domain.ProductStatus;
 import com.magampick.product.dto.ProductCreateRequest;
 import com.magampick.product.dto.ProductResponse;
+import com.magampick.product.dto.ProductUpdateRequest;
 import com.magampick.product.exception.ProductErrorCode;
 import com.magampick.product.fixture.ProductFixture;
 import com.magampick.product.service.ProductService;
@@ -31,6 +37,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -54,12 +61,20 @@ class ProductControllerTest {
   }
 
   private MockMultipartFile imagePart() {
-    return new MockMultipartFile("image", "test.jpg", MediaType.IMAGE_JPEG_VALUE, new byte[1024]);
+    byte[] jpeg = new byte[1024];
+    jpeg[0] = (byte) 0xFF;
+    jpeg[1] = (byte) 0xD8;
+    jpeg[2] = (byte) 0xFF;
+    return new MockMultipartFile("image", "test.jpg", MediaType.IMAGE_JPEG_VALUE, jpeg);
   }
 
-  private String validRequestJson() throws Exception {
+  private String validCreateJson() throws Exception {
     return objectMapper.writeValueAsString(
         new ProductCreateRequest("크로아상", new BigDecimal("4500")));
+  }
+
+  private String validUpdateJson() throws Exception {
+    return objectMapper.writeValueAsString(new ProductUpdateRequest("바게트", null));
   }
 
   // ── POST /api/v1/seller/stores/{storeId}/products ─────────────────────────
@@ -72,7 +87,7 @@ class ProductControllerTest {
     mockMvc
         .perform(
             multipart("/api/v1/seller/stores/10/products")
-                .file(requestPart(validRequestJson()))
+                .file(requestPart(validCreateJson()))
                 .file(imagePart())
                 .with(user(SELLER_USER)))
         .andExpect(status().isCreated())
@@ -100,7 +115,7 @@ class ProductControllerTest {
     mockMvc
         .perform(
             multipart("/api/v1/seller/stores/10/products")
-                .file(requestPart(validRequestJson()))
+                .file(requestPart(validCreateJson()))
                 .file(imagePart()))
         .andExpect(status().isUnauthorized());
   }
@@ -110,7 +125,7 @@ class ProductControllerTest {
     mockMvc
         .perform(
             multipart("/api/v1/seller/stores/10/products")
-                .file(requestPart(validRequestJson()))
+                .file(requestPart(validCreateJson()))
                 .file(imagePart())
                 .with(user(CUSTOMER_USER)))
         .andExpect(status().isForbidden());
@@ -124,7 +139,7 @@ class ProductControllerTest {
     mockMvc
         .perform(
             multipart("/api/v1/seller/stores/10/products")
-                .file(requestPart(validRequestJson()))
+                .file(requestPart(validCreateJson()))
                 .file(imagePart())
                 .with(user(SELLER_USER)))
         .andExpect(status().isForbidden())
@@ -139,7 +154,7 @@ class ProductControllerTest {
     mockMvc
         .perform(
             multipart("/api/v1/seller/stores/10/products")
-                .file(requestPart(validRequestJson()))
+                .file(requestPart(validCreateJson()))
                 .file(imagePart())
                 .with(user(SELLER_USER)))
         .andExpect(status().isConflict())
@@ -154,7 +169,7 @@ class ProductControllerTest {
     mockMvc
         .perform(
             multipart("/api/v1/seller/stores/10/products")
-                .file(requestPart(validRequestJson()))
+                .file(requestPart(validCreateJson()))
                 .with(user(SELLER_USER)))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.data.id").value(100));
@@ -219,5 +234,186 @@ class ProductControllerTest {
         .perform(get("/api/v1/seller/stores/10/products/100").with(user(SELLER_USER)))
         .andExpect(status().isForbidden())
         .andExpect(jsonPath("$.error.code").value("STORE_ACCESS_DENIED"));
+  }
+
+  // ── PATCH /api/v1/seller/stores/{storeId}/products/{productId} ────────────
+
+  @Test
+  void PATCH_products_id_200_수정_성공() throws Exception {
+    given(productService.updateProduct(eq(1L), eq(10L), eq(100L), any(), any()))
+        .willReturn(ProductFixture.aResponse(100L));
+
+    mockMvc
+        .perform(
+            multipart(HttpMethod.PATCH, "/api/v1/seller/stores/10/products/100")
+                .file(requestPart(validUpdateJson()))
+                .with(user(SELLER_USER)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.id").value(100));
+  }
+
+  @Test
+  void PATCH_products_id_409_이름_중복() throws Exception {
+    given(productService.updateProduct(eq(1L), eq(10L), eq(100L), any(), any()))
+        .willThrow(new BusinessException(ProductErrorCode.PRODUCT_NAME_DUPLICATE));
+
+    mockMvc
+        .perform(
+            multipart(HttpMethod.PATCH, "/api/v1/seller/stores/10/products/100")
+                .file(requestPart(validUpdateJson()))
+                .with(user(SELLER_USER)))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.error.code").value("PRODUCT_NAME_DUPLICATE"));
+  }
+
+  @Test
+  void PATCH_products_id_404_없음() throws Exception {
+    given(productService.updateProduct(eq(1L), eq(10L), eq(100L), any(), any()))
+        .willThrow(new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND));
+
+    mockMvc
+        .perform(
+            multipart(HttpMethod.PATCH, "/api/v1/seller/stores/10/products/100")
+                .file(requestPart(validUpdateJson()))
+                .with(user(SELLER_USER)))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.error.code").value("PRODUCT_NOT_FOUND"));
+  }
+
+  @Test
+  void PATCH_products_id_403_타인_매장() throws Exception {
+    given(productService.updateProduct(eq(1L), eq(10L), eq(100L), any(), any()))
+        .willThrow(new BusinessException(StoreErrorCode.STORE_ACCESS_DENIED));
+
+    mockMvc
+        .perform(
+            multipart(HttpMethod.PATCH, "/api/v1/seller/stores/10/products/100")
+                .file(requestPart(validUpdateJson()))
+                .with(user(SELLER_USER)))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.error.code").value("STORE_ACCESS_DENIED"));
+  }
+
+  @Test
+  void PATCH_products_id_401_미인증() throws Exception {
+    mockMvc
+        .perform(
+            multipart(HttpMethod.PATCH, "/api/v1/seller/stores/10/products/100")
+                .file(requestPart(validUpdateJson())))
+        .andExpect(status().isUnauthorized());
+  }
+
+  // ── DELETE /api/v1/seller/stores/{storeId}/products/{productId} ───────────
+
+  @Test
+  void DELETE_products_id_204_삭제_성공() throws Exception {
+    willDoNothing().given(productService).deleteProduct(1L, 10L, 100L);
+
+    mockMvc
+        .perform(delete("/api/v1/seller/stores/10/products/100").with(user(SELLER_USER)))
+        .andExpect(status().isNoContent());
+  }
+
+  @Test
+  void DELETE_products_id_404_없음() throws Exception {
+    willThrow(new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND))
+        .given(productService)
+        .deleteProduct(1L, 10L, 100L);
+
+    mockMvc
+        .perform(delete("/api/v1/seller/stores/10/products/100").with(user(SELLER_USER)))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.error.code").value("PRODUCT_NOT_FOUND"));
+  }
+
+  @Test
+  void DELETE_products_id_401_미인증() throws Exception {
+    mockMvc
+        .perform(delete("/api/v1/seller/stores/10/products/100"))
+        .andExpect(status().isUnauthorized());
+  }
+
+  // ── POST .../sold-out ─────────────────────────────────────────────────────
+
+  @Test
+  void POST_sold_out_200_품절_성공() throws Exception {
+    given(productService.markSoldOut(1L, 10L, 100L))
+        .willReturn(ProductFixture.aResponseWithStatus(100L, ProductStatus.SOLD_OUT));
+
+    mockMvc
+        .perform(post("/api/v1/seller/stores/10/products/100/sold-out").with(user(SELLER_USER)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.status").value("SOLD_OUT"));
+  }
+
+  @Test
+  void POST_sold_out_404_없음() throws Exception {
+    given(productService.markSoldOut(1L, 10L, 100L))
+        .willThrow(new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND));
+
+    mockMvc
+        .perform(post("/api/v1/seller/stores/10/products/100/sold-out").with(user(SELLER_USER)))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.error.code").value("PRODUCT_NOT_FOUND"));
+  }
+
+  @Test
+  void POST_sold_out_403_타인_매장() throws Exception {
+    given(productService.markSoldOut(1L, 10L, 100L))
+        .willThrow(new BusinessException(StoreErrorCode.STORE_ACCESS_DENIED));
+
+    mockMvc
+        .perform(post("/api/v1/seller/stores/10/products/100/sold-out").with(user(SELLER_USER)))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.error.code").value("STORE_ACCESS_DENIED"));
+  }
+
+  @Test
+  void POST_sold_out_401_미인증() throws Exception {
+    mockMvc
+        .perform(post("/api/v1/seller/stores/10/products/100/sold-out"))
+        .andExpect(status().isUnauthorized());
+  }
+
+  // ── POST .../restock ──────────────────────────────────────────────────────
+
+  @Test
+  void POST_restock_200_재입고_성공() throws Exception {
+    given(productService.restock(1L, 10L, 100L))
+        .willReturn(ProductFixture.aResponseWithStatus(100L, ProductStatus.ON_SALE));
+
+    mockMvc
+        .perform(post("/api/v1/seller/stores/10/products/100/restock").with(user(SELLER_USER)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.status").value("ON_SALE"));
+  }
+
+  @Test
+  void POST_restock_404_없음() throws Exception {
+    given(productService.restock(1L, 10L, 100L))
+        .willThrow(new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND));
+
+    mockMvc
+        .perform(post("/api/v1/seller/stores/10/products/100/restock").with(user(SELLER_USER)))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.error.code").value("PRODUCT_NOT_FOUND"));
+  }
+
+  @Test
+  void POST_restock_403_타인_매장() throws Exception {
+    given(productService.restock(1L, 10L, 100L))
+        .willThrow(new BusinessException(StoreErrorCode.STORE_ACCESS_DENIED));
+
+    mockMvc
+        .perform(post("/api/v1/seller/stores/10/products/100/restock").with(user(SELLER_USER)))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.error.code").value("STORE_ACCESS_DENIED"));
+  }
+
+  @Test
+  void POST_restock_401_미인증() throws Exception {
+    mockMvc
+        .perform(post("/api/v1/seller/stores/10/products/100/restock"))
+        .andExpect(status().isUnauthorized());
   }
 }
