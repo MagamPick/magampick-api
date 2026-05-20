@@ -26,6 +26,7 @@
 - `idx_clearance_items_store_id` (`store_id`)
 - `idx_clearance_items_product_id` (`product_id`)
 - `uq_clearance_items_product_open` UNIQUE (`product_id`) WHERE `status = 'OPEN'` — 한 상품당 OPEN 1개 제한
+- `idx_clearance_items_status_pickup_end_at` (`status`, `pickup_end_at`) — 자동 마감 스케줄러 쿼리용
 
 ## 제약
 
@@ -55,3 +56,11 @@
 - **픽업창**: `pickup_end_at.toLocalDate() == 등록 당일 (KST)` + `pickup_start_at < pickup_end_at` 검증.
 - **soft-delete 미도입**: `deleted_at` 없음. CLOSED 상태가 종료를 나타냄. 날짜가 바뀌면 새 row 등록.
 - **권한**: 등록 시 매장 APPROVED 필수. 셀러 조회는 매장 상태 무관 (본인이면 허용).
+
+### #69 — 수정·마감
+
+- **수정 가능 필드**: `sale_price` / `total_quantity` / `pickup_start_at` / `pickup_end_at`. `name` / `regular_price` (스냅샷) / `status` 는 PATCH 노출 X.
+- **수정 시 `remaining_quantity` 동기화**: `total_quantity` 변경 시 `remaining_quantity = total_quantity`. 주문 미구현 상태에서만 유효 — 계층 5 연결 시 재검토.
+- **수정·마감 가능 상태**: `OPEN` 만. `CLOSED` / `SOLD_OUT` → `CLEARANCE_ITEM_NOT_OPEN` (409).
+- **수동 마감 멱등**: `POST /close` 재호출 시 이미 `CLOSED` 면 no-op + 200. `uq_clearance_items_product_open` 해제로 동일 상품 재등록 가능.
+- **자동 마감**: `@Scheduled(cron = "0 */5 * * * *")` — 5분 주기 bulk UPDATE. `status = OPEN AND pickup_end_at < now(KST)` → `CLOSED` 전환. 단일 인스턴스 가정 (졸업 프로젝트).

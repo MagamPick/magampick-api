@@ -51,6 +51,23 @@ public class ClearanceItemFixture {
         OffsetDateTime.now(ZoneOffset.ofHours(9)));
   }
 
+  public static ClearanceItemResponse aClosedResponse(Long id) {
+    return new ClearanceItemResponse(
+        id,
+        1L,
+        "/uploads/2026/5/product.jpg",
+        "크로아상",
+        new BigDecimal("4500"),
+        new BigDecimal("3000"),
+        new BigDecimal("0.33"),
+        5,
+        5,
+        OffsetDateTime.of(todayAt(17, 0), ZoneOffset.ofHours(9)),
+        OffsetDateTime.of(todayAt(21, 0), ZoneOffset.ofHours(9)),
+        ClearanceItemStatus.CLOSED,
+        OffsetDateTime.now(ZoneOffset.ofHours(9)));
+  }
+
   private static LocalDateTime todayAt(int hour, int minute) {
     return LocalDate.now().atTime(hour, minute);
   }

@@ -2,6 +2,7 @@ package com.magampick.clearance.controller;
 
 import com.magampick.clearance.dto.ClearanceItemCreateRequest;
 import com.magampick.clearance.dto.ClearanceItemResponse;
+import com.magampick.clearance.dto.ClearanceItemUpdateRequest;
 import com.magampick.clearance.service.ClearanceItemService;
 import com.magampick.global.response.PageResponse;
 import com.magampick.global.security.CustomUserDetails;
@@ -18,6 +19,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -83,6 +85,45 @@ public class ClearanceItemController {
       @PathVariable Long storeId,
       @PathVariable Long clearanceItemId) {
     return clearanceItemService.getMyClearanceItem(
+        userDetails.getUserId(), storeId, clearanceItemId);
+  }
+
+  @PatchMapping("/{clearanceItemId}")
+  @Operation(
+      summary = "마감 임박 상품 수정",
+      description = "OPEN 상태인 떨이의 판매가·수량·픽업창을 부분 수정한다. null 필드는 변경 없음.")
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "수정 성공"),
+    @ApiResponse(responseCode = "400", description = "입력 검증 실패 또는 픽업창·가격 규칙 위반"),
+    @ApiResponse(responseCode = "401", description = "미인증"),
+    @ApiResponse(responseCode = "403", description = "타인 매장 접근"),
+    @ApiResponse(responseCode = "404", description = "마감 임박 상품 없음"),
+    @ApiResponse(responseCode = "409", description = "OPEN 상태가 아님")
+  })
+  public ClearanceItemResponse update(
+      @AuthenticationPrincipal CustomUserDetails userDetails,
+      @PathVariable Long storeId,
+      @PathVariable Long clearanceItemId,
+      @RequestBody @Valid ClearanceItemUpdateRequest request) {
+    return clearanceItemService.updateClearanceItem(
+        userDetails.getUserId(), storeId, clearanceItemId, request);
+  }
+
+  @PostMapping("/{clearanceItemId}/close")
+  @Operation(
+      summary = "마감 임박 상품 수동 마감",
+      description = "OPEN 상태인 떨이를 CLOSED 로 전환한다. 이미 CLOSED 면 변경 없이 200 반환 (멱등).")
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "마감 성공 또는 이미 마감됨"),
+    @ApiResponse(responseCode = "401", description = "미인증"),
+    @ApiResponse(responseCode = "403", description = "타인 매장 접근"),
+    @ApiResponse(responseCode = "404", description = "마감 임박 상품 없음")
+  })
+  public ClearanceItemResponse close(
+      @AuthenticationPrincipal CustomUserDetails userDetails,
+      @PathVariable Long storeId,
+      @PathVariable Long clearanceItemId) {
+    return clearanceItemService.closeClearanceItem(
         userDetails.getUserId(), storeId, clearanceItemId);
   }
 }

@@ -92,4 +92,24 @@ public class ClearanceItem extends BaseEntity {
         .subtract(salePrice.divide(regularPrice, 4, RoundingMode.HALF_UP))
         .setScale(2, RoundingMode.HALF_UP);
   }
+
+  public void update(
+      BigDecimal salePrice,
+      Integer totalQuantity,
+      LocalDateTime pickupStartAt,
+      LocalDateTime pickupEndAt) {
+    if (salePrice != null) this.salePrice = salePrice;
+    if (totalQuantity != null) {
+      this.totalQuantity = totalQuantity;
+      // 주문 도메인 연결 전 — remainingQuantity 는 항상 totalQuantity 와 동일
+      // orders 계층 5 연결 시 remaining = total - sold 로 재검토
+      this.remainingQuantity = totalQuantity;
+    }
+    if (pickupStartAt != null) this.pickupStartAt = pickupStartAt;
+    if (pickupEndAt != null) this.pickupEndAt = pickupEndAt;
+  }
+
+  public void close() {
+    this.status = ClearanceItemStatus.CLOSED;
+  }
 }
