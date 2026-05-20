@@ -22,6 +22,7 @@ public enum ClearanceItemErrorCode implements BaseErrorCode {
       HttpStatus.BAD_REQUEST,
       "CLEARANCE_ITEM_INVALID_PICKUP_WINDOW",
       "픽업 시간은 오늘 내이어야 하며, 시작 시각이 종료 시각보다 앞서야 합니다"),
+  CLEARANCE_ITEM_NOT_OPEN(HttpStatus.CONFLICT, "CLEARANCE_ITEM_NOT_OPEN", "수정·마감할 수 있는 상태가 아닙니다"),
   ;
 
   private final HttpStatus status;

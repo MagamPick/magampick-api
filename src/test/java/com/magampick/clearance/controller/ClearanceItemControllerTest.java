@@ -5,12 +5,14 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.magampick.clearance.dto.ClearanceItemCreateRequest;
+import com.magampick.clearance.dto.ClearanceItemUpdateRequest;
 import com.magampick.clearance.exception.ClearanceItemErrorCode;
 import com.magampick.clearance.fixture.ClearanceItemFixture;
 import com.magampick.clearance.service.ClearanceItemService;
@@ -160,5 +162,119 @@ class ClearanceItemControllerTest {
         .perform(get("/api/v1/seller/stores/10/clearance-items/200").with(user(SELLER_USER)))
         .andExpect(status().isForbidden())
         .andExpect(jsonPath("$.error.code").value("STORE_ACCESS_DENIED"));
+  }
+
+  // ── PATCH /api/v1/seller/stores/{storeId}/clearance-items/{id} ────────────
+
+  @Test
+  void PATCH_clearance_items_200_수정_성공() throws Exception {
+    given(clearanceItemService.updateClearanceItem(eq(1L), eq(10L), eq(200L), any()))
+        .willReturn(ClearanceItemFixture.aResponse(200L));
+    String json =
+        objectMapper.writeValueAsString(
+            new ClearanceItemUpdateRequest(new BigDecimal("2000"), null, null, null));
+
+    mockMvc
+        .perform(
+            patch("/api/v1/seller/stores/10/clearance-items/200")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json)
+                .with(user(SELLER_USER)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.id").value(200));
+  }
+
+  @Test
+  void PATCH_clearance_items_401_미인증() throws Exception {
+    String json =
+        objectMapper.writeValueAsString(
+            new ClearanceItemUpdateRequest(new BigDecimal("2000"), null, null, null));
+
+    mockMvc
+        .perform(
+            patch("/api/v1/seller/stores/10/clearance-items/200")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json))
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void PATCH_clearance_items_403_소비자_접근_거부() throws Exception {
+    String json =
+        objectMapper.writeValueAsString(
+            new ClearanceItemUpdateRequest(new BigDecimal("2000"), null, null, null));
+
+    mockMvc
+        .perform(
+            patch("/api/v1/seller/stores/10/clearance-items/200")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json)
+                .with(user(CUSTOMER_USER)))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void PATCH_clearance_items_404_없음() throws Exception {
+    given(clearanceItemService.updateClearanceItem(eq(1L), eq(10L), eq(200L), any()))
+        .willThrow(new BusinessException(ClearanceItemErrorCode.CLEARANCE_ITEM_NOT_FOUND));
+    String json =
+        objectMapper.writeValueAsString(
+            new ClearanceItemUpdateRequest(new BigDecimal("2000"), null, null, null));
+
+    mockMvc
+        .perform(
+            patch("/api/v1/seller/stores/10/clearance-items/200")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json)
+                .with(user(SELLER_USER)))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.error.code").value("CLEARANCE_ITEM_NOT_FOUND"));
+  }
+
+  @Test
+  void PATCH_clearance_items_409_CLOSED_상태() throws Exception {
+    given(clearanceItemService.updateClearanceItem(eq(1L), eq(10L), eq(200L), any()))
+        .willThrow(new BusinessException(ClearanceItemErrorCode.CLEARANCE_ITEM_NOT_OPEN));
+    String json =
+        objectMapper.writeValueAsString(
+            new ClearanceItemUpdateRequest(new BigDecimal("2000"), null, null, null));
+
+    mockMvc
+        .perform(
+            patch("/api/v1/seller/stores/10/clearance-items/200")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json)
+                .with(user(SELLER_USER)))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.error.code").value("CLEARANCE_ITEM_NOT_OPEN"));
+  }
+
+  // ── POST /api/v1/seller/stores/{storeId}/clearance-items/{id}/close ───────
+
+  @Test
+  void POST_clearance_items_close_200_성공() throws Exception {
+    given(clearanceItemService.closeClearanceItem(1L, 10L, 200L))
+        .willReturn(ClearanceItemFixture.aClosedResponse(200L));
+
+    mockMvc
+        .perform(post("/api/v1/seller/stores/10/clearance-items/200/close").with(user(SELLER_USER)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.id").value(200))
+        .andExpect(jsonPath("$.data.status").value("CLOSED"));
+  }
+
+  @Test
+  void POST_clearance_items_close_401_미인증() throws Exception {
+    mockMvc
+        .perform(post("/api/v1/seller/stores/10/clearance-items/200/close"))
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void POST_clearance_items_close_403_소비자_접근_거부() throws Exception {
+    mockMvc
+        .perform(
+            post("/api/v1/seller/stores/10/clearance-items/200/close").with(user(CUSTOMER_USER)))
+        .andExpect(status().isForbidden());
   }
 }

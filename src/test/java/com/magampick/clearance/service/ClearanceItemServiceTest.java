@@ -11,6 +11,7 @@ import com.magampick.clearance.domain.ClearanceItem;
 import com.magampick.clearance.domain.ClearanceItemStatus;
 import com.magampick.clearance.dto.ClearanceItemCreateRequest;
 import com.magampick.clearance.dto.ClearanceItemResponse;
+import com.magampick.clearance.dto.ClearanceItemUpdateRequest;
 import com.magampick.clearance.exception.ClearanceItemErrorCode;
 import com.magampick.clearance.fixture.ClearanceItemFixture;
 import com.magampick.clearance.mapper.ClearanceItemMapper;
@@ -372,6 +373,182 @@ class ClearanceItemServiceTest {
     // when / then
     assertThatThrownBy(
             () -> clearanceItemService.getMyClearanceItem(SELLER_ID, STORE_ID, CLEARANCE_ITEM_ID))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", ClearanceItemErrorCode.CLEARANCE_ITEM_NOT_FOUND);
+  }
+
+  // ── 수정 ─────────────────────────────────────────────────────────────────────
+
+  @Test
+  void 마감_임박_상품_수정_성공() {
+    // given
+    Store store = store(StoreStatus.APPROVED);
+    Product prod = product(StoreStatus.APPROVED, ProductStatus.ON_SALE);
+    ClearanceItem item = ClearanceItemFixture.aClearanceItem(store, prod);
+    ReflectionTestUtils.setField(item, "id", CLEARANCE_ITEM_ID);
+    ClearanceItemUpdateRequest request =
+        new ClearanceItemUpdateRequest(new BigDecimal("2000"), null, null, null);
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(clearanceItemRepository.findByIdAndStoreId(CLEARANCE_ITEM_ID, STORE_ID))
+        .willReturn(Optional.of(item));
+    given(clearanceItemMapper.toResponse(item))
+        .willReturn(ClearanceItemFixture.aResponse(CLEARANCE_ITEM_ID));
+
+    // when
+    ClearanceItemResponse response =
+        clearanceItemService.updateClearanceItem(SELLER_ID, STORE_ID, CLEARANCE_ITEM_ID, request);
+
+    // then
+    assertThat(response.id()).isEqualTo(CLEARANCE_ITEM_ID);
+    assertThat(item.getSalePrice()).isEqualByComparingTo(new BigDecimal("2000"));
+  }
+
+  @Test
+  void 마감_임박_상품_수정_CLOSED_상태_예외() {
+    // given
+    Store store = store(StoreStatus.APPROVED);
+    Product prod = product(StoreStatus.APPROVED, ProductStatus.ON_SALE);
+    ClearanceItem item = ClearanceItemFixture.aClearanceItem(store, prod);
+    ReflectionTestUtils.setField(item, "id", CLEARANCE_ITEM_ID);
+    item.close();
+    ClearanceItemUpdateRequest request =
+        new ClearanceItemUpdateRequest(new BigDecimal("2000"), null, null, null);
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(clearanceItemRepository.findByIdAndStoreId(CLEARANCE_ITEM_ID, STORE_ID))
+        .willReturn(Optional.of(item));
+
+    // when / then
+    assertThatThrownBy(
+            () ->
+                clearanceItemService.updateClearanceItem(
+                    SELLER_ID, STORE_ID, CLEARANCE_ITEM_ID, request))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", ClearanceItemErrorCode.CLEARANCE_ITEM_NOT_OPEN);
+  }
+
+  @Test
+  void 마감_임박_상품_수정_판매가_정상가_이상_예외() {
+    // given
+    Store store = store(StoreStatus.APPROVED);
+    Product prod = product(StoreStatus.APPROVED, ProductStatus.ON_SALE); // regularPrice = 4500
+    ClearanceItem item = ClearanceItemFixture.aClearanceItem(store, prod);
+    ReflectionTestUtils.setField(item, "id", CLEARANCE_ITEM_ID);
+    ClearanceItemUpdateRequest request =
+        new ClearanceItemUpdateRequest(new BigDecimal("5000"), null, null, null);
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(clearanceItemRepository.findByIdAndStoreId(CLEARANCE_ITEM_ID, STORE_ID))
+        .willReturn(Optional.of(item));
+
+    // when / then
+    assertThatThrownBy(
+            () ->
+                clearanceItemService.updateClearanceItem(
+                    SELLER_ID, STORE_ID, CLEARANCE_ITEM_ID, request))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue(
+            "errorCode", ClearanceItemErrorCode.CLEARANCE_ITEM_SALE_PRICE_NOT_DISCOUNTED);
+  }
+
+  @Test
+  void 마감_임박_상품_수정_픽업창_내일_지정_예외() {
+    // given
+    Store store = store(StoreStatus.APPROVED);
+    Product prod = product(StoreStatus.APPROVED, ProductStatus.ON_SALE);
+    ClearanceItem item = ClearanceItemFixture.aClearanceItem(store, prod);
+    ReflectionTestUtils.setField(item, "id", CLEARANCE_ITEM_ID);
+    LocalDateTime tomorrow = LocalDate.now().plusDays(1).atTime(21, 0);
+    ClearanceItemUpdateRequest request = new ClearanceItemUpdateRequest(null, null, null, tomorrow);
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(clearanceItemRepository.findByIdAndStoreId(CLEARANCE_ITEM_ID, STORE_ID))
+        .willReturn(Optional.of(item));
+
+    // when / then
+    assertThatThrownBy(
+            () ->
+                clearanceItemService.updateClearanceItem(
+                    SELLER_ID, STORE_ID, CLEARANCE_ITEM_ID, request))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue(
+            "errorCode", ClearanceItemErrorCode.CLEARANCE_ITEM_INVALID_PICKUP_WINDOW);
+  }
+
+  @Test
+  void 마감_임박_상품_수정_없음_예외() {
+    // given
+    Store store = store(StoreStatus.APPROVED);
+    ClearanceItemUpdateRequest request =
+        new ClearanceItemUpdateRequest(new BigDecimal("2000"), null, null, null);
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(clearanceItemRepository.findByIdAndStoreId(CLEARANCE_ITEM_ID, STORE_ID))
+        .willReturn(Optional.empty());
+
+    // when / then
+    assertThatThrownBy(
+            () ->
+                clearanceItemService.updateClearanceItem(
+                    SELLER_ID, STORE_ID, CLEARANCE_ITEM_ID, request))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", ClearanceItemErrorCode.CLEARANCE_ITEM_NOT_FOUND);
+  }
+
+  // ── 수동 마감 ─────────────────────────────────────────────────────────────────
+
+  @Test
+  void 마감_임박_상품_수동_마감_성공() {
+    // given
+    Store store = store(StoreStatus.APPROVED);
+    Product prod = product(StoreStatus.APPROVED, ProductStatus.ON_SALE);
+    ClearanceItem item = ClearanceItemFixture.aClearanceItem(store, prod);
+    ReflectionTestUtils.setField(item, "id", CLEARANCE_ITEM_ID);
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(clearanceItemRepository.findByIdAndStoreId(CLEARANCE_ITEM_ID, STORE_ID))
+        .willReturn(Optional.of(item));
+    given(clearanceItemMapper.toResponse(item))
+        .willReturn(ClearanceItemFixture.aClosedResponse(CLEARANCE_ITEM_ID));
+
+    // when
+    ClearanceItemResponse response =
+        clearanceItemService.closeClearanceItem(SELLER_ID, STORE_ID, CLEARANCE_ITEM_ID);
+
+    // then
+    assertThat(item.getStatus()).isEqualTo(ClearanceItemStatus.CLOSED);
+    assertThat(response.status()).isEqualTo(ClearanceItemStatus.CLOSED);
+  }
+
+  @Test
+  void 마감_임박_상품_수동_마감_이미_CLOSED_멱등() {
+    // given
+    Store store = store(StoreStatus.APPROVED);
+    Product prod = product(StoreStatus.APPROVED, ProductStatus.ON_SALE);
+    ClearanceItem item = ClearanceItemFixture.aClearanceItem(store, prod);
+    ReflectionTestUtils.setField(item, "id", CLEARANCE_ITEM_ID);
+    item.close();
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(clearanceItemRepository.findByIdAndStoreId(CLEARANCE_ITEM_ID, STORE_ID))
+        .willReturn(Optional.of(item));
+    given(clearanceItemMapper.toResponse(item))
+        .willReturn(ClearanceItemFixture.aClosedResponse(CLEARANCE_ITEM_ID));
+
+    // when
+    ClearanceItemResponse response =
+        clearanceItemService.closeClearanceItem(SELLER_ID, STORE_ID, CLEARANCE_ITEM_ID);
+
+    // then
+    assertThat(response.status()).isEqualTo(ClearanceItemStatus.CLOSED);
+    assertThat(item.getStatus()).isEqualTo(ClearanceItemStatus.CLOSED);
+  }
+
+  @Test
+  void 마감_임박_상품_수동_마감_없음_예외() {
+    // given
+    Store store = store(StoreStatus.APPROVED);
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(clearanceItemRepository.findByIdAndStoreId(CLEARANCE_ITEM_ID, STORE_ID))
+        .willReturn(Optional.empty());
+
+    // when / then
+    assertThatThrownBy(
+            () -> clearanceItemService.closeClearanceItem(SELLER_ID, STORE_ID, CLEARANCE_ITEM_ID))
         .isInstanceOf(BusinessException.class)
         .hasFieldOrPropertyWithValue("errorCode", ClearanceItemErrorCode.CLEARANCE_ITEM_NOT_FOUND);
   }

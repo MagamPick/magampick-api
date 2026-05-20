@@ -4,6 +4,7 @@ import com.magampick.clearance.domain.ClearanceItem;
 import com.magampick.clearance.domain.ClearanceItemStatus;
 import com.magampick.clearance.dto.ClearanceItemCreateRequest;
 import com.magampick.clearance.dto.ClearanceItemResponse;
+import com.magampick.clearance.dto.ClearanceItemUpdateRequest;
 import com.magampick.clearance.exception.ClearanceItemErrorCode;
 import com.magampick.clearance.mapper.ClearanceItemMapper;
 import com.magampick.clearance.repository.ClearanceItemRepository;
@@ -18,6 +19,7 @@ import com.magampick.store.domain.StoreStatus;
 import com.magampick.store.exception.StoreErrorCode;
 import com.magampick.store.repository.StoreRepository;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -119,6 +121,81 @@ public class ClearanceItemService {
             .orElseThrow(
                 () -> new BusinessException(ClearanceItemErrorCode.CLEARANCE_ITEM_NOT_FOUND));
     return clearanceItemMapper.toResponse(item);
+  }
+
+  @Transactional
+  public ClearanceItemResponse updateClearanceItem(
+      Long sellerId, Long storeId, Long clearanceItemId, ClearanceItemUpdateRequest request) {
+    verifyStoreOwnership(sellerId, storeId);
+
+    ClearanceItem item =
+        clearanceItemRepository
+            .findByIdAndStoreId(clearanceItemId, storeId)
+            .orElseThrow(
+                () -> new BusinessException(ClearanceItemErrorCode.CLEARANCE_ITEM_NOT_FOUND));
+
+    if (item.getStatus() != ClearanceItemStatus.OPEN) {
+      throw new BusinessException(ClearanceItemErrorCode.CLEARANCE_ITEM_NOT_OPEN);
+    }
+
+    if (request.salePrice() != null && request.salePrice().compareTo(item.getRegularPrice()) >= 0) {
+      throw new BusinessException(ClearanceItemErrorCode.CLEARANCE_ITEM_SALE_PRICE_NOT_DISCOUNTED);
+    }
+
+    LocalDateTime effectiveStartAt =
+        request.pickupStartAt() != null ? request.pickupStartAt() : item.getPickupStartAt();
+    LocalDateTime effectiveEndAt =
+        request.pickupEndAt() != null ? request.pickupEndAt() : item.getPickupEndAt();
+
+    if (request.pickupStartAt() != null || request.pickupEndAt() != null) {
+      LocalDate today = LocalDate.now(KST);
+      if (!effectiveEndAt.toLocalDate().equals(today)
+          || !effectiveStartAt.isBefore(effectiveEndAt)
+          || !effectiveEndAt.isAfter(LocalDateTime.now(KST))) {
+        throw new BusinessException(ClearanceItemErrorCode.CLEARANCE_ITEM_INVALID_PICKUP_WINDOW);
+      }
+    }
+
+    item.update(
+        request.salePrice(),
+        request.totalQuantity(),
+        request.pickupStartAt(),
+        request.pickupEndAt());
+
+    log.info(
+        "마감 임박 상품 수정됨. clearanceItemId={}, storeId={}, sellerId={}",
+        clearanceItemId,
+        storeId,
+        sellerId);
+    return clearanceItemMapper.toResponse(item);
+  }
+
+  @Transactional
+  public ClearanceItemResponse closeClearanceItem(
+      Long sellerId, Long storeId, Long clearanceItemId) {
+    verifyStoreOwnership(sellerId, storeId);
+
+    ClearanceItem item =
+        clearanceItemRepository
+            .findByIdAndStoreId(clearanceItemId, storeId)
+            .orElseThrow(
+                () -> new BusinessException(ClearanceItemErrorCode.CLEARANCE_ITEM_NOT_FOUND));
+
+    if (item.getStatus() != ClearanceItemStatus.CLOSED) {
+      item.close();
+      log.info(
+          "마감 임박 상품 수동 마감됨. clearanceItemId={}, storeId={}, sellerId={}",
+          clearanceItemId,
+          storeId,
+          sellerId);
+    }
+
+    return clearanceItemMapper.toResponse(item);
+  }
+
+  @Transactional
+  public int autoCloseExpiredItems(LocalDateTime now) {
+    return clearanceItemRepository.closeExpiredItems(now);
   }
 
   private void verifyStoreOwnership(Long sellerId, Long storeId) {
