@@ -14,6 +14,7 @@ import com.magampick.global.storage.StorageService;
 import com.magampick.product.domain.Product;
 import com.magampick.product.domain.ProductStatus;
 import com.magampick.product.dto.ProductResponse;
+import com.magampick.product.dto.ProductUpdateRequest;
 import com.magampick.product.exception.ProductErrorCode;
 import com.magampick.product.fixture.ProductFixture;
 import com.magampick.product.mapper.ProductMapper;
@@ -81,7 +82,11 @@ class ProductServiceTest {
   }
 
   private MockMultipartFile validImage() {
-    return new MockMultipartFile("image", "test.jpg", "image/jpeg", new byte[1024]);
+    byte[] jpeg = new byte[1024];
+    jpeg[0] = (byte) 0xFF;
+    jpeg[1] = (byte) 0xD8;
+    jpeg[2] = (byte) 0xFF;
+    return new MockMultipartFile("image", "test.jpg", "image/jpeg", jpeg);
   }
 
   // ── 등록 ─────────────────────────────────────────────────────────────────────
@@ -91,7 +96,8 @@ class ProductServiceTest {
     // given
     Store store = store(StoreStatus.APPROVED);
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
-    given(productRepository.existsByStoreIdAndName(STORE_ID, "크로아상")).willReturn(false);
+    given(productRepository.existsByStoreIdAndNameAndDeletedAtIsNull(STORE_ID, "크로아상"))
+        .willReturn(false);
     given(storageService.upload(any())).willReturn("/uploads/2026/5/product.jpg");
     given(productRepository.save(any(Product.class)))
         .willAnswer(
@@ -160,7 +166,8 @@ class ProductServiceTest {
     // given
     Store store = store(StoreStatus.APPROVED);
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
-    given(productRepository.existsByStoreIdAndName(STORE_ID, "크로아상")).willReturn(true);
+    given(productRepository.existsByStoreIdAndNameAndDeletedAtIsNull(STORE_ID, "크로아상"))
+        .willReturn(true);
 
     // when / then
     assertThatThrownBy(
@@ -207,7 +214,8 @@ class ProductServiceTest {
     // given
     Store store = store(StoreStatus.APPROVED);
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
-    given(productRepository.existsByStoreIdAndName(STORE_ID, "크로아상")).willReturn(false);
+    given(productRepository.existsByStoreIdAndNameAndDeletedAtIsNull(STORE_ID, "크로아상"))
+        .willReturn(false);
     given(productRepository.save(any(Product.class)))
         .willAnswer(
             inv -> {
@@ -239,7 +247,7 @@ class ProductServiceTest {
     Pageable pageable = PageRequest.of(0, 20);
     Page<Product> page = new PageImpl<>(List.of(product), pageable, 1);
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
-    given(productRepository.findByStoreId(STORE_ID, pageable)).willReturn(page);
+    given(productRepository.findByStoreIdAndDeletedAtIsNull(STORE_ID, pageable)).willReturn(page);
     given(productMapper.toResponse(product)).willReturn(ProductFixture.aResponse(PRODUCT_ID));
 
     // when
@@ -262,7 +270,7 @@ class ProductServiceTest {
             () -> productService.getMyStoreProducts(SELLER_ID, STORE_ID, PageRequest.of(0, 20)))
         .isInstanceOf(BusinessException.class)
         .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.STORE_ACCESS_DENIED);
-    then(productRepository).should(never()).findByStoreId(any(), any());
+    then(productRepository).should(never()).findByStoreIdAndDeletedAtIsNull(any(), any());
   }
 
   @Test
@@ -272,7 +280,7 @@ class ProductServiceTest {
     Product product = ProductFixture.aProduct(store);
     ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
-    given(productRepository.findByIdAndStoreId(PRODUCT_ID, STORE_ID))
+    given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.of(product));
     given(productMapper.toResponse(product)).willReturn(ProductFixture.aResponse(PRODUCT_ID));
 
@@ -288,7 +296,8 @@ class ProductServiceTest {
     // given
     Store store = store(StoreStatus.APPROVED);
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
-    given(productRepository.findByIdAndStoreId(PRODUCT_ID, STORE_ID)).willReturn(Optional.empty());
+    given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
+        .willReturn(Optional.empty());
 
     // when / then
     assertThatThrownBy(() -> productService.getMyStoreProduct(SELLER_ID, STORE_ID, PRODUCT_ID))
@@ -305,6 +314,267 @@ class ProductServiceTest {
     assertThatThrownBy(() -> productService.getMyStoreProduct(SELLER_ID, STORE_ID, PRODUCT_ID))
         .isInstanceOf(BusinessException.class)
         .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.STORE_ACCESS_DENIED);
-    then(productRepository).should(never()).findByIdAndStoreId(any(), any());
+    then(productRepository).should(never()).findByIdAndStoreIdAndDeletedAtIsNull(any(), any());
+  }
+
+  // ── 수정 ─────────────────────────────────────────────────────────────────────
+
+  @Test
+  void 일반_상품_수정_성공_이름_변경() {
+    // given
+    Store store = store(StoreStatus.APPROVED);
+    Product product = ProductFixture.aProduct(store);
+    ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
+    ProductUpdateRequest request = new ProductUpdateRequest("바게트", null);
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
+        .willReturn(Optional.of(product));
+    given(
+            productRepository.existsByStoreIdAndNameAndDeletedAtIsNullAndIdNot(
+                STORE_ID, "바게트", PRODUCT_ID))
+        .willReturn(false);
+    given(productMapper.toResponse(product)).willReturn(ProductFixture.aResponse(PRODUCT_ID));
+
+    // when
+    ProductResponse response =
+        productService.updateProduct(SELLER_ID, STORE_ID, PRODUCT_ID, request, null);
+
+    // then
+    assertThat(product.getName()).isEqualTo("바게트");
+    assertThat(response.id()).isEqualTo(PRODUCT_ID);
+    then(storageService).should(never()).upload(any());
+  }
+
+  @Test
+  void 일반_상품_수정_성공_이미지_교체() {
+    // given
+    Store store = store(StoreStatus.APPROVED);
+    Product product = ProductFixture.aProduct(store);
+    ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
+    ProductUpdateRequest request = new ProductUpdateRequest(null, null);
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
+        .willReturn(Optional.of(product));
+    given(storageService.upload(any())).willReturn("/uploads/2026/5/new.jpg");
+    given(productMapper.toResponse(product)).willReturn(ProductFixture.aResponse(PRODUCT_ID));
+
+    // when
+    productService.updateProduct(SELLER_ID, STORE_ID, PRODUCT_ID, request, validImage());
+
+    // then
+    then(storageService).should().upload(any());
+  }
+
+  @Test
+  void 일반_상품_수정_이름_중복_예외() {
+    // given
+    Store store = store(StoreStatus.APPROVED);
+    Product product = ProductFixture.aProduct(store);
+    ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
+    ProductUpdateRequest request = new ProductUpdateRequest("바게트", null);
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
+        .willReturn(Optional.of(product));
+    given(
+            productRepository.existsByStoreIdAndNameAndDeletedAtIsNullAndIdNot(
+                STORE_ID, "바게트", PRODUCT_ID))
+        .willReturn(true);
+
+    // when / then
+    assertThatThrownBy(
+            () -> productService.updateProduct(SELLER_ID, STORE_ID, PRODUCT_ID, request, null))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", ProductErrorCode.PRODUCT_NAME_DUPLICATE);
+  }
+
+  @Test
+  void 일반_상품_수정_타인_매장_거부() {
+    // given
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.empty());
+
+    // when / then
+    assertThatThrownBy(
+            () ->
+                productService.updateProduct(
+                    SELLER_ID, STORE_ID, PRODUCT_ID, new ProductUpdateRequest(null, null), null))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.STORE_ACCESS_DENIED);
+  }
+
+  @Test
+  void 일반_상품_수정_없는_상품_예외() {
+    // given
+    Store store = store(StoreStatus.APPROVED);
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
+        .willReturn(Optional.empty());
+
+    // when / then
+    assertThatThrownBy(
+            () ->
+                productService.updateProduct(
+                    SELLER_ID, STORE_ID, PRODUCT_ID, new ProductUpdateRequest(null, null), null))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", ProductErrorCode.PRODUCT_NOT_FOUND);
+  }
+
+  // ── 삭제 ─────────────────────────────────────────────────────────────────────
+
+  @Test
+  void 일반_상품_삭제_성공() {
+    // given
+    Store store = store(StoreStatus.APPROVED);
+    Product product = ProductFixture.aProduct(store);
+    ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
+        .willReturn(Optional.of(product));
+
+    // when
+    productService.deleteProduct(SELLER_ID, STORE_ID, PRODUCT_ID);
+
+    // then
+    assertThat(product.getDeletedAt()).isNotNull();
+  }
+
+  @Test
+  void 일반_상품_삭제_이미_삭제된_상품_예외() {
+    // given
+    Store store = store(StoreStatus.APPROVED);
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
+        .willReturn(Optional.empty());
+
+    // when / then
+    assertThatThrownBy(() -> productService.deleteProduct(SELLER_ID, STORE_ID, PRODUCT_ID))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", ProductErrorCode.PRODUCT_NOT_FOUND);
+  }
+
+  @Test
+  void 일반_상품_삭제_타인_매장_거부() {
+    // given
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.empty());
+
+    // when / then
+    assertThatThrownBy(() -> productService.deleteProduct(SELLER_ID, STORE_ID, PRODUCT_ID))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.STORE_ACCESS_DENIED);
+  }
+
+  // ── 품절 / 재입고 ──────────────────────────────────────────────────────────────
+
+  @Test
+  void 상품_품절_처리_성공() {
+    // given
+    Store store = store(StoreStatus.APPROVED);
+    Product product = ProductFixture.aProduct(store);
+    ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
+        .willReturn(Optional.of(product));
+    given(productMapper.toResponse(product))
+        .willReturn(ProductFixture.aResponseWithStatus(PRODUCT_ID, ProductStatus.SOLD_OUT));
+
+    // when
+    ProductResponse response = productService.markSoldOut(SELLER_ID, STORE_ID, PRODUCT_ID);
+
+    // then
+    assertThat(product.getStatus()).isEqualTo(ProductStatus.SOLD_OUT);
+    assertThat(response.status()).isEqualTo(ProductStatus.SOLD_OUT);
+  }
+
+  @Test
+  void 상품_품절_처리_이미_품절_멱등_성공() {
+    // given
+    Store store = store(StoreStatus.APPROVED);
+    Product product = ProductFixture.aSoldOutProduct(store);
+    ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
+        .willReturn(Optional.of(product));
+    given(productMapper.toResponse(product))
+        .willReturn(ProductFixture.aResponseWithStatus(PRODUCT_ID, ProductStatus.SOLD_OUT));
+
+    // when
+    ProductResponse response = productService.markSoldOut(SELLER_ID, STORE_ID, PRODUCT_ID);
+
+    // then
+    assertThat(response.status()).isEqualTo(ProductStatus.SOLD_OUT);
+  }
+
+  @Test
+  void 상품_재입고_처리_성공() {
+    // given
+    Store store = store(StoreStatus.APPROVED);
+    Product product = ProductFixture.aSoldOutProduct(store);
+    ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
+        .willReturn(Optional.of(product));
+    given(productMapper.toResponse(product))
+        .willReturn(ProductFixture.aResponseWithStatus(PRODUCT_ID, ProductStatus.ON_SALE));
+
+    // when
+    ProductResponse response = productService.restock(SELLER_ID, STORE_ID, PRODUCT_ID);
+
+    // then
+    assertThat(product.getStatus()).isEqualTo(ProductStatus.ON_SALE);
+    assertThat(response.status()).isEqualTo(ProductStatus.ON_SALE);
+  }
+
+  @Test
+  void 상품_재입고_처리_이미_판매중_멱등_성공() {
+    // given
+    Store store = store(StoreStatus.APPROVED);
+    Product product = ProductFixture.aProduct(store);
+    ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
+        .willReturn(Optional.of(product));
+    given(productMapper.toResponse(product))
+        .willReturn(ProductFixture.aResponseWithStatus(PRODUCT_ID, ProductStatus.ON_SALE));
+
+    // when
+    ProductResponse response = productService.restock(SELLER_ID, STORE_ID, PRODUCT_ID);
+
+    // then
+    assertThat(response.status()).isEqualTo(ProductStatus.ON_SALE);
+  }
+
+  @Test
+  void 상품_품절_처리_없는_상품_예외() {
+    // given
+    Store store = store(StoreStatus.APPROVED);
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
+        .willReturn(Optional.empty());
+
+    // when / then
+    assertThatThrownBy(() -> productService.markSoldOut(SELLER_ID, STORE_ID, PRODUCT_ID))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", ProductErrorCode.PRODUCT_NOT_FOUND);
+  }
+
+  @Test
+  void 상품_품절_처리_타인_매장_거부() {
+    // given
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.empty());
+
+    // when / then
+    assertThatThrownBy(() -> productService.markSoldOut(SELLER_ID, STORE_ID, PRODUCT_ID))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.STORE_ACCESS_DENIED);
+  }
+
+  @Test
+  void 상품_재입고_처리_타인_매장_거부() {
+    // given
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.empty());
+
+    // when / then
+    assertThatThrownBy(() -> productService.restock(SELLER_ID, STORE_ID, PRODUCT_ID))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.STORE_ACCESS_DENIED);
   }
 }

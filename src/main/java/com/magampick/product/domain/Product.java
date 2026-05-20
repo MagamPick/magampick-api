@@ -14,6 +14,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -46,6 +47,9 @@ public class Product extends BaseEntity {
   @Column(name = "status", nullable = false, length = 10)
   private ProductStatus status;
 
+  @Column(name = "deleted_at")
+  private LocalDateTime deletedAt;
+
   @Builder
   private Product(
       Store store, String name, BigDecimal regularPrice, String imageUrl, ProductStatus status) {
@@ -54,5 +58,25 @@ public class Product extends BaseEntity {
     this.regularPrice = regularPrice;
     this.imageUrl = imageUrl;
     this.status = status;
+  }
+
+  public void updateInfo(String name, BigDecimal regularPrice, String imageUrl) {
+    if (name != null) this.name = name;
+    if (regularPrice != null) this.regularPrice = regularPrice;
+    if (imageUrl != null) this.imageUrl = imageUrl;
+  }
+
+  public void softDelete() {
+    this.deletedAt = LocalDateTime.now();
+  }
+
+  public void markSoldOut() {
+    if (this.status == ProductStatus.SOLD_OUT) return;
+    this.status = ProductStatus.SOLD_OUT;
+  }
+
+  public void restock() {
+    if (this.status == ProductStatus.ON_SALE) return;
+    this.status = ProductStatus.ON_SALE;
   }
 }
