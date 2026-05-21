@@ -51,8 +51,10 @@ erDiagram
         boolean is_default
     }
     favorites {
-        bigint customer_id PK_FK
-        bigint store_id PK_FK
+        bigint id PK
+        bigint customer_id FK
+        bigint store_id FK
+        timestamp created_at
     }
 
     store_categories {
