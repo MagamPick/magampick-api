@@ -39,16 +39,19 @@
 - 인증·인가: [`docs/auth.md`](docs/auth.md)
 
 ### 결정 / 구현 책임 분리
-- **이슈 본문 + plan mode (in-session)** = 정책 / scope / 영향도 큰 결정. `/issue` 단계에서 박고, `/impl` 진입 시 plan mode 로 사용자와 합의. 휘발성 — 문서 안 남김
+- **노션 기능 명세 페이지** ("기능 명세 (Features)" DB) = 정책 / scope / 도메인 결정 / API 의도 의 single source. 사용자가 작성 후 노션에 게시 — 백엔드 레포 작업의 입력. `/impl` 의 plan mode 중 발견한 결정은 노션 본문에 갱신 (휘발 X — 다른 세션 / 모델도 같은 페이지 보고 동일하게 해석)
+- **plan mode (in-session)** = 노션 본문 + convention 위에서 사용자와 합의하는 휘발 결정. 영향도 큰 결정은 옵션으로 제시 후 노션에 반영
 - **convention 문서** = mechanical detail 의 single source (Swagger 어노테이션 본문 / 패키지 경로 / `@Transactional` 위치 / MapStruct / 로그 포맷 / ErrorCode 분리 / 표준 Processing Flow / Test Cases 표준 케이스 / 마이그레이션 형식 / 인가 매처 등)
-- **spec (`docs/specs/`)** = **옵트인 handoff 도구**. 다른 세션 / 모델 / 에이전트로 위임 / 외주 / 다중 stakeholder 사전 리뷰가 필요할 때만 명시적으로 `/spec` 호출. 자동 워크플로우엔 포함 X (자세한 "Don't write" 리스트: [`.claude/skills/spec/SKILL.md`](.claude/skills/spec/SKILL.md) §4 §0)
-- `/impl` 은 이슈 본문 + plan 합의 + convention 을 본다 (spec 이 있으면 함께). plan / convention 둘 다 침묵하는 결정은 사용자에게 질문
+- `/impl` 은 노션 페이지 + plan 합의 + convention 을 본다. 셋 다 침묵하는 결정만 사용자에게 질문
+
+> 이전 워크플로우의 `/issue` (GitHub Issue 생성) / `/spec` (`docs/specs/` 핸드오프) 은 노션 도입과 함께 제거됨. 백업은 [`.claude/skills/_archive/old-workflow/`](.claude/skills/_archive/old-workflow/) / [`.codex/skills/_archive/old-workflow/`](.codex/skills/_archive/old-workflow/).
 
 ### 테스트
 - [`docs/test-convention.md`](docs/test-convention.md) 의 B 강도 정책 따름
-- **코드 작성 시 함께 작성**: Service 단위 + Controller `@WebMvcTest`
-- **명시 요청 시 또는 핵심 흐름에만**: Repository `@DataJpaTest` (커스텀 쿼리), 통합 테스트 (가입 / 주문 / 결제 / 환불)
-- **작성하지 않음**: 기본 CRUD Repository, MapStruct, Getter/Setter
+- **TDD red→green 으로 작성**: 테스트 코드 먼저 → 실행해서 빨갛게 떨어지는 거 확인 → 구현 코드 → 다시 실행해서 통과 확인. layer 단위 (Service / Controller)
+- **layer 별 적용 범위**: Service 단위 + Controller `@WebMvcTest` 는 항상. 통합 테스트는 핵심 흐름 (가입 / 주문 / 결제 / 환불) 만. Repository `@DataJpaTest` 는 커스텀 쿼리만
+- **작성하지 않음**: 기본 CRUD Repository, MapStruct, Getter/Setter, DTO / Mapper 자체
+- **TDD 불가 레이어**: Entity / 마이그레이션 / DTO / Mapper (스키마 / 시그니처 — 작성 후 컴파일 통과 확인)
 
 ### DB
 - ERD 큰 그림: [`docs/erd/overview.md`](docs/erd/overview.md)
@@ -69,37 +72,37 @@
 
 ## 워크플로우
 
-작업은 **3단계** (이슈 → 구현 → 머지). 모든 type 동일:
+작업은 **3단계** (명세 → 구현 → 머지). 모든 type 동일:
 
-| 단계 | 명령/스킬 | 산출물 | 사용자 검토 |
+| 단계 | 명령 / 도구 | 산출물 | 사용자 검토 |
 |---|---|---|---|
-| 1. 이슈 | `/issue {기능명}` | GitHub Issue (type 결정 + 정책 / scope + 영향도 큰 결정) + 작업 브랜치를 슬롯에 attach | 생성 전 |
-| 2. 구현 | `/impl {이슈번호}` | plan mode 진입 → 사용자 합의 → 코드 / 파일 편집 + (해당 시) 테스트 + 빌드 통과 + (feat/fix/refactor) 외부 모델 리뷰 → 반영 | plan 합의 전, 리뷰 결과 검토 시, 진행 중 선택 |
-| 3. 머지 | `/impl` 끝에서 이어 진행 | 커밋 → 푸시 → PR 생성 → CI watch → CI green 시 자동 머지 → 슬롯 정리 → develop pull | 커밋 메시지 전, PR 본문 전 |
+| 1. 명세 | 노션 "기능 명세 (Features)" DB 에 페이지 작성 (별도, 백엔드 레포 작업 아님) | 노션 페이지 (상태: `기획`) — 정책 / scope / API 의도 / 도메인 결정 | 노션에서 직접 |
+| 2. 구현 | `/impl <노션URL>` (모드 A: 메인 → plan + 슬롯 attach, 모드 B: 슬롯 → TDD 구현 + 빌드 + 외부 리뷰) | plan 합의 → 노션 상태 `기획`→`개발중` → 코드 / 테스트 (TDD red→green) → 빌드 통과 + (feat/fix/refactor) 외부 모델 리뷰 → 반영 | plan 합의 전, 리뷰 결과 검토 시 |
+| 3. 머지 | `/impl` 끝에서 이어 진행 | 커밋 → 푸시 → PR (본문에 노션 URL 명시) → CI watch → CI green 시 자동 머지 → 슬롯 정리 → develop pull → 노션 상태 갱신 (`개발중`→`운영중` 또는 본문 체크리스트 체크) | 커밋 메시지 전, PR 본문 전 |
 
-> **모든 type 동일 (3단계)**: `/issue` → `/impl` → 머지. 적용 단계는 type 에 따라 다름 (예: `docs` / `chore` 는 코드 / 테스트 단계 skip) — [`.claude/skills/impl/SKILL.md`](.claude/skills/impl/SKILL.md) §"흐름 > Type 분기" 참조.
+> **모든 type 동일 (3단계)**: 명세 → `/impl` → 머지. 적용 단계는 type 에 따라 다름 — [`.claude/skills/impl/SKILL.md`](.claude/skills/impl/SKILL.md) §"Type 분기" 참조.
 >
-> **`/spec` 은 옵트인 handoff 도구**: 다른 세션 / 모델 / 에이전트로 위임 / 외주 / 다중 stakeholder 사전 리뷰가 필요할 때만 명시적으로 호출. 자동 흐름에 포함되지 않음 ([`.claude/skills/spec/SKILL.md`](.claude/skills/spec/SKILL.md)).
+> **GitHub Issue 사용 안 함**: 노션이 이슈를 대체. 추적은 PR + 노션 본문 체크리스트.
 
-> **`main` / `develop` 으로 직접 push 금지.** 항상 작업 브랜치 (`{type}/{이슈번호}-{설명}`) → PR (`base: develop`) → 머지. 예외 없음.
+> **`main` / `develop` 으로 직접 push 금지.** 항상 작업 브랜치 (`{type}/{슬러그}[-step{N}]`) → PR (`base: develop`) → 머지. 예외 없음.
 >
-> **3단계 = 머지까지 같은 세션에서 끝.** `/impl` 의 빌드 통과 후 사용자가 커밋 메시지 + PR 본문을 OK 하면, 그 시점에 머지까지 위임된다. CI green = 머지 게이트 ([`git-workflow.md §4`](docs/git-workflow.md)). 세션은 `gh pr checks --watch` 로 CI 결과를 기다리다가 green 즉시 머지 → 슬롯 정리 → develop pull → 사이클 완료 보고. CI red 면 원인 보고 후 다음 액션은 사용자와 결정.
+> **3단계 = 머지까지 같은 세션에서 끝.** `/impl` 의 빌드 통과 후 사용자가 커밋 메시지 + PR 본문을 OK 하면, 그 시점에 머지까지 위임된다. CI green = 머지 게이트 ([`git-workflow.md §4`](docs/git-workflow.md)). 세션은 `gh pr checks --watch` 로 CI 결과를 기다리다가 green 즉시 머지 → 슬롯 정리 → develop pull → 노션 상태 갱신 → 사이클 완료 보고. CI red 면 원인 보고 후 다음 액션은 사용자와 결정.
 >
-> **작업 브랜치는 `/issue` 끝에서 슬롯에 attach** — `gh issue develop {이슈번호}` 로 GitHub 이슈에 연결된 브랜치 (`feat/{이슈번호}-{슬러그}`) 를 만들고, 비어 있는 슬롯 (`magampick-api-wt1/wt2/wt3` 중 detached HEAD 인 곳) 에 `git -C ../magampick-api-wtX switch ...` 로 attach 한다. `/impl` 은 **그 슬롯 디렉터리에서 에이전트(`claude`/`codex`)를 띄워** 실행한다 — `cd` 로 옮겨 다니지 않는다. 시작 시 슬롯 위치인지 확인하고 메인 디렉터리 (`develop`/`main`) 이면 중단. (`/issue` 를 거치지 않은 이슈는 `/impl` 이 슬롯에 attach 한다.) 자세한 슬롯 운영 룰은 §"병렬 운영" 참조.
+> **작업 브랜치는 `/impl` 모드 A 에서 슬롯에 attach** — 노션 페이지 제목 → glossary 영문 매핑 → kebab-case 슬러그 → 빈 슬롯 (`magampick-api-wt1/wt2/wt3` 중 detached HEAD 인 곳) 에 `git -C ../magampick-api-wtX switch -c {type}/{슬러그} origin/develop` 으로 attach. 이후 모드 B (`/impl <노션URL>` 슬롯에서 재호출 또는 `EnterWorktree` 진입) 는 **그 슬롯 디렉터리에서** 실행한다. 시작 시 슬롯 위치인지 확인하고 메인 디렉터리 (`develop`/`main`) 이면 모드 A 부트스트랩으로 분기. 자세한 슬롯 운영 룰은 §"병렬 운영" 참조.
 
 ### 단계별 docs 수정 범위
 
-**`feat` / `fix` 워크플로우 기준** — `refactor` / `docs` / `chore` 는 이슈의 `Changes` (또는 `변경 방향`) scope 안에서 자유롭게 수정:
+**`feat` / `fix` 워크플로우 기준** — `refactor` / `docs` / `chore` 는 작업 scope 안에서 자유롭게 수정:
 
-| 단계 | 수정 OK | 수정 X (별도 이슈) |
+| 단계 | 수정 OK | 수정 X (별도 작업) |
 |---|---|---|
-| `/issue` | `product.md` / `features.md` / `policy.md` / `glossary.md` | 전역 코딩 컨벤션 |
-| `/impl` | `docs/erd/overview.md` 의 미정 사항 / `docs/erd/tables/{table}.md` (해당 도메인 ERD) / `auth.md` (인증·인가 정책) / `docs/roadmap.md` (해당 기능 행 상태·이슈 번호) | api-convention / coding-convention / test-convention / commit-convention / git-workflow |
+| 명세 (노션) | 노션 페이지 본문 (정책 / scope / 결정) — 백엔드 레포 변경 없음 | 백엔드 레포의 docs / 코드 |
+| `/impl` | `docs/erd/overview.md` 의 미정 사항 / `docs/erd/tables/{table}.md` (해당 도메인 ERD) / `auth.md` (인증·인가 정책 — 노션에도 반영) / `docs/roadmap.md` (해당 기능 행 상태 / 노션 URL / PR 번호) | api-convention / coding-convention / test-convention / commit-convention / git-workflow |
 
-> 한 이슈 = 한 PR. 컨벤션 수정 같이 가면 PR 비대 → 별도 이슈로 분리 (`docs` / `chore` / `refactor` 도 동일 — 별개 컨벤션 변경이 섞이면 별도 이슈).
+> 한 노션 페이지 = 1+ PR (쪼갠 경우 본문 체크리스트로 단계 추적). 컨벤션 수정 같이 가면 PR 비대 → 별도 chore 로 분리.
 
 ### plan / 구현 중 미정 발견 시
-`/impl` 의 plan mode 또는 구현 중 정책 / scope 미정 발견 → **`/issue` 로 돌아가 결정** → `/impl` 재호출. 임의 가정 금지.
+`/impl` 의 plan mode 또는 구현 중 정책 / scope 미정 발견 → **옵션 제시 → 사용자 결정 → 노션 페이지 본문 갱신** (휘발 X) → 진행. 임의 가정 금지.
 
 ### 병렬 운영
 
@@ -110,13 +113,13 @@
 **구조 — 메인 + 작업 슬롯 3개 (fungible)**:
 
 ```
-magampick-api          # 메인 디렉터리. develop 고정 — pull / /issue / 슬롯 정리의 홈베이스
+magampick-api          # 메인 디렉터리. develop 고정 — pull / `/impl` 모드 A / 슬롯 정리의 홈베이스
 magampick-api-wt1      # 작업 슬롯 1
 magampick-api-wt2      # 작업 슬롯 2
 magampick-api-wt3      # 작업 슬롯 3
 ```
 
-슬롯은 type / 종류 구분 없이 **fungible** — `docs/`, `feat/`, `fix/`, `refactor/` 어느 브랜치든 빈 슬롯에 임의로 attach.
+슬롯은 type / 종류 구분 없이 **fungible** — `docs/`, `feat/`, `fix/`, `refactor/`, `chore/` 어느 브랜치든 빈 슬롯에 임의로 attach.
 
 **최초 1회 셋업** (각 머신 / 환경마다):
 ```sh
@@ -129,15 +132,15 @@ git worktree add ../magampick-api-wt3 --detach origin/develop
 
 **규칙**:
 
-- **메인 디렉터리 `magampick-api` 는 항상 `develop` 고정** — pull / `/issue` 실행 / 슬롯 정리 / PR 웹 리뷰의 홈베이스. 여기서 작업 브랜치로 checkout 하지 않는다.
-- **모든 작업 브랜치는 슬롯에서** — impl 뿐 아니라 문서 / 컨벤션 수정도 예외 없이 (docs 도 슬롯 사용).
-- **슬롯 attach = `/issue` 끝에서 1회** — `gh issue develop {이슈번호} --name {type}/{이슈번호}-{슬러그}` 로 origin 브랜치 생성 후 빈 슬롯에 `git -C ../magampick-api-wtX switch {type}/{이슈번호}-{슬러그}`. 빈 슬롯은 `git worktree list` 에서 `(detached HEAD)` 표시. (`/issue` 안 거친 이슈는 `/impl` 이 attach 한다.)
-- **`/impl` 은 그 슬롯 디렉터리에서 에이전트를 띄워 실행한다.** 도구 앵커(파일 탐색·셸 cwd·스킬)가 그 디렉터리 기준이어야 하므로, 메인에서 `cd` 로 옮기는 것에 의존하지 않는다.
+- **메인 디렉터리 `magampick-api` 는 항상 `develop` 고정** — pull / `/impl` 모드 A (노션 fetch + plan + 슬롯 attach) / 슬롯 정리 / PR 웹 리뷰의 홈베이스. 여기서 작업 브랜치로 checkout 하지 않는다.
+- **모든 작업 브랜치는 슬롯에서** — impl 뿐 아니라 문서 / 컨벤션 수정도 예외 없이 (docs / chore 도 슬롯 사용).
+- **슬롯 attach = `/impl` 모드 A 끝에서 1회** — 노션 페이지 제목 → glossary 영문 매핑 → kebab-case 슬러그 → 빈 슬롯에 `git -C ../magampick-api-wtX switch -c {type}/{슬러그}[-step{N}] origin/develop`. 빈 슬롯은 `git worktree list` 에서 `(detached HEAD)` 표시. (노션 페이지 없는 chore / docs 는 사용자가 직접 슬롯 attach 또는 사용자 지시에 따라.)
+- **`/impl` 모드 B 는 그 슬롯 디렉터리에서 에이전트를 띄워 실행한다.** 도구 앵커(파일 탐색·셸 cwd·스킬)가 그 디렉터리 기준이어야 하므로, 메인에서 `cd` 로 옮기는 것에 의존하지 않는다. Claude Code 한정으로 `EnterWorktree` 로 같은 세션에서 슬롯 진입 가능 (Codex 엔 없음 — relaunch 필요).
 - **빈 슬롯 표시 = detached HEAD on `origin/develop`**. 한 슬롯은 attach 된 동안 한 브랜치만 점유 (git 제약). `develop` 은 메인이 점유 중이라 슬롯에서 `switch develop` 은 실패 — 항상 `--detach origin/develop` 사용.
 - **PR 머지 후 정리** — 슬롯 안의 브랜치 떼기 + 로컬·원격 브랜치 삭제. **`git worktree remove` 호출 X** (OS lock 회피):
   ```sh
   git -C ../magampick-api-wtX switch --detach origin/develop  # 슬롯을 빈 상태로
-  git branch -D {type}/{이슈번호}-{슬러그}                    # 로컬 브랜치 삭제
+  git branch -D {type}/{슬러그}[-step{N}]                     # 로컬 브랜치 삭제
   # 원격 브랜치는 PR auto-delete 됐으면 생략, 아니면 git push origin --delete {branch}
   ```
 - **PR 리뷰** — 가벼운 리뷰는 메인 디렉터리에서 GitHub 웹 / IDE diff 로. 무거운 리뷰가 필요하면 빈 슬롯에 `gh pr checkout {N}` 으로 잠깐 attach 후 다시 detach.
@@ -155,9 +158,10 @@ git worktree add ../magampick-api-wt3 --detach origin/develop
 - 공통 프로젝트 규칙은 `AGENTS.md` 를 단일 원본으로 둔다.
 - Claude Code 호환 파일은 `CLAUDE.md` 와 `.claude/skills/` 를 사용한다.
 - Codex 워크플로우 원본은 `.codex/skills/magampick-workflow/` 를 사용한다.
-- Codex에서 `/issue`, `/spec`, `/impl` 요청을 받으면 `.codex/skills/magampick-workflow/SKILL.md` 를 먼저 읽고, 필요한 `references/*.md` 를 따른다.
-- `/issue`, `/spec`, `/impl` 절차를 바꿀 때는 `.claude/skills/` 와 `.codex/skills/magampick-workflow/` 가 서로 어긋나지 않게 함께 갱신한다.
+- Codex에서 `/impl` 요청을 받으면 `.codex/skills/magampick-workflow/SKILL.md` 를 먼저 읽고, 필요한 `references/*.md` 를 따른다.
+- `/impl` 절차를 바꿀 때는 `.claude/skills/` 와 `.codex/skills/magampick-workflow/` 가 서로 어긋나지 않게 함께 갱신한다.
 - `~/.codex/skills/magampick-workflow/` 는 Codex 자동 발견용 설치본이다. repo 원본과 다르면 repo 원본을 기준으로 맞춘다.
+- 이전 워크플로우 (`/issue` / `/spec`) 의 백업은 `.claude/skills/_archive/old-workflow/` / `.codex/skills/_archive/old-workflow/` 에 보존.
 
 ---
 
