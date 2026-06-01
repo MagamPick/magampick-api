@@ -1,6 +1,6 @@
 # stores
 
-매장 테이블. 사장이 등록 신청 후 관리자 승인을 거쳐 노출된다.
+매장 테이블. 사장이 정보를 입력하면 국세청 검증 + 주소 지오코딩 + 대표 사진 업로드 후 자동 승인으로 즉시 생성된다.
 
 ## 컬럼
 
@@ -8,17 +8,16 @@
 |---|---|---|---|---|
 | id | BIGINT | N | PK, IDENTITY | 매장 식별자 |
 | seller_id | BIGINT | N | FK → sellers.id | 소유 사장 |
+| business_number | VARCHAR(10) | N |  | 사업자 번호 (하이픈 제거 10자리, 매장별, UNIQUE 미적용) |
 | name | VARCHAR(50) | N |  | 매장명 |
 | road_address | VARCHAR(200) | N |  | 도로명 주소 |
 | jibun_address | VARCHAR(200) | Y |  | 지번 주소 |
 | detail_address | VARCHAR(100) | Y |  | 상세 주소 |
 | zonecode | VARCHAR(10) | N |  | 우편번호 5자리 |
-| location | GEOGRAPHY(POINT,4326) | N |  | PostGIS 위경도. GIST 인덱스 |
+| location | GEOGRAPHY(POINT,4326) | N |  | PostGIS 위경도 (서버 지오코딩 결과). GIST 인덱스 |
 | phone | VARCHAR(20) | N |  | 매장 전화번호 |
 | description | VARCHAR(500) | Y |  | 매장 소개 |
 | image_url | VARCHAR(500) | N |  | 대표 사진 URL |
-| status | VARCHAR(10) | N | CHECK | `PENDING`, `APPROVED`, `REJECTED` |
-| rejection_reason | VARCHAR(500) | Y |  | 반려 사유. REJECTED 시 설정 |
 | deleted_at | TIMESTAMP | Y |  | 소프트 삭제 시각 |
 | created_at | TIMESTAMP | N |  | 생성 시각 |
 | updated_at | TIMESTAMP | N |  | 수정 시각 |
@@ -27,22 +26,21 @@
 
 - `stores_pkey` (`id`)
 - `idx_stores_seller_id` (`seller_id`)
-- `idx_stores_status` (`status`)
 - `idx_stores_location` GIST (`location`)
 
 ## 제약
 
 - `fk_stores_seller` FK `seller_id → sellers.id`
-- `chk_stores_status` CHECK `status IN ('PENDING', 'APPROVED', 'REJECTED')`
 
 ## 관계
 
 - `stores.seller_id` → `sellers.id` (N:1)
-- `store_store_categories.store_id` → `stores.id` (M:N via 조인 테이블)
-- 카테고리 1~3개 필수 (`@Size(min=1, max=3)` — 앱 레벨 제약)
 
-## 정책 결정 (#48)
+## 정책 결정 (노션 "매장 등록 신청" 재설계)
 
-- **반려 후 재신청**: 미지원. 재신청 필요 시 관리자 문의. 히스토리 필요해지면 `store_review_histories` 테이블로 마이그레이션
-- **자동 승인 토글**: `magampick.stores.auto-approve` (local/dev default=true, prod=false)
-- **이미지**: 대표 1장. 5MB / jpg·png·webp. prod는 S3 등 인터페이스 교체
+- **자동 승인**: 국세청 검증 + 지오코딩 + 이미지 업로드 성공 시 즉시 생성. 관리자 승인/반려 흐름 없음 (#48 의 `status`/`rejection_reason` 제거)
+- **사업자 번호**: 매장별 (`stores.business_number`). 입력은 하이픈 포함 가능, 저장은 숫자 10자리. **중복 허용** (UNIQUE 미적용 — 사칭 방지는 본인확인 모듈 백로그)
+- **외부 연동 (MVP stub)**: 국세청 검증 / 지오코딩 = Mock 인터페이스, 이미지 = Local 저장. 실연동(공공데이터포털·카카오 로컬·OCI)은 후속 작업
+- **이미지**: 대표 1장. 5MB / jpg·png·webp
+- **노출 제어**: 등록 직후 노출은 `operation_status`(영업 상태) 담당 — 별도 기능 "매장 영업 상태 관리" 소관, 본 테이블 미반영
+- **진입 경로**: 현재 경로 B(로그인 사장 독립 등록)만. 경로 A(가입 wizard 통합 + `sellers.business_number` 정리)는 후속 PR

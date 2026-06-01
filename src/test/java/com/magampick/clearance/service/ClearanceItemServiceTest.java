@@ -25,7 +25,6 @@ import com.magampick.product.exception.ProductErrorCode;
 import com.magampick.product.repository.ProductRepository;
 import com.magampick.seller.domain.Seller;
 import com.magampick.store.domain.Store;
-import com.magampick.store.domain.StoreStatus;
 import com.magampick.store.exception.StoreErrorCode;
 import com.magampick.store.repository.StoreRepository;
 import java.math.BigDecimal;
@@ -70,24 +69,24 @@ class ClearanceItemServiceTest {
     return s;
   }
 
-  private Store store(StoreStatus status) {
+  private Store store() {
     Store s =
         Store.builder()
             .seller(seller())
+            .businessNumber("1234567890")
             .name("동네빵집")
             .roadAddress("서울 강남구 테헤란로 427")
             .zonecode("06158")
             .location(GeometryUtil.toPoint(37.5, 127.0))
             .phone("0212345678")
             .imageUrl("/uploads/store.jpg")
-            .status(status)
             .build();
     ReflectionTestUtils.setField(s, "id", STORE_ID);
     return s;
   }
 
-  private Product product(StoreStatus storeStatus, ProductStatus productStatus) {
-    Store s = store(storeStatus);
+  private Product product(ProductStatus productStatus) {
+    Store s = store();
     Product p =
         Product.builder()
             .store(s)
@@ -109,8 +108,8 @@ class ClearanceItemServiceTest {
   @Test
   void 마감_임박_상품_등록_성공() {
     // given
-    Store store = store(StoreStatus.APPROVED);
-    Product prod = product(StoreStatus.APPROVED, ProductStatus.ON_SALE);
+    Store store = store();
+    Product prod = product(ProductStatus.ON_SALE);
     ClearanceItemCreateRequest request = ClearanceItemFixture.aCreateRequest(PRODUCT_ID);
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
@@ -153,26 +152,9 @@ class ClearanceItemServiceTest {
   }
 
   @Test
-  void 마감_임박_상품_등록_미승인_매장_거부() {
-    // given
-    Store pending = store(StoreStatus.PENDING);
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID))
-        .willReturn(Optional.of(pending));
-
-    // when / then
-    assertThatThrownBy(
-            () ->
-                clearanceItemService.registerClearanceItem(
-                    SELLER_ID, STORE_ID, ClearanceItemFixture.aCreateRequest(PRODUCT_ID)))
-        .isInstanceOf(BusinessException.class)
-        .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.STORE_NOT_APPROVED);
-    then(clearanceItemRepository).should(never()).save(any());
-  }
-
-  @Test
   void 마감_임박_상품_등록_원본_상품_없음_예외() {
     // given
-    Store store = store(StoreStatus.APPROVED);
+    Store store = store();
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.empty());
@@ -190,8 +172,8 @@ class ClearanceItemServiceTest {
   @Test
   void 마감_임박_상품_등록_원본_상품_품절_예외() {
     // given
-    Store store = store(StoreStatus.APPROVED);
-    Product soldOut = product(StoreStatus.APPROVED, ProductStatus.SOLD_OUT);
+    Store store = store();
+    Product soldOut = product(ProductStatus.SOLD_OUT);
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.of(soldOut));
@@ -210,8 +192,8 @@ class ClearanceItemServiceTest {
   @Test
   void 마감_임박_상품_등록_이미_진행중인_마감_임박_상품_존재_예외() {
     // given
-    Store store = store(StoreStatus.APPROVED);
-    Product prod = product(StoreStatus.APPROVED, ProductStatus.ON_SALE);
+    Store store = store();
+    Product prod = product(ProductStatus.ON_SALE);
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.of(prod));
@@ -232,8 +214,8 @@ class ClearanceItemServiceTest {
   @Test
   void 마감_임박_상품_등록_판매가_정상가_이상_예외() {
     // given
-    Store store = store(StoreStatus.APPROVED);
-    Product prod = product(StoreStatus.APPROVED, ProductStatus.ON_SALE);
+    Store store = store();
+    Product prod = product(ProductStatus.ON_SALE);
     // salePrice == regularPrice (4500)
     ClearanceItemCreateRequest request =
         new ClearanceItemCreateRequest(
@@ -256,8 +238,8 @@ class ClearanceItemServiceTest {
   @Test
   void 마감_임박_상품_등록_픽업_시간_당일_초과_예외() {
     // given
-    Store store = store(StoreStatus.APPROVED);
-    Product prod = product(StoreStatus.APPROVED, ProductStatus.ON_SALE);
+    Store store = store();
+    Product prod = product(ProductStatus.ON_SALE);
     LocalDateTime tomorrow = LocalDate.now().plusDays(1).atTime(21, 0);
     ClearanceItemCreateRequest request =
         new ClearanceItemCreateRequest(
@@ -280,8 +262,8 @@ class ClearanceItemServiceTest {
   @Test
   void 마감_임박_상품_등록_픽업_시작_종료_역전_예외() {
     // given
-    Store store = store(StoreStatus.APPROVED);
-    Product prod = product(StoreStatus.APPROVED, ProductStatus.ON_SALE);
+    Store store = store();
+    Product prod = product(ProductStatus.ON_SALE);
     ClearanceItemCreateRequest request =
         new ClearanceItemCreateRequest(
             PRODUCT_ID, new BigDecimal("3000"), 5, todayAt(21, 0), todayAt(17, 0)); // start > end
@@ -305,8 +287,8 @@ class ClearanceItemServiceTest {
   @Test
   void 본인_매장_마감_임박_상품_목록_조회_성공() {
     // given
-    Store store = store(StoreStatus.APPROVED);
-    Product prod = product(StoreStatus.APPROVED, ProductStatus.ON_SALE);
+    Store store = store();
+    Product prod = product(ProductStatus.ON_SALE);
     ClearanceItem item = ClearanceItemFixture.aClearanceItem(store, prod);
     ReflectionTestUtils.setField(item, "id", CLEARANCE_ITEM_ID);
     Pageable pageable = PageRequest.of(0, 20);
@@ -344,8 +326,8 @@ class ClearanceItemServiceTest {
   @Test
   void 본인_매장_마감_임박_상품_상세_조회_성공() {
     // given
-    Store store = store(StoreStatus.APPROVED);
-    Product prod = product(StoreStatus.APPROVED, ProductStatus.ON_SALE);
+    Store store = store();
+    Product prod = product(ProductStatus.ON_SALE);
     ClearanceItem item = ClearanceItemFixture.aClearanceItem(store, prod);
     ReflectionTestUtils.setField(item, "id", CLEARANCE_ITEM_ID);
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
@@ -365,7 +347,7 @@ class ClearanceItemServiceTest {
   @Test
   void 본인_매장_마감_임박_상품_상세_조회_없음_예외() {
     // given
-    Store store = store(StoreStatus.APPROVED);
+    Store store = store();
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
     given(clearanceItemRepository.findByIdAndStoreId(CLEARANCE_ITEM_ID, STORE_ID))
         .willReturn(Optional.empty());
@@ -382,8 +364,8 @@ class ClearanceItemServiceTest {
   @Test
   void 마감_임박_상품_수정_성공() {
     // given
-    Store store = store(StoreStatus.APPROVED);
-    Product prod = product(StoreStatus.APPROVED, ProductStatus.ON_SALE);
+    Store store = store();
+    Product prod = product(ProductStatus.ON_SALE);
     ClearanceItem item = ClearanceItemFixture.aClearanceItem(store, prod);
     ReflectionTestUtils.setField(item, "id", CLEARANCE_ITEM_ID);
     ClearanceItemUpdateRequest request =
@@ -406,8 +388,8 @@ class ClearanceItemServiceTest {
   @Test
   void 마감_임박_상품_수정_CLOSED_상태_예외() {
     // given
-    Store store = store(StoreStatus.APPROVED);
-    Product prod = product(StoreStatus.APPROVED, ProductStatus.ON_SALE);
+    Store store = store();
+    Product prod = product(ProductStatus.ON_SALE);
     ClearanceItem item = ClearanceItemFixture.aClearanceItem(store, prod);
     ReflectionTestUtils.setField(item, "id", CLEARANCE_ITEM_ID);
     item.close();
@@ -429,8 +411,8 @@ class ClearanceItemServiceTest {
   @Test
   void 마감_임박_상품_수정_판매가_정상가_이상_예외() {
     // given
-    Store store = store(StoreStatus.APPROVED);
-    Product prod = product(StoreStatus.APPROVED, ProductStatus.ON_SALE); // regularPrice = 4500
+    Store store = store();
+    Product prod = product(ProductStatus.ON_SALE); // regularPrice = 4500
     ClearanceItem item = ClearanceItemFixture.aClearanceItem(store, prod);
     ReflectionTestUtils.setField(item, "id", CLEARANCE_ITEM_ID);
     ClearanceItemUpdateRequest request =
@@ -452,8 +434,8 @@ class ClearanceItemServiceTest {
   @Test
   void 마감_임박_상품_수정_픽업창_내일_지정_예외() {
     // given
-    Store store = store(StoreStatus.APPROVED);
-    Product prod = product(StoreStatus.APPROVED, ProductStatus.ON_SALE);
+    Store store = store();
+    Product prod = product(ProductStatus.ON_SALE);
     ClearanceItem item = ClearanceItemFixture.aClearanceItem(store, prod);
     ReflectionTestUtils.setField(item, "id", CLEARANCE_ITEM_ID);
     LocalDateTime tomorrow = LocalDate.now().plusDays(1).atTime(21, 0);
@@ -475,7 +457,7 @@ class ClearanceItemServiceTest {
   @Test
   void 마감_임박_상품_수정_없음_예외() {
     // given
-    Store store = store(StoreStatus.APPROVED);
+    Store store = store();
     ClearanceItemUpdateRequest request =
         new ClearanceItemUpdateRequest(new BigDecimal("2000"), null, null, null);
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
@@ -496,8 +478,8 @@ class ClearanceItemServiceTest {
   @Test
   void 마감_임박_상품_수동_마감_성공() {
     // given
-    Store store = store(StoreStatus.APPROVED);
-    Product prod = product(StoreStatus.APPROVED, ProductStatus.ON_SALE);
+    Store store = store();
+    Product prod = product(ProductStatus.ON_SALE);
     ClearanceItem item = ClearanceItemFixture.aClearanceItem(store, prod);
     ReflectionTestUtils.setField(item, "id", CLEARANCE_ITEM_ID);
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
@@ -518,8 +500,8 @@ class ClearanceItemServiceTest {
   @Test
   void 마감_임박_상품_수동_마감_이미_CLOSED_멱등() {
     // given
-    Store store = store(StoreStatus.APPROVED);
-    Product prod = product(StoreStatus.APPROVED, ProductStatus.ON_SALE);
+    Store store = store();
+    Product prod = product(ProductStatus.ON_SALE);
     ClearanceItem item = ClearanceItemFixture.aClearanceItem(store, prod);
     ReflectionTestUtils.setField(item, "id", CLEARANCE_ITEM_ID);
     item.close();
@@ -541,7 +523,7 @@ class ClearanceItemServiceTest {
   @Test
   void 마감_임박_상품_수동_마감_없음_예외() {
     // given
-    Store store = store(StoreStatus.APPROVED);
+    Store store = store();
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
     given(clearanceItemRepository.findByIdAndStoreId(CLEARANCE_ITEM_ID, STORE_ID))
         .willReturn(Optional.empty());

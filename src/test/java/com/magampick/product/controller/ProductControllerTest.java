@@ -132,21 +132,6 @@ class ProductControllerTest {
   }
 
   @Test
-  void POST_products_403_매장_미승인() throws Exception {
-    given(productService.registerProduct(eq(1L), eq(10L), any(), any()))
-        .willThrow(new BusinessException(StoreErrorCode.STORE_NOT_APPROVED));
-
-    mockMvc
-        .perform(
-            multipart("/api/v1/seller/stores/10/products")
-                .file(requestPart(validCreateJson()))
-                .file(imagePart())
-                .with(user(SELLER_USER)))
-        .andExpect(status().isForbidden())
-        .andExpect(jsonPath("$.error.code").value("STORE_NOT_APPROVED"));
-  }
-
-  @Test
   void POST_products_409_상품명_중복() throws Exception {
     given(productService.registerProduct(eq(1L), eq(10L), any(), any()))
         .willThrow(new BusinessException(ProductErrorCode.PRODUCT_NAME_DUPLICATE));

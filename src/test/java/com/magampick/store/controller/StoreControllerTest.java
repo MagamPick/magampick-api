@@ -17,7 +17,7 @@ import com.magampick.global.security.JwtAuthenticationEntryPoint;
 import com.magampick.global.security.JwtProvider;
 import com.magampick.global.security.Role;
 import com.magampick.global.security.SecurityConfig;
-import com.magampick.store.domain.StoreStatus;
+import com.magampick.store.dto.StoreCreateRequest;
 import com.magampick.store.dto.StoreDetailResponse;
 import com.magampick.store.dto.StoreRegisterResponse;
 import com.magampick.store.dto.StoreResponse;
@@ -46,7 +46,7 @@ class StoreControllerTest {
   private static final CustomUserDetails SELLER_USER = new CustomUserDetails(1L, Role.SELLER);
   private static final CustomUserDetails CUSTOMER_USER = new CustomUserDetails(2L, Role.CUSTOMER);
 
-  private MockMultipartFile requestPart(String json) throws Exception {
+  private MockMultipartFile requestPart(String json) {
     return new MockMultipartFile(
         "request", "request", MediaType.APPLICATION_JSON_VALUE, json.getBytes());
   }
@@ -57,17 +57,14 @@ class StoreControllerTest {
 
   private String validRequestJson() throws Exception {
     return objectMapper.writeValueAsString(
-        new com.magampick.store.dto.StoreCreateRequest(
-            "동네빵집",
-            "서울 강남구 테헤란로 427",
-            null,
-            null,
-            "06158",
-            37.5,
-            127.0,
-            "0212345678",
-            "신선한 빵",
-            List.of(1L)));
+        new StoreCreateRequest(
+            "123-45-67890", "동네빵집", "서울 강남구 테헤란로 427", null, null, "06158", "0212345678", "신선한 빵"));
+  }
+
+  private String invalidRequestJson() throws Exception {
+    return objectMapper.writeValueAsString(
+        new StoreCreateRequest(
+            "123-45-67890", "", "서울 강남구 테헤란로 427", null, null, "06158", "0212345678", null));
   }
 
   private StoreResponse stubStoreResponse() {
@@ -78,8 +75,6 @@ class StoreControllerTest {
         null,
         "0212345678",
         "/uploads/uuid.jpg",
-        StoreStatus.PENDING,
-        List.of("베이커리"),
         OffsetDateTime.now());
   }
 
@@ -88,7 +83,7 @@ class StoreControllerTest {
   @Test
   void POST_stores_201_성공() throws Exception {
     given(storeService.registerStore(eq(1L), any(), any()))
-        .willReturn(new StoreRegisterResponse(1L, StoreStatus.PENDING));
+        .willReturn(new StoreRegisterResponse(1L));
 
     mockMvc
         .perform(
@@ -97,8 +92,19 @@ class StoreControllerTest {
                 .file(imagePart())
                 .with(user(SELLER_USER)))
         .andExpect(status().isCreated())
-        .andExpect(jsonPath("$.data.storeId").value(1))
-        .andExpect(jsonPath("$.data.status").value("PENDING"));
+        .andExpect(jsonPath("$.data.storeId").value(1));
+  }
+
+  @Test
+  void POST_stores_400_검증_실패() throws Exception {
+    mockMvc
+        .perform(
+            multipart("/api/v1/seller/stores")
+                .file(requestPart(invalidRequestJson()))
+                .file(imagePart())
+                .with(user(SELLER_USER)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
   }
 
   @Test
@@ -142,6 +148,7 @@ class StoreControllerTest {
     StoreDetailResponse detail =
         new StoreDetailResponse(
             1L,
+            "1234567890",
             "동네빵집",
             "서울 강남구",
             null,
@@ -152,9 +159,6 @@ class StoreControllerTest {
             "0212345678",
             "소개",
             "/uploads/uuid.jpg",
-            StoreStatus.APPROVED,
-            null,
-            List.of("베이커리"),
             OffsetDateTime.now());
     given(storeService.getMyStore(1L, 1L)).willReturn(detail);
 
@@ -162,7 +166,7 @@ class StoreControllerTest {
         .perform(get("/api/v1/seller/stores/1").with(user(SELLER_USER)))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data.id").value(1))
-        .andExpect(jsonPath("$.data.status").value("APPROVED"));
+        .andExpect(jsonPath("$.data.businessNumber").value("1234567890"));
   }
 
   @Test

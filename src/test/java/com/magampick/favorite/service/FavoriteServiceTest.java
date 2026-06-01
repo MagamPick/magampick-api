@@ -18,7 +18,6 @@ import com.magampick.favorite.repository.FavoriteRepository;
 import com.magampick.global.exception.BusinessException;
 import com.magampick.global.response.PageResponse;
 import com.magampick.store.domain.Store;
-import com.magampick.store.domain.StoreStatus;
 import com.magampick.store.exception.StoreErrorCode;
 import com.magampick.store.repository.StoreRepository;
 import java.util.List;
@@ -58,33 +57,17 @@ class FavoriteServiceTest {
     return c;
   }
 
-  private Store approvedStore() {
+  private Store store() {
     Store s =
         Store.builder()
             .seller(null)
+            .businessNumber("1234567890")
             .name("동네빵집")
             .roadAddress("서울 강남구 테헤란로 427")
             .zonecode("06158")
             .location(null)
             .phone("0212345678")
             .imageUrl("/uploads/store.jpg")
-            .status(StoreStatus.APPROVED)
-            .build();
-    ReflectionTestUtils.setField(s, "id", STORE_ID);
-    return s;
-  }
-
-  private Store pendingStore() {
-    Store s =
-        Store.builder()
-            .seller(null)
-            .name("동네빵집")
-            .roadAddress("서울 강남구 테헤란로 427")
-            .zonecode("06158")
-            .location(null)
-            .phone("0212345678")
-            .imageUrl("/uploads/store.jpg")
-            .status(StoreStatus.PENDING)
             .build();
     ReflectionTestUtils.setField(s, "id", STORE_ID);
     return s;
@@ -95,7 +78,7 @@ class FavoriteServiceTest {
   @Test
   void 즐겨찾기_등록_성공() {
     // given
-    Store store = approvedStore();
+    Store store = store();
     Customer customer = customer();
     given(storeRepository.findById(STORE_ID)).willReturn(Optional.of(store));
     given(favoriteRepository.findByCustomerIdAndStoreId(CUSTOMER_ID, STORE_ID))
@@ -116,7 +99,7 @@ class FavoriteServiceTest {
   @Test
   void 이미_즐겨찾기된_경우_멱등_처리() {
     // given
-    Store store = approvedStore();
+    Store store = store();
     Customer customer = customer();
     Favorite existing = FavoriteFixture.aFavorite(customer, store);
     given(storeRepository.findById(STORE_ID)).willReturn(Optional.of(store));
@@ -130,18 +113,6 @@ class FavoriteServiceTest {
 
     // then
     assertThat(response.storeId()).isEqualTo(STORE_ID);
-    then(favoriteRepository).should(never()).save(any());
-  }
-
-  @Test
-  void 미승인_매장_즐겨찾기_등록_실패_STORE_NOT_APPROVED() {
-    // given
-    given(storeRepository.findById(STORE_ID)).willReturn(Optional.of(pendingStore()));
-
-    // when / then
-    assertThatThrownBy(() -> favoriteService.addFavorite(CUSTOMER_ID, STORE_ID))
-        .isInstanceOf(BusinessException.class)
-        .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.STORE_NOT_APPROVED);
     then(favoriteRepository).should(never()).save(any());
   }
 
@@ -184,7 +155,7 @@ class FavoriteServiceTest {
   void 즐겨찾기_목록_조회_성공() {
     // given
     PageRequest pageable = PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "createdAt"));
-    Store store = approvedStore();
+    Store store = store();
     Customer customer = customer();
     Favorite favorite = FavoriteFixture.aFavorite(customer, store);
     Page<Favorite> page = new PageImpl<>(List.of(favorite), pageable, 1L);

@@ -35,13 +35,16 @@ public class StoreController {
 
   @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
   @Operation(
-      summary = "매장 등록 신청",
-      description = "사업자 인증(stub) + 대표 사진 업로드 후 매장을 등록 신청한다. auto-approve=true면 즉시 APPROVED.")
+      summary = "매장 등록",
+      description = "사업자 번호 검증 + 주소 지오코딩 + 대표 사진 업로드 후 자동 승인으로 매장을 즉시 생성한다.")
   @ApiResponses({
-    @ApiResponse(responseCode = "201", description = "등록 신청 성공"),
-    @ApiResponse(responseCode = "400", description = "입력 검증 실패 또는 이미지 규격 위반"),
+    @ApiResponse(responseCode = "201", description = "등록 성공"),
+    @ApiResponse(
+        responseCode = "400",
+        description = "입력 검증 실패 / 사업자 번호 형식 오류 / 정상 영업 아님 / 지오코딩 실패 / 이미지 규격 위반"),
     @ApiResponse(responseCode = "401", description = "미인증"),
-    @ApiResponse(responseCode = "403", description = "권한 없음 (ROLE_SELLER 아님)")
+    @ApiResponse(responseCode = "403", description = "권한 없음 (ROLE_SELLER 아님)"),
+    @ApiResponse(responseCode = "503", description = "사업자 번호 검증 일시 실패 (재시도 안내)")
   })
   public ResponseEntity<StoreRegisterResponse> register(
       @AuthenticationPrincipal CustomUserDetails userDetails,
@@ -66,7 +69,7 @@ public class StoreController {
   }
 
   @GetMapping("/{storeId}")
-  @Operation(summary = "본인 매장 상세 조회", description = "본인 소유 매장 상세 정보를 조회한다. 반려 사유 포함.")
+  @Operation(summary = "본인 매장 상세 조회", description = "본인 소유 매장 상세 정보를 조회한다.")
   @ApiResponses({
     @ApiResponse(responseCode = "200", description = "조회 성공"),
     @ApiResponse(responseCode = "401", description = "미인증"),
