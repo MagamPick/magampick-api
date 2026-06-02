@@ -30,6 +30,7 @@ import com.magampick.store.repository.StoreRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -56,6 +57,8 @@ class ClearanceItemServiceTest {
   private static final Long STORE_ID = 10L;
   private static final Long PRODUCT_ID = 100L;
   private static final Long CLEARANCE_ITEM_ID = 200L;
+  // ClearanceItemService 가 픽업 시각을 KST 기준으로 검증 → 테스트도 동일 기준이어야 자정 직후 CI 가 실패 안 한다
+  private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
   private Seller seller() {
     Seller s =
@@ -100,7 +103,7 @@ class ClearanceItemServiceTest {
   }
 
   private LocalDateTime todayAt(int hour, int minute) {
-    return LocalDate.now().atTime(hour, minute);
+    return LocalDate.now(KST).atTime(hour, minute);
   }
 
   // ── 등록 ─────────────────────────────────────────────────────────────────────
@@ -240,7 +243,7 @@ class ClearanceItemServiceTest {
     // given
     Store store = store();
     Product prod = product(ProductStatus.ON_SALE);
-    LocalDateTime tomorrow = LocalDate.now().plusDays(1).atTime(21, 0);
+    LocalDateTime tomorrow = LocalDate.now(KST).plusDays(1).atTime(21, 0);
     ClearanceItemCreateRequest request =
         new ClearanceItemCreateRequest(
             PRODUCT_ID, new BigDecimal("3000"), 5, todayAt(17, 0), tomorrow);
@@ -438,7 +441,7 @@ class ClearanceItemServiceTest {
     Product prod = product(ProductStatus.ON_SALE);
     ClearanceItem item = ClearanceItemFixture.aClearanceItem(store, prod);
     ReflectionTestUtils.setField(item, "id", CLEARANCE_ITEM_ID);
-    LocalDateTime tomorrow = LocalDate.now().plusDays(1).atTime(21, 0);
+    LocalDateTime tomorrow = LocalDate.now(KST).plusDays(1).atTime(21, 0);
     ClearanceItemUpdateRequest request = new ClearanceItemUpdateRequest(null, null, null, tomorrow);
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
     given(clearanceItemRepository.findByIdAndStoreId(CLEARANCE_ITEM_ID, STORE_ID))
