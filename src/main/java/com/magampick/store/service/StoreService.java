@@ -7,15 +7,23 @@ import com.magampick.seller.exception.SellerErrorCode;
 import com.magampick.seller.repository.SellerRepository;
 import com.magampick.store.domain.OperationStatus;
 import com.magampick.store.domain.Store;
+import com.magampick.store.domain.StoreBusinessHour;
 import com.magampick.store.dto.BusinessVerificationRequest;
+import com.magampick.store.dto.OperationStatusResponse;
 import com.magampick.store.dto.StoreCreateRequest;
 import com.magampick.store.dto.StoreDetailResponse;
 import com.magampick.store.dto.StoreRegisterResponse;
 import com.magampick.store.dto.StoreResponse;
 import com.magampick.store.exception.StoreErrorCode;
 import com.magampick.store.mapper.StoreMapper;
+import com.magampick.store.repository.StoreBusinessHourRepository;
 import com.magampick.store.repository.StoreRepository;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,8 +40,10 @@ public class StoreService {
   private static final long MAX_IMAGE_BYTES = 5 * 1024 * 1024L;
   private static final Set<String> ALLOWED_CONTENT_TYPES =
       Set.of("image/jpeg", "image/png", "image/webp");
+  private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
   private final StoreRepository storeRepository;
+  private final StoreBusinessHourRepository storeBusinessHourRepository;
   private final SellerRepository sellerRepository;
   private final StorageService storageService;
   private final BusinessVerificationService businessVerificationService;
@@ -106,6 +116,83 @@ public class StoreService {
             .findByIdAndSellerId(storeId, sellerId)
             .orElseThrow(() -> new BusinessException(StoreErrorCode.STORE_ACCESS_DENIED));
     return storeMapper.toDetailResponse(store);
+  }
+
+  /** 본인 매장 영업 상태 + 오늘 영업 요일 여부 + 오늘 마감 시각 조회. */
+  @Transactional(readOnly = true)
+  public OperationStatusResponse getOperationStatus(Long sellerId, Long storeId) {
+    Store store = findOwnedStore(sellerId, storeId);
+    return toOperationStatusResponse(store);
+  }
+
+  /**
+   * 본인 매장 영업 상태 전이. 노션 "매장 영업 상태 관리" 의 5개 허용 전이만 통과하며, {@link OperationStatus#OPEN} 진입은 오늘 요일이 영업
+   * 요일일 때만 허용된다 (오늘 요일의 영업시간 row 존재 여부로 판정). 자동 전환은 없다 — 사장 명시 호출.
+   */
+  @Transactional
+  public OperationStatusResponse transitionOperationStatus(
+      Long sellerId, Long storeId, OperationStatus to) {
+    Store store = findOwnedStore(sellerId, storeId);
+    Optional<StoreBusinessHour> todayHour = findTodayBusinessHour(store.getId());
+    validateTransition(store.getOperationStatus(), to, todayHour.isPresent());
+    store.changeOperationStatus(to);
+    log.info("매장 영업 상태 전이. storeId={}, sellerId={}, to={}", store.getId(), sellerId, to);
+    return toOperationStatusResponse(store, todayHour);
+  }
+
+  private Store findOwnedStore(Long sellerId, Long storeId) {
+    return storeRepository
+        .findByIdAndSellerId(storeId, sellerId)
+        .orElseThrow(() -> new BusinessException(StoreErrorCode.STORE_ACCESS_DENIED));
+  }
+
+  /** 노션 전이 그래프. 자기 전이와 {@code CLOSED_TODAY → BREAK} 는 항상 거부, OPEN 진입은 영업 요일 검사. */
+  private void validateTransition(OperationStatus from, OperationStatus to, boolean canOpenToday) {
+    if (from == to) {
+      throw new BusinessException(StoreErrorCode.INVALID_STATE_TRANSITION);
+    }
+    switch (to) {
+      case OPEN -> {
+        // OPEN 진입은 CLOSED_TODAY 또는 BREAK 에서만
+        if (from != OperationStatus.CLOSED_TODAY && from != OperationStatus.BREAK) {
+          throw new BusinessException(StoreErrorCode.INVALID_STATE_TRANSITION);
+        }
+        if (!canOpenToday) {
+          throw new BusinessException(StoreErrorCode.STORE_CLOSED_TODAY);
+        }
+      }
+      case BREAK -> {
+        // BREAK 는 OPEN 에서만 (CLOSED_TODAY → BREAK 금지)
+        if (from != OperationStatus.OPEN) {
+          throw new BusinessException(StoreErrorCode.INVALID_STATE_TRANSITION);
+        }
+      }
+      case CLOSED_TODAY -> {
+        // CLOSED_TODAY 는 OPEN/BREAK 에서만
+        if (from != OperationStatus.OPEN && from != OperationStatus.BREAK) {
+          throw new BusinessException(StoreErrorCode.INVALID_STATE_TRANSITION);
+        }
+      }
+    }
+  }
+
+  private Optional<StoreBusinessHour> findTodayBusinessHour(Long storeId) {
+    return storeBusinessHourRepository.findByStoreIdAndDayOfWeek(storeId, todayDayOfWeek());
+  }
+
+  private OperationStatusResponse toOperationStatusResponse(Store store) {
+    return toOperationStatusResponse(store, findTodayBusinessHour(store.getId()));
+  }
+
+  private OperationStatusResponse toOperationStatusResponse(
+      Store store, Optional<StoreBusinessHour> todayHour) {
+    LocalTime closeTime = todayHour.map(StoreBusinessHour::getCloseTime).orElse(null);
+    return new OperationStatusResponse(
+        store.getId(), store.getOperationStatus(), todayHour.isPresent(), closeTime);
+  }
+
+  private DayOfWeek todayDayOfWeek() {
+    return LocalDate.now(KST).getDayOfWeek();
   }
 
   private String normalizeBusinessNumber(String raw) {

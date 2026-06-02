@@ -7,6 +7,7 @@ import static org.mockito.BDDMockito.willThrow;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -21,6 +22,8 @@ import com.magampick.global.security.Role;
 import com.magampick.global.security.SecurityConfig;
 import com.magampick.store.domain.OperationStatus;
 import com.magampick.store.dto.BusinessVerificationRequest;
+import com.magampick.store.dto.OperationStatusResponse;
+import com.magampick.store.dto.OperationStatusTransitionRequest;
 import com.magampick.store.dto.StoreCreateRequest;
 import com.magampick.store.dto.StoreDetailResponse;
 import com.magampick.store.dto.StoreRegisterResponse;
@@ -28,6 +31,7 @@ import com.magampick.store.dto.StoreResponse;
 import com.magampick.store.exception.StoreErrorCode;
 import com.magampick.store.service.StoreService;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -279,5 +283,138 @@ class StoreControllerTest {
         .perform(get("/api/v1/seller/stores/99").with(user(SELLER_USER)))
         .andExpect(status().isForbidden())
         .andExpect(jsonPath("$.error.code").value("STORE_ACCESS_DENIED"));
+  }
+
+  // ── GET /api/v1/seller/stores/{id}/operation-status ────────────────────────
+
+  private OperationStatusResponse stubOpStatus(OperationStatus s, boolean canOpen) {
+    return new OperationStatusResponse(1L, s, canOpen, canOpen ? LocalTime.of(21, 0) : null);
+  }
+
+  @Test
+  void GET_operation_status_200_조회_성공() throws Exception {
+    given(storeService.getOperationStatus(1L, 1L))
+        .willReturn(stubOpStatus(OperationStatus.CLOSED_TODAY, true));
+
+    mockMvc
+        .perform(get("/api/v1/seller/stores/1/operation-status").with(user(SELLER_USER)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.storeId").value(1))
+        .andExpect(jsonPath("$.data.operationStatus").value("CLOSED_TODAY"))
+        .andExpect(jsonPath("$.data.canOpenToday").value(true))
+        .andExpect(jsonPath("$.data.todayCloseTime").value("21:00:00"));
+  }
+
+  @Test
+  void GET_operation_status_401_미인증() throws Exception {
+    mockMvc
+        .perform(get("/api/v1/seller/stores/1/operation-status"))
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void GET_operation_status_403_소비자() throws Exception {
+    mockMvc
+        .perform(get("/api/v1/seller/stores/1/operation-status").with(user(CUSTOMER_USER)))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void GET_operation_status_403_타인매장() throws Exception {
+    given(storeService.getOperationStatus(1L, 99L))
+        .willThrow(new BusinessException(StoreErrorCode.STORE_ACCESS_DENIED));
+
+    mockMvc
+        .perform(get("/api/v1/seller/stores/99/operation-status").with(user(SELLER_USER)))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.error.code").value("STORE_ACCESS_DENIED"));
+  }
+
+  // ── PATCH /api/v1/seller/stores/{id}/operation-status ─────────────────────
+
+  private String transitionJson(OperationStatus to) throws Exception {
+    return objectMapper.writeValueAsString(new OperationStatusTransitionRequest(to));
+  }
+
+  @Test
+  void PATCH_operation_status_200_전환_성공() throws Exception {
+    given(storeService.transitionOperationStatus(eq(1L), eq(1L), eq(OperationStatus.OPEN)))
+        .willReturn(stubOpStatus(OperationStatus.OPEN, true));
+
+    mockMvc
+        .perform(
+            patch("/api/v1/seller/stores/1/operation-status")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(transitionJson(OperationStatus.OPEN))
+                .with(user(SELLER_USER)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.operationStatus").value("OPEN"))
+        .andExpect(jsonPath("$.data.canOpenToday").value(true));
+  }
+
+  @Test
+  void PATCH_operation_status_400_검증_실패() throws Exception {
+    // to 누락 (null) → @NotNull 위반
+    mockMvc
+        .perform(
+            patch("/api/v1/seller/stores/1/operation-status")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}")
+                .with(user(SELLER_USER)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
+  }
+
+  @Test
+  void PATCH_operation_status_401_미인증() throws Exception {
+    mockMvc
+        .perform(
+            patch("/api/v1/seller/stores/1/operation-status")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(transitionJson(OperationStatus.OPEN)))
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void PATCH_operation_status_403_소비자() throws Exception {
+    mockMvc
+        .perform(
+            patch("/api/v1/seller/stores/1/operation-status")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(transitionJson(OperationStatus.OPEN))
+                .with(user(CUSTOMER_USER)))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void PATCH_operation_status_409_오늘_휴무() throws Exception {
+    willThrow(new BusinessException(StoreErrorCode.STORE_CLOSED_TODAY))
+        .given(storeService)
+        .transitionOperationStatus(any(), any(), any());
+
+    mockMvc
+        .perform(
+            patch("/api/v1/seller/stores/1/operation-status")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(transitionJson(OperationStatus.OPEN))
+                .with(user(SELLER_USER)))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.error.code").value("STORE_CLOSED_TODAY"));
+  }
+
+  @Test
+  void PATCH_operation_status_409_금지_전이() throws Exception {
+    willThrow(new BusinessException(StoreErrorCode.INVALID_STATE_TRANSITION))
+        .given(storeService)
+        .transitionOperationStatus(any(), any(), any());
+
+    mockMvc
+        .perform(
+            patch("/api/v1/seller/stores/1/operation-status")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(transitionJson(OperationStatus.BREAK))
+                .with(user(SELLER_USER)))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.error.code").value("INVALID_STATE_TRANSITION"));
   }
 }

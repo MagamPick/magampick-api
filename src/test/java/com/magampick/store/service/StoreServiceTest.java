@@ -19,16 +19,22 @@ import com.magampick.seller.exception.SellerErrorCode;
 import com.magampick.seller.repository.SellerRepository;
 import com.magampick.store.domain.OperationStatus;
 import com.magampick.store.domain.Store;
+import com.magampick.store.domain.StoreBusinessHour;
 import com.magampick.store.dto.BusinessVerificationRequest;
+import com.magampick.store.dto.OperationStatusResponse;
 import com.magampick.store.dto.StoreCreateRequest;
 import com.magampick.store.dto.StoreDetailResponse;
 import com.magampick.store.dto.StoreRegisterResponse;
 import com.magampick.store.dto.StoreResponse;
 import com.magampick.store.exception.StoreErrorCode;
 import com.magampick.store.mapper.StoreMapper;
+import com.magampick.store.repository.StoreBusinessHourRepository;
 import com.magampick.store.repository.StoreRepository;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -44,6 +50,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 class StoreServiceTest {
 
   @Mock StoreRepository storeRepository;
+  @Mock StoreBusinessHourRepository storeBusinessHourRepository;
   @Mock SellerRepository sellerRepository;
   @Mock StorageService storageService;
   @Mock BusinessVerificationService businessVerificationService;
@@ -55,6 +62,7 @@ class StoreServiceTest {
   private static final Long STORE_ID = 10L;
   private static final String OWNER_NAME = "홍길동";
   private static final LocalDate OPEN_DATE = LocalDate.of(2024, 3, 15);
+  private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
   private Seller seller() {
     Seller s =
@@ -398,6 +406,222 @@ class StoreServiceTest {
 
     // when / then
     assertThatThrownBy(() -> storeService.getMyStore(SELLER_ID, STORE_ID))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.STORE_ACCESS_DENIED);
+  }
+
+  // ── 영업 상태 조회 ──────────────────────────────────────────────────────────
+
+  private StoreBusinessHour businessHour(Store s, DayOfWeek day, LocalTime open, LocalTime close) {
+    return StoreBusinessHour.builder()
+        .store(s)
+        .dayOfWeek(day)
+        .openTime(open)
+        .closeTime(close)
+        .build();
+  }
+
+  @Test
+  void 영업_상태_조회_성공_오늘_영업_요일() {
+    // given
+    Store s = store(STORE_ID, seller()); // 초기 CLOSED_TODAY
+    DayOfWeek today = LocalDate.now(KST).getDayOfWeek();
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(s));
+    given(storeBusinessHourRepository.findByStoreIdAndDayOfWeek(STORE_ID, today))
+        .willReturn(Optional.of(businessHour(s, today, LocalTime.of(9, 0), LocalTime.of(21, 0))));
+
+    // when
+    OperationStatusResponse response = storeService.getOperationStatus(SELLER_ID, STORE_ID);
+
+    // then
+    assertThat(response.storeId()).isEqualTo(STORE_ID);
+    assertThat(response.operationStatus()).isEqualTo(OperationStatus.CLOSED_TODAY);
+    assertThat(response.canOpenToday()).isTrue();
+    assertThat(response.todayCloseTime()).isEqualTo(LocalTime.of(21, 0));
+  }
+
+  @Test
+  void 영업_상태_조회_성공_오늘_휴무() {
+    // given - 오늘 요일 row 없음 = 오늘 휴무
+    Store s = store(STORE_ID, seller());
+    DayOfWeek today = LocalDate.now(KST).getDayOfWeek();
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(s));
+    given(storeBusinessHourRepository.findByStoreIdAndDayOfWeek(STORE_ID, today))
+        .willReturn(Optional.empty());
+
+    // when
+    OperationStatusResponse response = storeService.getOperationStatus(SELLER_ID, STORE_ID);
+
+    // then
+    assertThat(response.canOpenToday()).isFalse();
+    assertThat(response.todayCloseTime()).isNull();
+  }
+
+  @Test
+  void 영업_상태_조회_소유권_없음_예외() {
+    // given
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.empty());
+
+    // when / then
+    assertThatThrownBy(() -> storeService.getOperationStatus(SELLER_ID, STORE_ID))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.STORE_ACCESS_DENIED);
+  }
+
+  // ── 영업 상태 전이 ──────────────────────────────────────────────────────────
+
+  private void stubBusinessDay(boolean isBusinessDay) {
+    if (isBusinessDay) {
+      given(
+              storeBusinessHourRepository.findByStoreIdAndDayOfWeek(
+                  eq(STORE_ID), any(DayOfWeek.class)))
+          .willReturn(
+              Optional.of(
+                  StoreBusinessHour.builder()
+                      .store(store(STORE_ID, seller()))
+                      .dayOfWeek(LocalDate.now(KST).getDayOfWeek())
+                      .openTime(LocalTime.of(9, 0))
+                      .closeTime(LocalTime.of(21, 0))
+                      .build()));
+    } else {
+      given(
+              storeBusinessHourRepository.findByStoreIdAndDayOfWeek(
+                  eq(STORE_ID), any(DayOfWeek.class)))
+          .willReturn(Optional.empty());
+    }
+  }
+
+  @Test
+  void 영업_상태_전이_CLOSED_TODAY_to_OPEN_성공_영업_요일() {
+    // given - 초기 CLOSED_TODAY + 오늘 영업 요일
+    Store s = store(STORE_ID, seller());
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(s));
+    stubBusinessDay(true);
+
+    // when
+    OperationStatusResponse response =
+        storeService.transitionOperationStatus(SELLER_ID, STORE_ID, OperationStatus.OPEN);
+
+    // then
+    assertThat(response.operationStatus()).isEqualTo(OperationStatus.OPEN);
+    assertThat(s.getOperationStatus()).isEqualTo(OperationStatus.OPEN);
+    assertThat(response.canOpenToday()).isTrue();
+  }
+
+  @Test
+  void 영업_상태_전이_CLOSED_TODAY_to_OPEN_거부_휴무_요일() {
+    // given - 초기 CLOSED_TODAY + 오늘 휴무
+    Store s = store(STORE_ID, seller());
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(s));
+    stubBusinessDay(false);
+
+    // when / then
+    assertThatThrownBy(
+            () -> storeService.transitionOperationStatus(SELLER_ID, STORE_ID, OperationStatus.OPEN))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.STORE_CLOSED_TODAY);
+    assertThat(s.getOperationStatus()).isEqualTo(OperationStatus.CLOSED_TODAY); // 변경 X
+  }
+
+  @Test
+  void 영업_상태_전이_BREAK_to_OPEN_성공_영업_요일() {
+    // given
+    Store s = store(STORE_ID, seller());
+    s.changeOperationStatus(OperationStatus.BREAK);
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(s));
+    stubBusinessDay(true);
+
+    // when
+    OperationStatusResponse response =
+        storeService.transitionOperationStatus(SELLER_ID, STORE_ID, OperationStatus.OPEN);
+
+    // then
+    assertThat(response.operationStatus()).isEqualTo(OperationStatus.OPEN);
+  }
+
+  @Test
+  void 영업_상태_전이_OPEN_to_BREAK_성공() {
+    // given
+    Store s = store(STORE_ID, seller());
+    s.changeOperationStatus(OperationStatus.OPEN);
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(s));
+
+    // when
+    OperationStatusResponse response =
+        storeService.transitionOperationStatus(SELLER_ID, STORE_ID, OperationStatus.BREAK);
+
+    // then
+    assertThat(response.operationStatus()).isEqualTo(OperationStatus.BREAK);
+    assertThat(s.getOperationStatus()).isEqualTo(OperationStatus.BREAK);
+  }
+
+  @Test
+  void 영업_상태_전이_OPEN_to_CLOSED_TODAY_성공() {
+    // given
+    Store s = store(STORE_ID, seller());
+    s.changeOperationStatus(OperationStatus.OPEN);
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(s));
+
+    // when
+    OperationStatusResponse response =
+        storeService.transitionOperationStatus(SELLER_ID, STORE_ID, OperationStatus.CLOSED_TODAY);
+
+    // then
+    assertThat(response.operationStatus()).isEqualTo(OperationStatus.CLOSED_TODAY);
+  }
+
+  @Test
+  void 영업_상태_전이_BREAK_to_CLOSED_TODAY_성공() {
+    // given
+    Store s = store(STORE_ID, seller());
+    s.changeOperationStatus(OperationStatus.BREAK);
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(s));
+
+    // when
+    OperationStatusResponse response =
+        storeService.transitionOperationStatus(SELLER_ID, STORE_ID, OperationStatus.CLOSED_TODAY);
+
+    // then
+    assertThat(response.operationStatus()).isEqualTo(OperationStatus.CLOSED_TODAY);
+  }
+
+  @Test
+  void 영업_상태_전이_CLOSED_TODAY_to_BREAK_거부_금지_전이() {
+    // given - CLOSED_TODAY 에서 BREAK 진입은 금지 (의미 모순)
+    Store s = store(STORE_ID, seller());
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(s));
+
+    // when / then
+    assertThatThrownBy(
+            () ->
+                storeService.transitionOperationStatus(SELLER_ID, STORE_ID, OperationStatus.BREAK))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.INVALID_STATE_TRANSITION);
+    assertThat(s.getOperationStatus()).isEqualTo(OperationStatus.CLOSED_TODAY);
+  }
+
+  @Test
+  void 영업_상태_전이_자기_전이_거부() {
+    // given - OPEN → OPEN 자기 전이는 금지
+    Store s = store(STORE_ID, seller());
+    s.changeOperationStatus(OperationStatus.OPEN);
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(s));
+
+    // when / then
+    assertThatThrownBy(
+            () -> storeService.transitionOperationStatus(SELLER_ID, STORE_ID, OperationStatus.OPEN))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.INVALID_STATE_TRANSITION);
+  }
+
+  @Test
+  void 영업_상태_전이_소유권_없음_예외() {
+    // given
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.empty());
+
+    // when / then
+    assertThatThrownBy(
+            () -> storeService.transitionOperationStatus(SELLER_ID, STORE_ID, OperationStatus.OPEN))
         .isInstanceOf(BusinessException.class)
         .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.STORE_ACCESS_DENIED);
   }

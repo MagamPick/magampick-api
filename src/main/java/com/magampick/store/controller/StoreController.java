@@ -2,6 +2,8 @@ package com.magampick.store.controller;
 
 import com.magampick.global.security.CustomUserDetails;
 import com.magampick.store.dto.BusinessVerificationRequest;
+import com.magampick.store.dto.OperationStatusResponse;
+import com.magampick.store.dto.OperationStatusTransitionRequest;
 import com.magampick.store.dto.StoreCreateRequest;
 import com.magampick.store.dto.StoreDetailResponse;
 import com.magampick.store.dto.StoreRegisterResponse;
@@ -19,6 +21,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -100,5 +103,41 @@ public class StoreController {
   public ResponseEntity<StoreDetailResponse> detail(
       @AuthenticationPrincipal CustomUserDetails userDetails, @PathVariable Long storeId) {
     return ResponseEntity.ok(storeService.getMyStore(userDetails.getUserId(), storeId));
+  }
+
+  @GetMapping("/{storeId}/operation-status")
+  @Operation(
+      summary = "매장 영업 상태 조회",
+      description = "본인 매장의 현재 영업 상태와 오늘 영업 요일 여부 / 오늘 마감 시각을 조회한다.")
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "조회 성공"),
+    @ApiResponse(responseCode = "401", description = "미인증"),
+    @ApiResponse(responseCode = "403", description = "권한 없음 또는 타인 매장 접근")
+  })
+  public ResponseEntity<OperationStatusResponse> getOperationStatus(
+      @AuthenticationPrincipal CustomUserDetails userDetails, @PathVariable Long storeId) {
+    return ResponseEntity.ok(storeService.getOperationStatus(userDetails.getUserId(), storeId));
+  }
+
+  @PatchMapping("/{storeId}/operation-status")
+  @Operation(
+      summary = "매장 영업 상태 전환",
+      description =
+          "본인 매장의 영업 상태를 OPEN / BREAK / CLOSED_TODAY 중 하나로 전환한다. 노션 전이 그래프 위반 시 409, OPEN 진입 시 오늘 휴무면 409 (STORE_CLOSED_TODAY).")
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "전환 성공"),
+    @ApiResponse(responseCode = "400", description = "입력 검증 실패 (to 누락 등)"),
+    @ApiResponse(responseCode = "401", description = "미인증"),
+    @ApiResponse(responseCode = "403", description = "권한 없음 또는 타인 매장 접근"),
+    @ApiResponse(
+        responseCode = "409",
+        description = "금지 전이 (자기 전이 / CLOSED_TODAY→BREAK) 또는 OPEN 진입 시 오늘이 영업 요일 아님")
+  })
+  public ResponseEntity<OperationStatusResponse> transitionOperationStatus(
+      @AuthenticationPrincipal CustomUserDetails userDetails,
+      @PathVariable Long storeId,
+      @RequestBody @Valid OperationStatusTransitionRequest request) {
+    return ResponseEntity.ok(
+        storeService.transitionOperationStatus(userDetails.getUserId(), storeId, request.to()));
   }
 }

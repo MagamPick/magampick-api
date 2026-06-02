@@ -102,4 +102,9 @@ public class Store extends BaseEntity {
   public boolean isOwnedBy(Long sellerId) {
     return seller.getId().equals(sellerId);
   }
+
+  /** 영업 상태 변경. 전이 가능 여부 검증은 호출 측(Service) 책임. */
+  public void changeOperationStatus(OperationStatus to) {
+    this.operationStatus = to;
+  }
 }
