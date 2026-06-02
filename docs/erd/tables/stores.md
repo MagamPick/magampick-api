@@ -18,6 +18,7 @@
 | phone | VARCHAR(20) | N |  | 매장 전화번호 |
 | description | VARCHAR(500) | Y |  | 매장 소개 |
 | image_url | VARCHAR(500) | N |  | 대표 사진 URL |
+| operation_status | VARCHAR(15) | N | CHECK | `OPEN`, `BREAK`, `CLOSED_TODAY`. 등록 직후 `CLOSED_TODAY` |
 | deleted_at | TIMESTAMP | Y |  | 소프트 삭제 시각 |
 | created_at | TIMESTAMP | N |  | 생성 시각 |
 | updated_at | TIMESTAMP | N |  | 수정 시각 |
@@ -26,11 +27,13 @@
 
 - `stores_pkey` (`id`)
 - `idx_stores_seller_id` (`seller_id`)
+- `idx_stores_operation_status` (`operation_status`)
 - `idx_stores_location` GIST (`location`)
 
 ## 제약
 
 - `fk_stores_seller` FK `seller_id → sellers.id`
+- `chk_stores_operation_status` CHECK `operation_status IN ('OPEN', 'BREAK', 'CLOSED_TODAY')`
 
 ## 관계
 
@@ -42,5 +45,5 @@
 - **사업자 번호**: 매장별 (`stores.business_number`). 입력은 하이픈 포함 가능, 저장은 숫자 10자리. **중복 허용** (UNIQUE 미적용 — 사칭 방지는 본인확인 모듈 백로그)
 - **외부 연동 (MVP stub)**: 국세청 검증 / 지오코딩 = Mock 인터페이스, 이미지 = Local 저장. 실연동(공공데이터포털·카카오 로컬·OCI)은 후속 작업
 - **이미지**: 대표 1장. 5MB / jpg·png·webp
-- **노출 제어**: 등록 직후 노출은 `operation_status`(영업 상태) 담당 — 별도 기능 "매장 영업 상태 관리" 소관, 본 테이블 미반영
+- **노출 제어**: 등록 직후 `operation_status=CLOSED_TODAY` 라 소비자 노출 X — 사장이 영업시간 입력 후 [영업 시작] 으로 `OPEN` 전환해야 운영 시작. 전이 그래프 / 노출 룰 상세는 노션 "매장 영업 상태 관리" 소관
 - **진입 경로**: 현재 경로 B(로그인 사장 독립 등록)만. 경로 A(가입 wizard 통합 + `sellers.business_number` 정리)는 후속 PR

@@ -5,7 +5,9 @@ import com.magampick.global.storage.StorageService;
 import com.magampick.seller.domain.Seller;
 import com.magampick.seller.exception.SellerErrorCode;
 import com.magampick.seller.repository.SellerRepository;
+import com.magampick.store.domain.OperationStatus;
 import com.magampick.store.domain.Store;
+import com.magampick.store.dto.BusinessVerificationRequest;
 import com.magampick.store.dto.StoreCreateRequest;
 import com.magampick.store.dto.StoreDetailResponse;
 import com.magampick.store.dto.StoreRegisterResponse;
@@ -39,9 +41,20 @@ public class StoreService {
   private final StoreMapper storeMapper;
 
   /**
-   * 매장 등록 (경로 B — 로그인 사장의 독립 등록). 국세청 검증·지오코딩·이미지 업로드를 통과하면 자동 승인으로 즉시 생성된다.
+   * 사업자 진위확인 — 등록 폼의 [조회하기] 버튼 대응. 사업자번호·대표자명·개업일자 세 값 일치 여부만 검증, 매장은 생성하지 않는다. 본 등록 호출({@link
+   * #registerStore})에서도 동일하게 다시 검증하므로 idempotent.
+   */
+  public void verifyBusiness(BusinessVerificationRequest request) {
+    String businessNumber = normalizeBusinessNumber(request.businessNumber());
+    businessVerificationService.verify(
+        businessNumber, request.representativeName(), request.openDate());
+  }
+
+  /**
+   * 매장 등록 (경로 B — 로그인 사장의 독립 등록). 사업자 진위확인(번호·대표자명·개업일자) + 지오코딩 + 이미지 업로드를 통과하면 자동 승인으로 즉시 생성된다.
+   * operation_status 는 {@link OperationStatus#CLOSED_TODAY} 로 초기화 — 사장이 영업시간 입력 후 [영업 시작]으로 운영 개시.
    *
-   * <p>외부 호출(검증·지오코딩·업로드)은 트랜잭션 시작 전에 처리하고 결과만 단일 INSERT(save) 의 트랜잭션으로 반영한다 — 느린 외부 호출 동안 DB 트랜잭션을
+   * <p>외부 호출(검증·지오코딩·업로드)은 트랜잭션 시작 전에 처리하고 결과만 단일 INSERT(save)의 트랜잭션으로 반영한다 — 느린 외부 호출 동안 DB 트랜잭션을
    * 잡지 않기 위함. 가입 통합(경로 A) 의 다중 엔티티 롤백은 별도 작업.
    */
   public StoreRegisterResponse registerStore(
@@ -49,7 +62,8 @@ public class StoreService {
     String businessNumber = normalizeBusinessNumber(request.businessNumber());
     validateImage(image);
 
-    businessVerificationService.verify(businessNumber);
+    businessVerificationService.verify(
+        businessNumber, request.representativeName(), request.openDate());
     Point location = geocodingService.geocode(request.roadAddress());
     String imageUrl = uploadStoreImage(image);
 
@@ -73,10 +87,11 @@ public class StoreService {
                 .phone(request.phone())
                 .description(request.description())
                 .imageUrl(imageUrl)
+                .operationStatus(OperationStatus.CLOSED_TODAY)
                 .build());
 
     log.info("매장 등록됨. storeId={}, sellerId={}", store.getId(), sellerId);
-    return new StoreRegisterResponse(store.getId());
+    return new StoreRegisterResponse(store.getId(), store.getOperationStatus());
   }
 
   @Transactional(readOnly = true)

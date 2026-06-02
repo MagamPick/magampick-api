@@ -3,6 +3,7 @@ package com.magampick.store.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willThrow;
@@ -16,7 +17,9 @@ import com.magampick.global.storage.StorageService;
 import com.magampick.seller.domain.Seller;
 import com.magampick.seller.exception.SellerErrorCode;
 import com.magampick.seller.repository.SellerRepository;
+import com.magampick.store.domain.OperationStatus;
 import com.magampick.store.domain.Store;
+import com.magampick.store.dto.BusinessVerificationRequest;
 import com.magampick.store.dto.StoreCreateRequest;
 import com.magampick.store.dto.StoreDetailResponse;
 import com.magampick.store.dto.StoreRegisterResponse;
@@ -24,11 +27,13 @@ import com.magampick.store.dto.StoreResponse;
 import com.magampick.store.exception.StoreErrorCode;
 import com.magampick.store.mapper.StoreMapper;
 import com.magampick.store.repository.StoreRepository;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -48,13 +53,15 @@ class StoreServiceTest {
 
   private static final Long SELLER_ID = 1L;
   private static final Long STORE_ID = 10L;
+  private static final String OWNER_NAME = "홍길동";
+  private static final LocalDate OPEN_DATE = LocalDate.of(2024, 3, 15);
 
   private Seller seller() {
     Seller s =
         Seller.builder()
             .email("seller@test.com")
             .passwordHash("hash")
-            .ownerName("홍길동")
+            .ownerName(OWNER_NAME)
             .businessNumber("1234567890")
             .build();
     ReflectionTestUtils.setField(s, "id", SELLER_ID);
@@ -72,6 +79,7 @@ class StoreServiceTest {
             .location(GeometryUtil.toPoint(37.5, 127.0))
             .phone("0212345678")
             .imageUrl("/uploads/2026/5/uuid.jpg")
+            .operationStatus(OperationStatus.CLOSED_TODAY)
             .build();
     ReflectionTestUtils.setField(s, "id", id);
     return s;
@@ -83,7 +91,16 @@ class StoreServiceTest {
 
   private StoreCreateRequest createRequest(String businessNumber) {
     return new StoreCreateRequest(
-        businessNumber, "동네빵집", "서울 강남구 테헤란로 427", null, null, "06158", "0212345678", "신선한 빵");
+        businessNumber,
+        OWNER_NAME,
+        OPEN_DATE,
+        "동네빵집",
+        "서울 강남구 테헤란로 427",
+        null,
+        null,
+        "06158",
+        "0212345678",
+        "신선한 빵");
   }
 
   private MockMultipartFile validImage() {
@@ -103,6 +120,49 @@ class StoreServiceTest {
             });
   }
 
+  // ── 사업자 진위확인 (별도 endpoint) ──────────────────────────────────────────
+
+  @Test
+  void 사업자_진위확인_성공_하이픈_제거_정규화() {
+    // given
+    BusinessVerificationRequest request =
+        new BusinessVerificationRequest("123-45-67890", OWNER_NAME, OPEN_DATE);
+
+    // when
+    storeService.verifyBusiness(request);
+
+    // then — 정규화된 10자리 + 대표자명·개업일자가 그대로 외부 호출에 전달
+    then(businessVerificationService).should().verify("1234567890", OWNER_NAME, OPEN_DATE);
+  }
+
+  @Test
+  void 사업자_진위확인_형식_오류_예외() {
+    // given
+    BusinessVerificationRequest request =
+        new BusinessVerificationRequest("12345", OWNER_NAME, OPEN_DATE);
+
+    // when / then
+    assertThatThrownBy(() -> storeService.verifyBusiness(request))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.BUSINESS_NUMBER_FORMAT_INVALID);
+    then(businessVerificationService).should(never()).verify(any(), any(), any());
+  }
+
+  @Test
+  void 사업자_진위확인_불일치_예외() {
+    // given
+    BusinessVerificationRequest request =
+        new BusinessVerificationRequest("000-00-00000", OWNER_NAME, OPEN_DATE);
+    willThrow(new BusinessException(StoreErrorCode.BUSINESS_INFO_MISMATCH))
+        .given(businessVerificationService)
+        .verify(any(), any(), any());
+
+    // when / then
+    assertThatThrownBy(() -> storeService.verifyBusiness(request))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.BUSINESS_INFO_MISMATCH);
+  }
+
   // ── 매장 등록 ──────────────────────────────────────────────────────────────
 
   @Test
@@ -116,10 +176,15 @@ class StoreServiceTest {
 
     // then
     assertThat(response.storeId()).isEqualTo(STORE_ID);
-    then(businessVerificationService).should().verify("1234567890"); // 하이픈 제거 정규화
+    assertThat(response.operationStatus()).isEqualTo(OperationStatus.CLOSED_TODAY);
+    then(businessVerificationService).should().verify("1234567890", OWNER_NAME, OPEN_DATE);
     then(geocodingService).should().geocode("서울 강남구 테헤란로 427");
     then(storageService).should().upload(any());
-    then(storeRepository).should().save(any(Store.class));
+
+    ArgumentCaptor<Store> captor = ArgumentCaptor.forClass(Store.class);
+    then(storeRepository).should().save(captor.capture());
+    assertThat(captor.getValue().getOperationStatus()).isEqualTo(OperationStatus.CLOSED_TODAY);
+    assertThat(captor.getValue().getBusinessNumber()).isEqualTo("1234567890");
   }
 
   @Test
@@ -131,7 +196,7 @@ class StoreServiceTest {
     assertThatThrownBy(() -> storeService.registerStore(SELLER_ID, request, validImage()))
         .isInstanceOf(BusinessException.class)
         .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.BUSINESS_NUMBER_FORMAT_INVALID);
-    then(businessVerificationService).should(never()).verify(any());
+    then(businessVerificationService).should(never()).verify(any(), any(), any());
     then(storageService).should(never()).upload(any());
     then(storeRepository).should(never()).save(any());
   }
@@ -141,7 +206,7 @@ class StoreServiceTest {
     // given
     willThrow(new BusinessException(StoreErrorCode.BUSINESS_NUMBER_NOT_ACTIVE))
         .given(businessVerificationService)
-        .verify(any());
+        .verify(any(), any(), any());
 
     // when / then
     assertThatThrownBy(() -> storeService.registerStore(SELLER_ID, createRequest(), validImage()))
@@ -153,11 +218,26 @@ class StoreServiceTest {
   }
 
   @Test
+  void 매장_등록_진위확인_불일치_예외() {
+    // given
+    willThrow(new BusinessException(StoreErrorCode.BUSINESS_INFO_MISMATCH))
+        .given(businessVerificationService)
+        .verify(any(), any(), any());
+
+    // when / then
+    assertThatThrownBy(() -> storeService.registerStore(SELLER_ID, createRequest(), validImage()))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.BUSINESS_INFO_MISMATCH);
+    then(geocodingService).should(never()).geocode(any());
+    then(storeRepository).should(never()).save(any());
+  }
+
+  @Test
   void 매장_등록_국세청_API_장애_예외() {
     // given
     willThrow(new BusinessException(StoreErrorCode.BUSINESS_NUMBER_VERIFICATION_FAILED))
         .given(businessVerificationService)
-        .verify(any());
+        .verify(any(), any(), any());
 
     // when / then
     assertThatThrownBy(() -> storeService.registerStore(SELLER_ID, createRequest(), validImage()))
@@ -248,6 +328,9 @@ class StoreServiceTest {
     assertThat(first.storeId()).isNotNull();
     assertThat(second.storeId()).isNotNull();
     then(storeRepository).should(times(2)).save(any(Store.class));
+    then(businessVerificationService)
+        .should(times(2))
+        .verify(eq("1234567890"), eq(OWNER_NAME), eq(OPEN_DATE));
   }
 
   // ── 사장 조회 ──────────────────────────────────────────────────────────────
@@ -266,6 +349,7 @@ class StoreServiceTest {
                 null,
                 "0212345678",
                 "/uploads/uuid.jpg",
+                OperationStatus.CLOSED_TODAY,
                 OffsetDateTime.now()));
 
     // when
@@ -274,6 +358,7 @@ class StoreServiceTest {
     // then
     assertThat(result).hasSize(1);
     assertThat(result.get(0).id()).isEqualTo(STORE_ID);
+    assertThat(result.get(0).operationStatus()).isEqualTo(OperationStatus.CLOSED_TODAY);
   }
 
   @Test

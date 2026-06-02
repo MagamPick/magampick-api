@@ -1,6 +1,7 @@
 package com.magampick.store.controller;
 
 import com.magampick.global.security.CustomUserDetails;
+import com.magampick.store.dto.BusinessVerificationRequest;
 import com.magampick.store.dto.StoreCreateRequest;
 import com.magampick.store.dto.StoreDetailResponse;
 import com.magampick.store.dto.StoreRegisterResponse;
@@ -20,6 +21,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
@@ -33,15 +35,35 @@ public class StoreController {
 
   private final StoreService storeService;
 
+  @PostMapping("/business-verification")
+  @Operation(
+      summary = "사업자 진위확인",
+      description = "사업자 번호·대표자명·개업일자 세 값의 일치 여부를 국세청 API(stub)로 확인한다. 매장 등록 폼의 [조회하기] 버튼 대응.")
+  @ApiResponses({
+    @ApiResponse(responseCode = "204", description = "진위확인 통과"),
+    @ApiResponse(
+        responseCode = "400",
+        description = "입력 검증 실패 / 사업자 번호 형식 오류 / 진위확인 불일치 / 정상 영업 아님"),
+    @ApiResponse(responseCode = "401", description = "미인증"),
+    @ApiResponse(responseCode = "403", description = "권한 없음 (ROLE_SELLER 아님)"),
+    @ApiResponse(responseCode = "503", description = "사업자 번호 검증 일시 실패 (재시도 안내)")
+  })
+  public ResponseEntity<Void> verifyBusiness(
+      @RequestBody @Valid BusinessVerificationRequest request) {
+    storeService.verifyBusiness(request);
+    return ResponseEntity.noContent().build();
+  }
+
   @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
   @Operation(
       summary = "매장 등록",
-      description = "사업자 번호 검증 + 주소 지오코딩 + 대표 사진 업로드 후 자동 승인으로 매장을 즉시 생성한다.")
+      description =
+          "사업자 진위확인(번호·대표자명·개업일자) + 주소 지오코딩 + 대표 사진 업로드 후 자동 승인으로 매장을 즉시 생성한다. operation_status 초기값은 CLOSED_TODAY.")
   @ApiResponses({
     @ApiResponse(responseCode = "201", description = "등록 성공"),
     @ApiResponse(
         responseCode = "400",
-        description = "입력 검증 실패 / 사업자 번호 형식 오류 / 정상 영업 아님 / 지오코딩 실패 / 이미지 규격 위반"),
+        description = "입력 검증 실패 / 사업자 번호 형식 오류 / 진위확인 불일치 / 정상 영업 아님 / 지오코딩 실패 / 이미지 규격 위반"),
     @ApiResponse(responseCode = "401", description = "미인증"),
     @ApiResponse(responseCode = "403", description = "권한 없음 (ROLE_SELLER 아님)"),
     @ApiResponse(responseCode = "503", description = "사업자 번호 검증 일시 실패 (재시도 안내)")

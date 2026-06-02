@@ -15,6 +15,8 @@ public enum StoreErrorCode implements BaseErrorCode {
       HttpStatus.BAD_REQUEST, "BUSINESS_NUMBER_FORMAT_INVALID", "사업자 번호는 숫자 10자리여야 합니다"),
   BUSINESS_NUMBER_NOT_ACTIVE(
       HttpStatus.BAD_REQUEST, "BUSINESS_NUMBER_NOT_ACTIVE", "정상 영업 중인 사업자 번호가 아닙니다"),
+  BUSINESS_INFO_MISMATCH(
+      HttpStatus.BAD_REQUEST, "BUSINESS_INFO_MISMATCH", "사업자 번호·대표자명·개업일자가 일치하지 않습니다"),
   BUSINESS_NUMBER_VERIFICATION_FAILED(
       HttpStatus.SERVICE_UNAVAILABLE,
       "BUSINESS_NUMBER_VERIFICATION_FAILED",

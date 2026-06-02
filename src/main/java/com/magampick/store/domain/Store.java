@@ -4,6 +4,8 @@ import com.magampick.global.common.BaseEntity;
 import com.magampick.seller.domain.Seller;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -62,6 +64,10 @@ public class Store extends BaseEntity {
   @Column(name = "image_url", nullable = false, length = 500)
   private String imageUrl;
 
+  @Enumerated(EnumType.STRING)
+  @Column(name = "operation_status", nullable = false, length = 15)
+  private OperationStatus operationStatus;
+
   @Column(name = "deleted_at")
   private LocalDateTime deletedAt;
 
@@ -77,7 +83,8 @@ public class Store extends BaseEntity {
       Point location,
       String phone,
       String description,
-      String imageUrl) {
+      String imageUrl,
+      OperationStatus operationStatus) {
     this.seller = seller;
     this.businessNumber = businessNumber;
     this.name = name;
@@ -89,6 +96,7 @@ public class Store extends BaseEntity {
     this.phone = phone;
     this.description = description;
     this.imageUrl = imageUrl;
+    this.operationStatus = operationStatus;
   }
 
   public boolean isOwnedBy(Long sellerId) {

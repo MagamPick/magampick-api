@@ -3,9 +3,11 @@ package com.magampick.store.controller;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -17,12 +19,15 @@ import com.magampick.global.security.JwtAuthenticationEntryPoint;
 import com.magampick.global.security.JwtProvider;
 import com.magampick.global.security.Role;
 import com.magampick.global.security.SecurityConfig;
+import com.magampick.store.domain.OperationStatus;
+import com.magampick.store.dto.BusinessVerificationRequest;
 import com.magampick.store.dto.StoreCreateRequest;
 import com.magampick.store.dto.StoreDetailResponse;
 import com.magampick.store.dto.StoreRegisterResponse;
 import com.magampick.store.dto.StoreResponse;
 import com.magampick.store.exception.StoreErrorCode;
 import com.magampick.store.service.StoreService;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -45,6 +50,8 @@ class StoreControllerTest {
 
   private static final CustomUserDetails SELLER_USER = new CustomUserDetails(1L, Role.SELLER);
   private static final CustomUserDetails CUSTOMER_USER = new CustomUserDetails(2L, Role.CUSTOMER);
+  private static final String OWNER_NAME = "홍길동";
+  private static final LocalDate OPEN_DATE = LocalDate.of(2024, 3, 15);
 
   private MockMultipartFile requestPart(String json) {
     return new MockMultipartFile(
@@ -58,13 +65,42 @@ class StoreControllerTest {
   private String validRequestJson() throws Exception {
     return objectMapper.writeValueAsString(
         new StoreCreateRequest(
-            "123-45-67890", "동네빵집", "서울 강남구 테헤란로 427", null, null, "06158", "0212345678", "신선한 빵"));
+            "123-45-67890",
+            OWNER_NAME,
+            OPEN_DATE,
+            "동네빵집",
+            "서울 강남구 테헤란로 427",
+            null,
+            null,
+            "06158",
+            "0212345678",
+            "신선한 빵"));
   }
 
   private String invalidRequestJson() throws Exception {
     return objectMapper.writeValueAsString(
         new StoreCreateRequest(
-            "123-45-67890", "", "서울 강남구 테헤란로 427", null, null, "06158", "0212345678", null));
+            "123-45-67890",
+            OWNER_NAME,
+            OPEN_DATE,
+            "",
+            "서울 강남구 테헤란로 427",
+            null,
+            null,
+            "06158",
+            "0212345678",
+            null));
+  }
+
+  private String verifyRequestJson() throws Exception {
+    return objectMapper.writeValueAsString(
+        new BusinessVerificationRequest("123-45-67890", OWNER_NAME, OPEN_DATE));
+  }
+
+  private String invalidVerifyRequestJson() throws Exception {
+    // representativeName 누락
+    return objectMapper.writeValueAsString(
+        new BusinessVerificationRequest("123-45-67890", "", OPEN_DATE));
   }
 
   private StoreResponse stubStoreResponse() {
@@ -75,7 +111,70 @@ class StoreControllerTest {
         null,
         "0212345678",
         "/uploads/uuid.jpg",
+        OperationStatus.CLOSED_TODAY,
         OffsetDateTime.now());
+  }
+
+  // ── POST /api/v1/seller/stores/business-verification ──────────────────────
+
+  @Test
+  void POST_business_verification_204_성공() throws Exception {
+    mockMvc
+        .perform(
+            post("/api/v1/seller/stores/business-verification")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(verifyRequestJson())
+                .with(user(SELLER_USER)))
+        .andExpect(status().isNoContent());
+  }
+
+  @Test
+  void POST_business_verification_400_검증_실패() throws Exception {
+    mockMvc
+        .perform(
+            post("/api/v1/seller/stores/business-verification")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(invalidVerifyRequestJson())
+                .with(user(SELLER_USER)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
+  }
+
+  @Test
+  void POST_business_verification_400_불일치() throws Exception {
+    willThrow(new BusinessException(StoreErrorCode.BUSINESS_INFO_MISMATCH))
+        .given(storeService)
+        .verifyBusiness(any());
+
+    mockMvc
+        .perform(
+            post("/api/v1/seller/stores/business-verification")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(verifyRequestJson())
+                .with(user(SELLER_USER)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("BUSINESS_INFO_MISMATCH"));
+  }
+
+  @Test
+  void POST_business_verification_401_미인증() throws Exception {
+    mockMvc
+        .perform(
+            post("/api/v1/seller/stores/business-verification")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(verifyRequestJson()))
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void POST_business_verification_403_소비자_접근_거부() throws Exception {
+    mockMvc
+        .perform(
+            post("/api/v1/seller/stores/business-verification")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(verifyRequestJson())
+                .with(user(CUSTOMER_USER)))
+        .andExpect(status().isForbidden());
   }
 
   // ── POST /api/v1/seller/stores ─────────────────────────────────────────────
@@ -83,7 +182,7 @@ class StoreControllerTest {
   @Test
   void POST_stores_201_성공() throws Exception {
     given(storeService.registerStore(eq(1L), any(), any()))
-        .willReturn(new StoreRegisterResponse(1L));
+        .willReturn(new StoreRegisterResponse(1L, OperationStatus.CLOSED_TODAY));
 
     mockMvc
         .perform(
@@ -92,7 +191,8 @@ class StoreControllerTest {
                 .file(imagePart())
                 .with(user(SELLER_USER)))
         .andExpect(status().isCreated())
-        .andExpect(jsonPath("$.data.storeId").value(1));
+        .andExpect(jsonPath("$.data.storeId").value(1))
+        .andExpect(jsonPath("$.data.operationStatus").value("CLOSED_TODAY"));
   }
 
   @Test
@@ -138,7 +238,8 @@ class StoreControllerTest {
         .perform(get("/api/v1/seller/stores").with(user(SELLER_USER)))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data[0].id").value(1))
-        .andExpect(jsonPath("$.data[0].name").value("동네빵집"));
+        .andExpect(jsonPath("$.data[0].name").value("동네빵집"))
+        .andExpect(jsonPath("$.data[0].operationStatus").value("CLOSED_TODAY"));
   }
 
   // ── GET /api/v1/seller/stores/{id} ────────────────────────────────────────
