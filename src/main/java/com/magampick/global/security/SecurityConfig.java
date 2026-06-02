@@ -33,7 +33,7 @@ public class SecurityConfig {
     "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**"
   };
   private static final String[] PUBLIC_GET_PATHS = {
-    "/api/v1/stores/**", "/api/v1/clearance-items/**"
+    "/api/v1/stores/**", "/api/v1/clearance-items/**", "/api/v1/terms/**"
   };
 
   private final JwtProvider jwtProvider;

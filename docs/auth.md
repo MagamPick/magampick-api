@@ -286,6 +286,7 @@ Spring `@Profile` 로 환경별 자동 주입. `AuthService` 는 인터페이스
 |---|---|---|---|---|
 | `POST /api/v1/auth/**` (signup, login, refresh, kakao) | ✅ | | | |
 | `GET /api/v1/stores`, `/clearance-items` 검색·상세 | ✅ | ✅ | ✅ | ✅ |
+| `GET /api/v1/terms` 약관 목록 (가입 화면) | ✅ | ✅ | ✅ | ✅ |
 | `GET /api/v1/customers/me/**` | | ✅ | | |
 | `POST /api/v1/orders`, `POST /api/v1/reviews` | | ✅ | | |
 | `/api/v1/seller/**` | | | ✅ | |
@@ -311,7 +312,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/auth/**").permitAll()
                 .requestMatchers(GET,
                     "/api/v1/stores/**",
-                    "/api/v1/clearance-items/**").permitAll()
+                    "/api/v1/clearance-items/**",
+                    "/api/v1/terms/**").permitAll()
                 .requestMatchers("/api/v1/seller/**").hasRole("SELLER")
                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated()
