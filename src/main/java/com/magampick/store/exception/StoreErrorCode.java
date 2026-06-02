@@ -29,6 +29,9 @@ public enum StoreErrorCode implements BaseErrorCode {
       HttpStatus.BAD_REQUEST, "STORE_IMAGE_INVALID_TYPE", "jpg, png, webp 형식의 이미지만 업로드할 수 있습니다"),
   STORE_IMAGE_UPLOAD_FAILED(
       HttpStatus.INTERNAL_SERVER_ERROR, "STORE_IMAGE_UPLOAD_FAILED", "매장 이미지 업로드에 실패했습니다"),
+  STORE_CLOSED_TODAY(HttpStatus.CONFLICT, "STORE_CLOSED_TODAY", "오늘은 영업 요일이 아니라 영업을 시작할 수 없습니다"),
+  INVALID_STATE_TRANSITION(
+      HttpStatus.CONFLICT, "INVALID_STATE_TRANSITION", "현재 상태에서 요청한 전환을 할 수 없습니다"),
   ;
 
   private final HttpStatus status;
