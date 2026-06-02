@@ -1,6 +1,8 @@
 package com.magampick.store.controller;
 
 import com.magampick.global.security.CustomUserDetails;
+import com.magampick.store.dto.BusinessHourPayload;
+import com.magampick.store.dto.BusinessHoursSaveRequest;
 import com.magampick.store.dto.BusinessVerificationRequest;
 import com.magampick.store.dto.OperationStatusResponse;
 import com.magampick.store.dto.OperationStatusTransitionRequest;
@@ -24,6 +26,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -139,5 +142,39 @@ public class StoreController {
       @RequestBody @Valid OperationStatusTransitionRequest request) {
     return ResponseEntity.ok(
         storeService.transitionOperationStatus(userDetails.getUserId(), storeId, request.to()));
+  }
+
+  @GetMapping("/{storeId}/business-hours")
+  @Operation(
+      summary = "매장 영업시간 조회",
+      description = "본인 매장의 요일별 영업시간 (영업 요일만 — 휴무 요일은 응답에 없음)을 조회한다.")
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "조회 성공"),
+    @ApiResponse(responseCode = "401", description = "미인증"),
+    @ApiResponse(responseCode = "403", description = "권한 없음 또는 타인 매장 접근")
+  })
+  public ResponseEntity<List<BusinessHourPayload>> getBusinessHours(
+      @AuthenticationPrincipal CustomUserDetails userDetails, @PathVariable Long storeId) {
+    return ResponseEntity.ok(storeService.getBusinessHours(userDetails.getUserId(), storeId));
+  }
+
+  @PutMapping("/{storeId}/business-hours")
+  @Operation(
+      summary = "매장 영업시간 저장",
+      description =
+          "본인 매장의 요일별 영업시간을 전체 교체로 저장한다 (영업 요일만 list 에 포함, 빈 list 도 허용). 영업 상태 OPEN 중 오늘 요일 시간 수정·삭제는 거부, 다른 요일·오늘 신규 추가는 허용.")
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "저장 성공"),
+    @ApiResponse(responseCode = "400", description = "입력 검증 실패 / 시작>=종료 / 같은 요일 중복"),
+    @ApiResponse(responseCode = "401", description = "미인증"),
+    @ApiResponse(responseCode = "403", description = "권한 없음 또는 타인 매장 접근"),
+    @ApiResponse(responseCode = "409", description = "OPEN 중 오늘 요일 영업시간 변경(시간 수정·삭제)")
+  })
+  public ResponseEntity<List<BusinessHourPayload>> saveBusinessHours(
+      @AuthenticationPrincipal CustomUserDetails userDetails,
+      @PathVariable Long storeId,
+      @RequestBody @Valid BusinessHoursSaveRequest request) {
+    return ResponseEntity.ok(
+        storeService.saveBusinessHours(userDetails.getUserId(), storeId, request.hours()));
   }
 }

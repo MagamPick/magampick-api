@@ -8,6 +8,7 @@ import com.magampick.seller.repository.SellerRepository;
 import com.magampick.store.domain.OperationStatus;
 import com.magampick.store.domain.Store;
 import com.magampick.store.domain.StoreBusinessHour;
+import com.magampick.store.dto.BusinessHourPayload;
 import com.magampick.store.dto.BusinessVerificationRequest;
 import com.magampick.store.dto.OperationStatusResponse;
 import com.magampick.store.dto.StoreCreateRequest;
@@ -140,10 +141,101 @@ public class StoreService {
     return toOperationStatusResponse(store, todayHour);
   }
 
+  /** 본인 매장의 영업 요일별 영업시간 (영업 요일만, 휴무 요일은 row 없음). */
+  @Transactional(readOnly = true)
+  public List<BusinessHourPayload> getBusinessHours(Long sellerId, Long storeId) {
+    Store store = findOwnedStore(sellerId, storeId);
+    return storeBusinessHourRepository.findByStoreId(store.getId()).stream()
+        .map(this::toPayload)
+        .toList();
+  }
+
+  /**
+   * 매장의 요일별 영업시간을 전체 교체로 저장한다 (delete-all + save-all). 휴무 요일은 입력 list 에서 제외 — 빈 list 도 허용 (모든 요일
+   * 휴무). 매장 영업 상태가 {@link OperationStatus#OPEN} 이면 오늘 요일 row 의 시간 변경·삭제는 거부 ({@code
+   * TODAY_BUSINESS_HOURS_LOCKED}) — 다른 요일 변경 / 오늘 신규 추가는 허용 (노션 "영업시간 설정").
+   */
+  @Transactional
+  public List<BusinessHourPayload> saveBusinessHours(
+      Long sellerId, Long storeId, List<BusinessHourPayload> hours) {
+    validateRanges(hours);
+    validateNoDuplicates(hours);
+
+    Store store = findOwnedStore(sellerId, storeId);
+
+    List<StoreBusinessHour> prev = storeBusinessHourRepository.findByStoreId(store.getId());
+    validateTodayLockIfOpen(store, prev, hours);
+
+    storeBusinessHourRepository.deleteByStoreId(store.getId());
+    List<StoreBusinessHour> next =
+        hours.stream()
+            .map(
+                p ->
+                    StoreBusinessHour.builder()
+                        .store(store)
+                        .dayOfWeek(p.day())
+                        .openTime(p.openTime())
+                        .closeTime(p.closeTime())
+                        .build())
+            .toList();
+    storeBusinessHourRepository.saveAll(next);
+    log.info(
+        "매장 영업시간 저장. storeId={}, sellerId={}, rowCount={}", store.getId(), sellerId, hours.size());
+    return hours;
+  }
+
   private Store findOwnedStore(Long sellerId, Long storeId) {
     return storeRepository
         .findByIdAndSellerId(storeId, sellerId)
         .orElseThrow(() -> new BusinessException(StoreErrorCode.STORE_ACCESS_DENIED));
+  }
+
+  private BusinessHourPayload toPayload(StoreBusinessHour h) {
+    return new BusinessHourPayload(h.getDayOfWeek(), h.getOpenTime(), h.getCloseTime());
+  }
+
+  /** 시작 시각 &lt; 종료 시각 (같은 날 내). 노션 "영업시간 입력 형식". */
+  private void validateRanges(List<BusinessHourPayload> hours) {
+    for (BusinessHourPayload h : hours) {
+      if (!h.openTime().isBefore(h.closeTime())) {
+        throw new BusinessException(StoreErrorCode.BUSINESS_HOURS_INVALID_RANGE);
+      }
+    }
+  }
+
+  /** 같은 요일 중복 row 차단 (DB UNIQUE 사전 검증 — `BUSINESS_HOURS_INVALID_RANGE` 재사용). */
+  private void validateNoDuplicates(List<BusinessHourPayload> hours) {
+    long distinct = hours.stream().map(BusinessHourPayload::day).distinct().count();
+    if (distinct != hours.size()) {
+      throw new BusinessException(StoreErrorCode.BUSINESS_HOURS_INVALID_RANGE);
+    }
+  }
+
+  /**
+   * OPEN 중 오늘 요일 변경 잠금 — 오늘 요일이 prev 에 있고 (next 에서 빠지거나 시간이 다르면) 거부. prev 에 없으면 신규 추가는 허용. (노션 "영업
+   * 중 영업시간 변경 제한" + FE {@code hasTodayHoursChanged} 정합)
+   */
+  private void validateTodayLockIfOpen(
+      Store store, List<StoreBusinessHour> prev, List<BusinessHourPayload> next) {
+    if (store.getOperationStatus() != OperationStatus.OPEN) {
+      return;
+    }
+    DayOfWeek today = todayDayOfWeek();
+    Optional<StoreBusinessHour> prevToday =
+        prev.stream().filter(h -> h.getDayOfWeek() == today).findFirst();
+    if (prevToday.isEmpty()) {
+      return; // 이전 휴무 → 추가 허용
+    }
+    Optional<BusinessHourPayload> nextToday =
+        next.stream().filter(p -> p.day() == today).findFirst();
+    if (nextToday.isEmpty()) {
+      throw new BusinessException(StoreErrorCode.TODAY_BUSINESS_HOURS_LOCKED); // 삭제(휴무 전환)
+    }
+    StoreBusinessHour p = prevToday.get();
+    BusinessHourPayload n = nextToday.get();
+    if (!p.getOpenTime().equals(n.openTime()) || !p.getCloseTime().equals(n.closeTime())) {
+      throw new BusinessException(StoreErrorCode.TODAY_BUSINESS_HOURS_LOCKED); // 시간 수정
+    }
   }
 
   /** 노션 전이 그래프. 자기 전이와 {@code CLOSED_TODAY → BREAK} 는 항상 거부, OPEN 진입은 영업 요일 검사. */
