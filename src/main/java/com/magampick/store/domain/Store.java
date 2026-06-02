@@ -1,9 +1,7 @@
 package com.magampick.store.domain;
 
 import com.magampick.global.common.BaseEntity;
-import com.magampick.global.exception.BusinessException;
 import com.magampick.seller.domain.Seller;
-import com.magampick.store.exception.StoreErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -13,13 +11,9 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.JoinTable;
-import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -39,6 +33,9 @@ public class Store extends BaseEntity {
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "seller_id", nullable = false)
   private Seller seller;
+
+  @Column(name = "business_number", nullable = false, length = 10)
+  private String businessNumber;
 
   @Column(name = "name", nullable = false, length = 50)
   private String name;
@@ -68,25 +65,16 @@ public class Store extends BaseEntity {
   private String imageUrl;
 
   @Enumerated(EnumType.STRING)
-  @Column(name = "status", nullable = false, length = 10)
-  private StoreStatus status;
-
-  @Column(name = "rejection_reason", length = 500)
-  private String rejectionReason;
+  @Column(name = "operation_status", nullable = false, length = 15)
+  private OperationStatus operationStatus;
 
   @Column(name = "deleted_at")
   private LocalDateTime deletedAt;
 
-  @ManyToMany(fetch = FetchType.LAZY)
-  @JoinTable(
-      name = "store_store_categories",
-      joinColumns = @JoinColumn(name = "store_id"),
-      inverseJoinColumns = @JoinColumn(name = "store_category_id"))
-  private List<StoreCategory> categories = new ArrayList<>();
-
   @Builder
   private Store(
       Seller seller,
+      String businessNumber,
       String name,
       String roadAddress,
       String jibunAddress,
@@ -96,9 +84,9 @@ public class Store extends BaseEntity {
       String phone,
       String description,
       String imageUrl,
-      StoreStatus status,
-      List<StoreCategory> categories) {
+      OperationStatus operationStatus) {
     this.seller = seller;
+    this.businessNumber = businessNumber;
     this.name = name;
     this.roadAddress = roadAddress;
     this.jibunAddress = jibunAddress;
@@ -108,26 +96,10 @@ public class Store extends BaseEntity {
     this.phone = phone;
     this.description = description;
     this.imageUrl = imageUrl;
-    this.status = status;
-    this.categories = categories != null ? new ArrayList<>(categories) : new ArrayList<>();
+    this.operationStatus = operationStatus;
   }
 
   public boolean isOwnedBy(Long sellerId) {
     return seller.getId().equals(sellerId);
-  }
-
-  public void approve() {
-    if (status != StoreStatus.PENDING) {
-      throw new BusinessException(StoreErrorCode.STORE_ALREADY_REVIEWED);
-    }
-    this.status = StoreStatus.APPROVED;
-  }
-
-  public void reject(String reason) {
-    if (status != StoreStatus.PENDING) {
-      throw new BusinessException(StoreErrorCode.STORE_ALREADY_REVIEWED);
-    }
-    this.status = StoreStatus.REJECTED;
-    this.rejectionReason = reason;
   }
 }

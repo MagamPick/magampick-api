@@ -12,7 +12,6 @@ import com.magampick.product.exception.ProductErrorCode;
 import com.magampick.product.mapper.ProductMapper;
 import com.magampick.product.repository.ProductRepository;
 import com.magampick.store.domain.Store;
-import com.magampick.store.domain.StoreStatus;
 import com.magampick.store.exception.StoreErrorCode;
 import com.magampick.store.repository.StoreRepository;
 import java.io.IOException;
@@ -50,10 +49,6 @@ public class ProductService {
         storeRepository
             .findByIdAndSellerId(storeId, sellerId)
             .orElseThrow(() -> new BusinessException(StoreErrorCode.STORE_ACCESS_DENIED));
-
-    if (store.getStatus() != StoreStatus.APPROVED) {
-      throw new BusinessException(StoreErrorCode.STORE_NOT_APPROVED);
-    }
 
     if (productRepository.existsByStoreIdAndNameAndDeletedAtIsNull(storeId, request.name())) {
       throw new BusinessException(ProductErrorCode.PRODUCT_NAME_DUPLICATE);

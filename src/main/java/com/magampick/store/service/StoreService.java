@@ -1,32 +1,25 @@
 package com.magampick.store.service;
 
-import com.magampick.global.common.GeometryUtil;
 import com.magampick.global.exception.BusinessException;
-import com.magampick.global.response.PageResponse;
 import com.magampick.global.storage.StorageService;
 import com.magampick.seller.domain.Seller;
 import com.magampick.seller.exception.SellerErrorCode;
 import com.magampick.seller.repository.SellerRepository;
-import com.magampick.store.config.StoreProperties;
+import com.magampick.store.domain.OperationStatus;
 import com.magampick.store.domain.Store;
-import com.magampick.store.domain.StoreCategory;
-import com.magampick.store.domain.StoreStatus;
-import com.magampick.store.dto.StoreAdminDetailResponse;
-import com.magampick.store.dto.StoreAdminResponse;
+import com.magampick.store.dto.BusinessVerificationRequest;
 import com.magampick.store.dto.StoreCreateRequest;
 import com.magampick.store.dto.StoreDetailResponse;
 import com.magampick.store.dto.StoreRegisterResponse;
 import com.magampick.store.dto.StoreResponse;
 import com.magampick.store.exception.StoreErrorCode;
 import com.magampick.store.mapper.StoreMapper;
-import com.magampick.store.repository.StoreCategoryRepository;
 import com.magampick.store.repository.StoreRepository;
 import java.util.List;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import org.locationtech.jts.geom.Point;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -41,17 +34,38 @@ public class StoreService {
       Set.of("image/jpeg", "image/png", "image/webp");
 
   private final StoreRepository storeRepository;
-  private final StoreCategoryRepository storeCategoryRepository;
   private final SellerRepository sellerRepository;
   private final StorageService storageService;
   private final BusinessVerificationService businessVerificationService;
+  private final GeocodingService geocodingService;
   private final StoreMapper storeMapper;
-  private final StoreProperties storeProperties;
 
-  @Transactional
+  /**
+   * 사업자 진위확인 — 등록 폼의 [조회하기] 버튼 대응. 사업자번호·대표자명·개업일자 세 값 일치 여부만 검증, 매장은 생성하지 않는다. 본 등록 호출({@link
+   * #registerStore})에서도 동일하게 다시 검증하므로 idempotent.
+   */
+  public void verifyBusiness(BusinessVerificationRequest request) {
+    String businessNumber = normalizeBusinessNumber(request.businessNumber());
+    businessVerificationService.verify(
+        businessNumber, request.representativeName(), request.openDate());
+  }
+
+  /**
+   * 매장 등록 (경로 B — 로그인 사장의 독립 등록). 사업자 진위확인(번호·대표자명·개업일자) + 지오코딩 + 이미지 업로드를 통과하면 자동 승인으로 즉시 생성된다.
+   * operation_status 는 {@link OperationStatus#CLOSED_TODAY} 로 초기화 — 사장이 영업시간 입력 후 [영업 시작]으로 운영 개시.
+   *
+   * <p>외부 호출(검증·지오코딩·업로드)은 트랜잭션 시작 전에 처리하고 결과만 단일 INSERT(save)의 트랜잭션으로 반영한다 — 느린 외부 호출 동안 DB 트랜잭션을
+   * 잡지 않기 위함. 가입 통합(경로 A) 의 다중 엔티티 롤백은 별도 작업.
+   */
   public StoreRegisterResponse registerStore(
       Long sellerId, StoreCreateRequest request, MultipartFile image) {
+    String businessNumber = normalizeBusinessNumber(request.businessNumber());
     validateImage(image);
+
+    businessVerificationService.verify(
+        businessNumber, request.representativeName(), request.openDate());
+    Point location = geocodingService.geocode(request.roadAddress());
+    String imageUrl = uploadStoreImage(image);
 
     Seller seller =
         sellerRepository
@@ -59,36 +73,25 @@ public class StoreService {
             .filter(s -> !s.isDeleted())
             .orElseThrow(() -> new BusinessException(SellerErrorCode.SELLER_NOT_FOUND));
 
-    businessVerificationService.verify(seller.getBusinessNumber());
-
-    List<StoreCategory> categories = storeCategoryRepository.findAllById(request.categoryIds());
-    if (categories.size() != request.categoryIds().size()) {
-      throw new BusinessException(StoreErrorCode.STORE_CATEGORY_NOT_FOUND);
-    }
-
-    String imageUrl = uploadStoreImage(image);
-
-    StoreStatus status = storeProperties.autoApprove() ? StoreStatus.APPROVED : StoreStatus.PENDING;
-
     Store store =
-        Store.builder()
-            .seller(seller)
-            .name(request.name())
-            .roadAddress(request.roadAddress())
-            .jibunAddress(request.jibunAddress())
-            .detailAddress(request.detailAddress())
-            .zonecode(request.zonecode())
-            .location(GeometryUtil.toPoint(request.latitude(), request.longitude()))
-            .phone(request.phone())
-            .description(request.description())
-            .imageUrl(imageUrl)
-            .status(status)
-            .categories(categories)
-            .build();
+        storeRepository.save(
+            Store.builder()
+                .seller(seller)
+                .businessNumber(businessNumber)
+                .name(request.name())
+                .roadAddress(request.roadAddress())
+                .jibunAddress(request.jibunAddress())
+                .detailAddress(request.detailAddress())
+                .zonecode(request.zonecode())
+                .location(location)
+                .phone(request.phone())
+                .description(request.description())
+                .imageUrl(imageUrl)
+                .operationStatus(OperationStatus.CLOSED_TODAY)
+                .build());
 
-    storeRepository.save(store);
-    log.info("매장 등록됨. storeId={}, sellerId={}, status={}", store.getId(), sellerId, status);
-    return new StoreRegisterResponse(store.getId(), store.getStatus());
+    log.info("매장 등록됨. storeId={}, sellerId={}", store.getId(), sellerId);
+    return new StoreRegisterResponse(store.getId(), store.getOperationStatus());
   }
 
   @Transactional(readOnly = true)
@@ -105,39 +108,12 @@ public class StoreService {
     return storeMapper.toDetailResponse(store);
   }
 
-  @Transactional(readOnly = true)
-  public PageResponse<StoreAdminResponse> getStoresForAdmin(StoreStatus status, Pageable pageable) {
-    Page<Store> page = storeRepository.findByStatusFilter(status, pageable);
-    return PageResponse.of(page.map(storeMapper::toAdminResponse));
-  }
-
-  @Transactional(readOnly = true)
-  public StoreAdminDetailResponse getStoreForAdmin(Long storeId) {
-    Store store =
-        storeRepository
-            .findByIdWithCategories(storeId)
-            .orElseThrow(() -> new BusinessException(StoreErrorCode.STORE_NOT_FOUND));
-    return storeMapper.toAdminDetailResponse(store);
-  }
-
-  @Transactional
-  public void approveStore(Long storeId) {
-    Store store =
-        storeRepository
-            .findById(storeId)
-            .orElseThrow(() -> new BusinessException(StoreErrorCode.STORE_NOT_FOUND));
-    store.approve();
-    log.info("매장 승인됨. storeId={}", storeId);
-  }
-
-  @Transactional
-  public void rejectStore(Long storeId, String rejectionReason) {
-    Store store =
-        storeRepository
-            .findById(storeId)
-            .orElseThrow(() -> new BusinessException(StoreErrorCode.STORE_NOT_FOUND));
-    store.reject(rejectionReason);
-    log.info("매장 반려됨. storeId={}, reason={}", storeId, rejectionReason);
+  private String normalizeBusinessNumber(String raw) {
+    String digits = raw == null ? "" : raw.replace("-", "");
+    if (!digits.matches("\\d{10}")) {
+      throw new BusinessException(StoreErrorCode.BUSINESS_NUMBER_FORMAT_INVALID);
+    }
+    return digits;
   }
 
   private String uploadStoreImage(MultipartFile image) {

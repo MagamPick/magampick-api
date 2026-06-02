@@ -21,7 +21,6 @@ import com.magampick.product.mapper.ProductMapper;
 import com.magampick.product.repository.ProductRepository;
 import com.magampick.seller.domain.Seller;
 import com.magampick.store.domain.Store;
-import com.magampick.store.domain.StoreStatus;
 import com.magampick.store.exception.StoreErrorCode;
 import com.magampick.store.repository.StoreRepository;
 import java.math.BigDecimal;
@@ -65,17 +64,17 @@ class ProductServiceTest {
     return s;
   }
 
-  private Store store(StoreStatus status) {
+  private Store store() {
     Store s =
         Store.builder()
             .seller(seller())
+            .businessNumber("1234567890")
             .name("동네빵집")
             .roadAddress("서울 강남구 테헤란로 427")
             .zonecode("06158")
             .location(GeometryUtil.toPoint(37.5, 127.0))
             .phone("0212345678")
             .imageUrl("/uploads/store.jpg")
-            .status(status)
             .build();
     ReflectionTestUtils.setField(s, "id", STORE_ID);
     return s;
@@ -94,7 +93,7 @@ class ProductServiceTest {
   @Test
   void 일반_상품_등록_성공() {
     // given
-    Store store = store(StoreStatus.APPROVED);
+    Store store = store();
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
     given(productRepository.existsByStoreIdAndNameAndDeletedAtIsNull(STORE_ID, "크로아상"))
         .willReturn(false);
@@ -145,26 +144,9 @@ class ProductServiceTest {
   }
 
   @Test
-  void 일반_상품_등록_미승인_매장_거부() {
-    // given
-    Store pending = store(StoreStatus.PENDING);
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID))
-        .willReturn(Optional.of(pending));
-
-    // when / then
-    assertThatThrownBy(
-            () ->
-                productService.registerProduct(
-                    SELLER_ID, STORE_ID, ProductFixture.aCreateRequest(), validImage()))
-        .isInstanceOf(BusinessException.class)
-        .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.STORE_NOT_APPROVED);
-    then(storageService).should(never()).upload(any());
-  }
-
-  @Test
   void 일반_상품_등록_상품명_중복_예외() {
     // given
-    Store store = store(StoreStatus.APPROVED);
+    Store store = store();
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
     given(productRepository.existsByStoreIdAndNameAndDeletedAtIsNull(STORE_ID, "크로아상"))
         .willReturn(true);
@@ -212,7 +194,7 @@ class ProductServiceTest {
   @Test
   void 일반_상품_등록_이미지_없이_성공() {
     // given
-    Store store = store(StoreStatus.APPROVED);
+    Store store = store();
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
     given(productRepository.existsByStoreIdAndNameAndDeletedAtIsNull(STORE_ID, "크로아상"))
         .willReturn(false);
@@ -241,7 +223,7 @@ class ProductServiceTest {
   @Test
   void 본인_매장_상품_목록_조회_성공() {
     // given
-    Store store = store(StoreStatus.APPROVED);
+    Store store = store();
     Product product = ProductFixture.aProduct(store);
     ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
     Pageable pageable = PageRequest.of(0, 20);
@@ -276,7 +258,7 @@ class ProductServiceTest {
   @Test
   void 본인_매장_상품_상세_조회_성공() {
     // given
-    Store store = store(StoreStatus.APPROVED);
+    Store store = store();
     Product product = ProductFixture.aProduct(store);
     ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
@@ -294,7 +276,7 @@ class ProductServiceTest {
   @Test
   void 본인_매장_상품_상세_조회_없음_예외() {
     // given
-    Store store = store(StoreStatus.APPROVED);
+    Store store = store();
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.empty());
@@ -322,7 +304,7 @@ class ProductServiceTest {
   @Test
   void 일반_상품_수정_성공_이름_변경() {
     // given
-    Store store = store(StoreStatus.APPROVED);
+    Store store = store();
     Product product = ProductFixture.aProduct(store);
     ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
     ProductUpdateRequest request = new ProductUpdateRequest("바게트", null);
@@ -348,7 +330,7 @@ class ProductServiceTest {
   @Test
   void 일반_상품_수정_성공_이미지_교체() {
     // given
-    Store store = store(StoreStatus.APPROVED);
+    Store store = store();
     Product product = ProductFixture.aProduct(store);
     ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
     ProductUpdateRequest request = new ProductUpdateRequest(null, null);
@@ -368,7 +350,7 @@ class ProductServiceTest {
   @Test
   void 일반_상품_수정_이름_중복_예외() {
     // given
-    Store store = store(StoreStatus.APPROVED);
+    Store store = store();
     Product product = ProductFixture.aProduct(store);
     ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
     ProductUpdateRequest request = new ProductUpdateRequest("바게트", null);
@@ -404,7 +386,7 @@ class ProductServiceTest {
   @Test
   void 일반_상품_수정_없는_상품_예외() {
     // given
-    Store store = store(StoreStatus.APPROVED);
+    Store store = store();
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.empty());
@@ -423,7 +405,7 @@ class ProductServiceTest {
   @Test
   void 일반_상품_삭제_성공() {
     // given
-    Store store = store(StoreStatus.APPROVED);
+    Store store = store();
     Product product = ProductFixture.aProduct(store);
     ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
@@ -440,7 +422,7 @@ class ProductServiceTest {
   @Test
   void 일반_상품_삭제_이미_삭제된_상품_예외() {
     // given
-    Store store = store(StoreStatus.APPROVED);
+    Store store = store();
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.empty());
@@ -467,7 +449,7 @@ class ProductServiceTest {
   @Test
   void 상품_품절_처리_성공() {
     // given
-    Store store = store(StoreStatus.APPROVED);
+    Store store = store();
     Product product = ProductFixture.aProduct(store);
     ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
@@ -487,7 +469,7 @@ class ProductServiceTest {
   @Test
   void 상품_품절_처리_이미_품절_멱등_성공() {
     // given
-    Store store = store(StoreStatus.APPROVED);
+    Store store = store();
     Product product = ProductFixture.aSoldOutProduct(store);
     ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
@@ -506,7 +488,7 @@ class ProductServiceTest {
   @Test
   void 상품_재입고_처리_성공() {
     // given
-    Store store = store(StoreStatus.APPROVED);
+    Store store = store();
     Product product = ProductFixture.aSoldOutProduct(store);
     ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
@@ -526,7 +508,7 @@ class ProductServiceTest {
   @Test
   void 상품_재입고_처리_이미_판매중_멱등_성공() {
     // given
-    Store store = store(StoreStatus.APPROVED);
+    Store store = store();
     Product product = ProductFixture.aProduct(store);
     ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
@@ -545,7 +527,7 @@ class ProductServiceTest {
   @Test
   void 상품_품절_처리_없는_상품_예외() {
     // given
-    Store store = store(StoreStatus.APPROVED);
+    Store store = store();
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.empty());
