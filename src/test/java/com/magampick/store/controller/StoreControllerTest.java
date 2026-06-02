@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -21,6 +22,8 @@ import com.magampick.global.security.JwtProvider;
 import com.magampick.global.security.Role;
 import com.magampick.global.security.SecurityConfig;
 import com.magampick.store.domain.OperationStatus;
+import com.magampick.store.dto.BusinessHourPayload;
+import com.magampick.store.dto.BusinessHoursSaveRequest;
 import com.magampick.store.dto.BusinessVerificationRequest;
 import com.magampick.store.dto.OperationStatusResponse;
 import com.magampick.store.dto.OperationStatusTransitionRequest;
@@ -30,6 +33,7 @@ import com.magampick.store.dto.StoreRegisterResponse;
 import com.magampick.store.dto.StoreResponse;
 import com.magampick.store.exception.StoreErrorCode;
 import com.magampick.store.service.StoreService;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
@@ -416,5 +420,147 @@ class StoreControllerTest {
                 .with(user(SELLER_USER)))
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.error.code").value("INVALID_STATE_TRANSITION"));
+  }
+
+  // ── GET /api/v1/seller/stores/{id}/business-hours ──────────────────────────
+
+  private BusinessHourPayload stubHour(DayOfWeek day) {
+    return new BusinessHourPayload(day, LocalTime.of(9, 0), LocalTime.of(21, 0));
+  }
+
+  @Test
+  void GET_business_hours_200_조회_성공() throws Exception {
+    given(storeService.getBusinessHours(1L, 1L))
+        .willReturn(List.of(stubHour(DayOfWeek.MONDAY), stubHour(DayOfWeek.TUESDAY)));
+
+    mockMvc
+        .perform(get("/api/v1/seller/stores/1/business-hours").with(user(SELLER_USER)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.length()").value(2))
+        .andExpect(jsonPath("$.data[0].day").value("MONDAY"));
+  }
+
+  @Test
+  void GET_business_hours_200_빈_리스트() throws Exception {
+    given(storeService.getBusinessHours(1L, 1L)).willReturn(List.of());
+
+    mockMvc
+        .perform(get("/api/v1/seller/stores/1/business-hours").with(user(SELLER_USER)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.length()").value(0));
+  }
+
+  @Test
+  void GET_business_hours_401_미인증() throws Exception {
+    mockMvc
+        .perform(get("/api/v1/seller/stores/1/business-hours"))
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void GET_business_hours_403_소비자() throws Exception {
+    mockMvc
+        .perform(get("/api/v1/seller/stores/1/business-hours").with(user(CUSTOMER_USER)))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void GET_business_hours_403_타인매장() throws Exception {
+    given(storeService.getBusinessHours(1L, 99L))
+        .willThrow(new BusinessException(StoreErrorCode.STORE_ACCESS_DENIED));
+
+    mockMvc
+        .perform(get("/api/v1/seller/stores/99/business-hours").with(user(SELLER_USER)))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.error.code").value("STORE_ACCESS_DENIED"));
+  }
+
+  // ── PUT /api/v1/seller/stores/{id}/business-hours ──────────────────────────
+
+  private String saveJson(List<BusinessHourPayload> hours) throws Exception {
+    return objectMapper.writeValueAsString(new BusinessHoursSaveRequest(hours));
+  }
+
+  @Test
+  void PUT_business_hours_200_저장_성공() throws Exception {
+    List<BusinessHourPayload> req = List.of(stubHour(DayOfWeek.MONDAY));
+    given(storeService.saveBusinessHours(eq(1L), eq(1L), any())).willReturn(req);
+
+    mockMvc
+        .perform(
+            put("/api/v1/seller/stores/1/business-hours")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(saveJson(req))
+                .with(user(SELLER_USER)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.length()").value(1))
+        .andExpect(jsonPath("$.data[0].day").value("MONDAY"));
+  }
+
+  @Test
+  void PUT_business_hours_200_빈_리스트_허용() throws Exception {
+    given(storeService.saveBusinessHours(eq(1L), eq(1L), any())).willReturn(List.of());
+
+    mockMvc
+        .perform(
+            put("/api/v1/seller/stores/1/business-hours")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(saveJson(List.of()))
+                .with(user(SELLER_USER)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.length()").value(0));
+  }
+
+  @Test
+  void PUT_business_hours_400_시간_역전() throws Exception {
+    willThrow(new BusinessException(StoreErrorCode.BUSINESS_HOURS_INVALID_RANGE))
+        .given(storeService)
+        .saveBusinessHours(any(), any(), any());
+
+    mockMvc
+        .perform(
+            put("/api/v1/seller/stores/1/business-hours")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(saveJson(List.of(stubHour(DayOfWeek.MONDAY))))
+                .with(user(SELLER_USER)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("BUSINESS_HOURS_INVALID_RANGE"));
+  }
+
+  @Test
+  void PUT_business_hours_401_미인증() throws Exception {
+    mockMvc
+        .perform(
+            put("/api/v1/seller/stores/1/business-hours")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(saveJson(List.of())))
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void PUT_business_hours_403_소비자() throws Exception {
+    mockMvc
+        .perform(
+            put("/api/v1/seller/stores/1/business-hours")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(saveJson(List.of()))
+                .with(user(CUSTOMER_USER)))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void PUT_business_hours_409_OPEN_오늘_요일_잠금() throws Exception {
+    willThrow(new BusinessException(StoreErrorCode.TODAY_BUSINESS_HOURS_LOCKED))
+        .given(storeService)
+        .saveBusinessHours(any(), any(), any());
+
+    mockMvc
+        .perform(
+            put("/api/v1/seller/stores/1/business-hours")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(saveJson(List.of(stubHour(DayOfWeek.MONDAY))))
+                .with(user(SELLER_USER)))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.error.code").value("TODAY_BUSINESS_HOURS_LOCKED"));
   }
 }

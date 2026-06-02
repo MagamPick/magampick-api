@@ -20,6 +20,7 @@ import com.magampick.seller.repository.SellerRepository;
 import com.magampick.store.domain.OperationStatus;
 import com.magampick.store.domain.Store;
 import com.magampick.store.domain.StoreBusinessHour;
+import com.magampick.store.dto.BusinessHourPayload;
 import com.magampick.store.dto.BusinessVerificationRequest;
 import com.magampick.store.dto.OperationStatusResponse;
 import com.magampick.store.dto.StoreCreateRequest;
@@ -622,6 +623,256 @@ class StoreServiceTest {
     // when / then
     assertThatThrownBy(
             () -> storeService.transitionOperationStatus(SELLER_ID, STORE_ID, OperationStatus.OPEN))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.STORE_ACCESS_DENIED);
+  }
+
+  // ── 영업시간 조회 ──────────────────────────────────────────────────────────
+
+  private StoreBusinessHour hourOf(Store s, DayOfWeek day, LocalTime open, LocalTime close) {
+    return StoreBusinessHour.builder()
+        .store(s)
+        .dayOfWeek(day)
+        .openTime(open)
+        .closeTime(close)
+        .build();
+  }
+
+  private BusinessHourPayload payload(DayOfWeek day, LocalTime open, LocalTime close) {
+    return new BusinessHourPayload(day, open, close);
+  }
+
+  @Test
+  void 영업시간_조회_성공_영업_요일만() {
+    // given - 월요일·화요일만 영업, 나머지 휴무
+    Store s = store(STORE_ID, seller());
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(s));
+    given(storeBusinessHourRepository.findByStoreId(STORE_ID))
+        .willReturn(
+            List.of(
+                hourOf(s, DayOfWeek.MONDAY, LocalTime.of(9, 0), LocalTime.of(21, 0)),
+                hourOf(s, DayOfWeek.TUESDAY, LocalTime.of(10, 0), LocalTime.of(20, 0))));
+
+    // when
+    List<BusinessHourPayload> result = storeService.getBusinessHours(SELLER_ID, STORE_ID);
+
+    // then
+    assertThat(result).hasSize(2);
+    assertThat(result.get(0).day()).isEqualTo(DayOfWeek.MONDAY);
+    assertThat(result.get(1).day()).isEqualTo(DayOfWeek.TUESDAY);
+  }
+
+  @Test
+  void 영업시간_조회_빈_리스트() {
+    // given - 영업 요일 0개
+    Store s = store(STORE_ID, seller());
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(s));
+    given(storeBusinessHourRepository.findByStoreId(STORE_ID)).willReturn(List.of());
+
+    // when
+    List<BusinessHourPayload> result = storeService.getBusinessHours(SELLER_ID, STORE_ID);
+
+    // then
+    assertThat(result).isEmpty();
+  }
+
+  @Test
+  void 영업시간_조회_소유권_없음_예외() {
+    // given
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.empty());
+
+    // when / then
+    assertThatThrownBy(() -> storeService.getBusinessHours(SELLER_ID, STORE_ID))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.STORE_ACCESS_DENIED);
+  }
+
+  // ── 영업시간 저장 ──────────────────────────────────────────────────────────
+
+  @Test
+  void 영업시간_저장_성공_전체_교체() {
+    // given - prev 비어 있음, new 7개 다 영업
+    Store s = store(STORE_ID, seller());
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(s));
+    given(storeBusinessHourRepository.findByStoreId(STORE_ID)).willReturn(List.of());
+
+    List<BusinessHourPayload> req =
+        java.util.Arrays.stream(DayOfWeek.values())
+            .map(d -> payload(d, LocalTime.of(9, 0), LocalTime.of(21, 0)))
+            .toList();
+
+    // when
+    List<BusinessHourPayload> result = storeService.saveBusinessHours(SELLER_ID, STORE_ID, req);
+
+    // then
+    assertThat(result).hasSize(7);
+    then(storeBusinessHourRepository).should().deleteByStoreId(STORE_ID);
+    then(storeBusinessHourRepository).should().saveAll(any(Iterable.class));
+  }
+
+  @Test
+  void 영업시간_저장_빈_리스트_모든_요일_휴무_허용() {
+    // given
+    Store s = store(STORE_ID, seller());
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(s));
+    given(storeBusinessHourRepository.findByStoreId(STORE_ID)).willReturn(List.of());
+
+    // when
+    List<BusinessHourPayload> result =
+        storeService.saveBusinessHours(SELLER_ID, STORE_ID, List.of());
+
+    // then - 거부 없이 통과, prev 도 비어있어 삭제는 호출되지만 결과는 빈 리스트
+    assertThat(result).isEmpty();
+    then(storeBusinessHourRepository).should().deleteByStoreId(STORE_ID);
+  }
+
+  @Test
+  void 영업시간_저장_시작_종료_역전_예외() {
+    // given - 오픈 > 마감
+    List<BusinessHourPayload> req =
+        List.of(payload(DayOfWeek.MONDAY, LocalTime.of(21, 0), LocalTime.of(9, 0)));
+
+    // when / then
+    assertThatThrownBy(() -> storeService.saveBusinessHours(SELLER_ID, STORE_ID, req))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.BUSINESS_HOURS_INVALID_RANGE);
+    then(storeBusinessHourRepository).should(never()).deleteByStoreId(any());
+  }
+
+  @Test
+  void 영업시간_저장_시작_종료_동일_예외() {
+    // given - 오픈 == 마감
+    List<BusinessHourPayload> req =
+        List.of(payload(DayOfWeek.MONDAY, LocalTime.of(9, 0), LocalTime.of(9, 0)));
+
+    // when / then
+    assertThatThrownBy(() -> storeService.saveBusinessHours(SELLER_ID, STORE_ID, req))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.BUSINESS_HOURS_INVALID_RANGE);
+  }
+
+  @Test
+  void 영업시간_저장_같은_요일_중복_예외() {
+    // given - 월요일 두 row
+    List<BusinessHourPayload> req =
+        List.of(
+            payload(DayOfWeek.MONDAY, LocalTime.of(9, 0), LocalTime.of(13, 0)),
+            payload(DayOfWeek.MONDAY, LocalTime.of(14, 0), LocalTime.of(21, 0)));
+
+    // when / then
+    assertThatThrownBy(() -> storeService.saveBusinessHours(SELLER_ID, STORE_ID, req))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.BUSINESS_HOURS_INVALID_RANGE);
+  }
+
+  @Test
+  void 영업시간_저장_OPEN_오늘_요일_시간_수정_거부() {
+    // given - OPEN + 오늘 요일 시간 변경
+    Store s = store(STORE_ID, seller());
+    s.changeOperationStatus(OperationStatus.OPEN);
+    DayOfWeek today = LocalDate.now(KST).getDayOfWeek();
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(s));
+    given(storeBusinessHourRepository.findByStoreId(STORE_ID))
+        .willReturn(List.of(hourOf(s, today, LocalTime.of(9, 0), LocalTime.of(21, 0))));
+
+    List<BusinessHourPayload> req =
+        List.of(payload(today, LocalTime.of(10, 0), LocalTime.of(22, 0)));
+
+    // when / then
+    assertThatThrownBy(() -> storeService.saveBusinessHours(SELLER_ID, STORE_ID, req))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.TODAY_BUSINESS_HOURS_LOCKED);
+    then(storeBusinessHourRepository).should(never()).deleteByStoreId(any());
+  }
+
+  @Test
+  void 영업시간_저장_OPEN_오늘_요일_삭제_거부() {
+    // given - OPEN + 오늘 요일 row 가 prev 에 있고 new 에서 빠짐 (휴무 전환)
+    Store s = store(STORE_ID, seller());
+    s.changeOperationStatus(OperationStatus.OPEN);
+    DayOfWeek today = LocalDate.now(KST).getDayOfWeek();
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(s));
+    given(storeBusinessHourRepository.findByStoreId(STORE_ID))
+        .willReturn(List.of(hourOf(s, today, LocalTime.of(9, 0), LocalTime.of(21, 0))));
+
+    // when / then - new 는 빈 list
+    assertThatThrownBy(() -> storeService.saveBusinessHours(SELLER_ID, STORE_ID, List.of()))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.TODAY_BUSINESS_HOURS_LOCKED);
+  }
+
+  @Test
+  void 영업시간_저장_OPEN_오늘_요일_신규_추가_허용() {
+    // given - OPEN + 오늘 요일 prev 에 없음, new 에 추가 → 허용
+    Store s = store(STORE_ID, seller());
+    s.changeOperationStatus(OperationStatus.OPEN);
+    DayOfWeek today = LocalDate.now(KST).getDayOfWeek();
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(s));
+    given(storeBusinessHourRepository.findByStoreId(STORE_ID)).willReturn(List.of());
+
+    List<BusinessHourPayload> req =
+        List.of(payload(today, LocalTime.of(9, 0), LocalTime.of(21, 0)));
+
+    // when
+    List<BusinessHourPayload> result = storeService.saveBusinessHours(SELLER_ID, STORE_ID, req);
+
+    // then
+    assertThat(result).hasSize(1);
+  }
+
+  @Test
+  void 영업시간_저장_OPEN_다른_요일_변경_허용() {
+    // given - OPEN + 오늘 요일 row 동일 유지, 다른 요일 변경 → 허용
+    Store s = store(STORE_ID, seller());
+    s.changeOperationStatus(OperationStatus.OPEN);
+    DayOfWeek today = LocalDate.now(KST).getDayOfWeek();
+    DayOfWeek otherDay = today.plus(1);
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(s));
+    given(storeBusinessHourRepository.findByStoreId(STORE_ID))
+        .willReturn(
+            List.of(
+                hourOf(s, today, LocalTime.of(9, 0), LocalTime.of(21, 0)),
+                hourOf(s, otherDay, LocalTime.of(9, 0), LocalTime.of(21, 0))));
+
+    List<BusinessHourPayload> req =
+        List.of(
+            payload(today, LocalTime.of(9, 0), LocalTime.of(21, 0)), // 오늘 동일
+            payload(otherDay, LocalTime.of(10, 0), LocalTime.of(22, 0))); // 다른 요일 변경
+
+    // when
+    List<BusinessHourPayload> result = storeService.saveBusinessHours(SELLER_ID, STORE_ID, req);
+
+    // then
+    assertThat(result).hasSize(2);
+  }
+
+  @Test
+  void 영업시간_저장_CLOSED_TODAY_상태에서는_오늘_변경_허용() {
+    // given - CLOSED_TODAY 면 오늘 변경도 자유
+    Store s = store(STORE_ID, seller()); // 초기 CLOSED_TODAY
+    DayOfWeek today = LocalDate.now(KST).getDayOfWeek();
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(s));
+    given(storeBusinessHourRepository.findByStoreId(STORE_ID))
+        .willReturn(List.of(hourOf(s, today, LocalTime.of(9, 0), LocalTime.of(21, 0))));
+
+    List<BusinessHourPayload> req =
+        List.of(payload(today, LocalTime.of(10, 0), LocalTime.of(22, 0)));
+
+    // when - 거부 없이 통과
+    List<BusinessHourPayload> result = storeService.saveBusinessHours(SELLER_ID, STORE_ID, req);
+
+    // then
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0).openTime()).isEqualTo(LocalTime.of(10, 0));
+  }
+
+  @Test
+  void 영업시간_저장_소유권_없음_예외() {
+    // given
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.empty());
+
+    // when / then
+    assertThatThrownBy(() -> storeService.saveBusinessHours(SELLER_ID, STORE_ID, List.of()))
         .isInstanceOf(BusinessException.class)
         .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.STORE_ACCESS_DENIED);
   }
