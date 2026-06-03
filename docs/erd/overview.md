@@ -57,17 +57,10 @@ erDiagram
         timestamp created_at
     }
 
-    store_categories {
-        bigint id PK
-        varchar name UK
-    }
-    store_store_categories {
-        bigint store_id PK_FK
-        bigint store_category_id PK_FK
-    }
     stores {
         bigint id PK
         bigint seller_id FK
+        varchar business_number
         varchar name
         varchar road_address
         varchar jibun_address
@@ -77,8 +70,6 @@ erDiagram
         varchar phone
         varchar description
         varchar image_url
-        varchar status
-        varchar rejection_reason
         timestamp deleted_at
     }
     store_business_hours {
@@ -288,8 +279,6 @@ erDiagram
     admins ||--o{ announcements : "publishes"
     admins ||--o{ inquiry_replies : "writes"
 
-    store_categories ||--o{ store_store_categories : "categorizes"
-    stores ||--o{ store_store_categories : "has"
     stores ||--o{ favorites : "favored_by"
     stores ||--o{ store_business_hours : "has"
     stores ||--o{ store_closed_days : "has"
@@ -333,8 +322,7 @@ erDiagram
 - `favorites` — 소비자-매장 즐겨찾기 (M:N)
 
 ### Stores
-- `stores` — 매장 (좌표 PostGIS)
-- `store_categories` — 매장 카테고리 (베이커리/카페 등)
+- `stores` — 매장 (좌표 PostGIS, per-store 사업자 번호, 자동 승인)
 - `store_business_hours` — 요일별 영업시간
 - `store_closed_days` — 정기/임시 휴무
 

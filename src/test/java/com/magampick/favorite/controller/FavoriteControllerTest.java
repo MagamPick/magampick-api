@@ -110,21 +110,6 @@ class FavoriteControllerTest {
         .andExpect(jsonPath("$.error.code").value("STORE_NOT_FOUND"));
   }
 
-  @Test
-  void POST_favorites_403_미승인_매장() throws Exception {
-    given(favoriteService.addFavorite(any(), any()))
-        .willThrow(new BusinessException(StoreErrorCode.STORE_NOT_APPROVED));
-
-    mockMvc
-        .perform(
-            post("/api/v1/customers/me/favorites")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(new FavoriteAddRequest(10L)))
-                .with(user(CUSTOMER_USER)))
-        .andExpect(status().isForbidden())
-        .andExpect(jsonPath("$.error.code").value("STORE_NOT_APPROVED"));
-  }
-
   // ── DELETE /api/v1/customers/me/favorites/{storeId} ──────────────────────────
 
   @Test

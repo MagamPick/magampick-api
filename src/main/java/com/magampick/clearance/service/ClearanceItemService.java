@@ -15,7 +15,6 @@ import com.magampick.product.domain.ProductStatus;
 import com.magampick.product.exception.ProductErrorCode;
 import com.magampick.product.repository.ProductRepository;
 import com.magampick.store.domain.Store;
-import com.magampick.store.domain.StoreStatus;
 import com.magampick.store.exception.StoreErrorCode;
 import com.magampick.store.repository.StoreRepository;
 import java.time.LocalDate;
@@ -49,10 +48,6 @@ public class ClearanceItemService {
         storeRepository
             .findByIdAndSellerId(storeId, sellerId)
             .orElseThrow(() -> new BusinessException(StoreErrorCode.STORE_ACCESS_DENIED));
-
-    if (store.getStatus() != StoreStatus.APPROVED) {
-      throw new BusinessException(StoreErrorCode.STORE_NOT_APPROVED);
-    }
 
     Product product =
         productRepository

@@ -10,9 +10,13 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 
 public class ClearanceItemFixture {
+
+  // ClearanceItemService 가 픽업 시각을 KST 기준으로 검증 → fixture 의 todayAt 도 동일 기준이어야 자정 직후 CI 가 실패 안 한다
+  private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
   private ClearanceItemFixture() {}
 
@@ -69,6 +73,6 @@ public class ClearanceItemFixture {
   }
 
   private static LocalDateTime todayAt(int hour, int minute) {
-    return LocalDate.now().atTime(hour, minute);
+    return LocalDate.now(KST).atTime(hour, minute);
   }
 }

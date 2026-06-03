@@ -27,8 +27,6 @@ jwt:
   refresh-token-validity-days: ${JWT_REFRESH_TTL_DAYS:14}
 
 magampick:
-  stores:
-    auto-approve: ${STORES_AUTO_APPROVE:true}
   storage:
     local:
       root-path: ${STORAGE_LOCAL_ROOT_PATH:${user.home}/.magampick/uploads}

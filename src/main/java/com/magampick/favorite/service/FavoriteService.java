@@ -10,7 +10,6 @@ import com.magampick.favorite.repository.FavoriteRepository;
 import com.magampick.global.exception.BusinessException;
 import com.magampick.global.response.PageResponse;
 import com.magampick.store.domain.Store;
-import com.magampick.store.domain.StoreStatus;
 import com.magampick.store.exception.StoreErrorCode;
 import com.magampick.store.repository.StoreRepository;
 import java.util.Optional;
@@ -38,10 +37,6 @@ public class FavoriteService {
         storeRepository
             .findById(storeId)
             .orElseThrow(() -> new BusinessException(StoreErrorCode.STORE_NOT_FOUND));
-
-    if (store.getStatus() != StoreStatus.APPROVED) {
-      throw new BusinessException(StoreErrorCode.STORE_NOT_APPROVED);
-    }
 
     Optional<Favorite> existing =
         favoriteRepository.findByCustomerIdAndStoreId(customerId, storeId);
