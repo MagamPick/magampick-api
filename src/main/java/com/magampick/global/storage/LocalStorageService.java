@@ -37,6 +37,21 @@ public class LocalStorageService implements StorageService {
     return "/uploads/" + relativePath;
   }
 
+  @Override
+  public void delete(String url) {
+    if (url == null || !url.startsWith("/uploads/")) {
+      return; // 알 수 없는 URL 형태 — best effort, 무시
+    }
+    String relativePath = url.substring("/uploads/".length());
+    Path target = Path.of(storageProperties.rootPath()).resolve(relativePath);
+    try {
+      Files.deleteIfExists(target);
+      log.info("파일 삭제 완료. path={}", target);
+    } catch (IOException e) {
+      log.warn("파일 삭제 실패 (무시). path={}", target, e);
+    }
+  }
+
   private String extractExtension(String filename) {
     if (filename == null || !filename.contains(".")) {
       return "bin";

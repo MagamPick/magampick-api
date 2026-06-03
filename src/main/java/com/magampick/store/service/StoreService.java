@@ -15,6 +15,7 @@ import com.magampick.store.dto.StoreCreateRequest;
 import com.magampick.store.dto.StoreDetailResponse;
 import com.magampick.store.dto.StoreRegisterResponse;
 import com.magampick.store.dto.StoreResponse;
+import com.magampick.store.dto.StoreUpdateRequest;
 import com.magampick.store.exception.StoreErrorCode;
 import com.magampick.store.mapper.StoreMapper;
 import com.magampick.store.repository.StoreBusinessHourRepository;
@@ -117,6 +118,77 @@ public class StoreService {
             .findByIdAndSellerId(storeId, sellerId)
             .orElseThrow(() -> new BusinessException(StoreErrorCode.STORE_ACCESS_DENIED));
     return storeMapper.toDetailResponse(store);
+  }
+
+  /**
+   * 매장 정보 수정 (부분 수정 — null = 변경 X). 변경된 주소는 카카오 지오코딩 재호출, 변경된 사진은 OCI 재업로드 + 기존 사진 best effort 삭제.
+   * 사업자번호·영업상태·영업시간은 비범위 (요청에서 무시). 외부 호출(지오코딩·업로드)은 트랜잭션 시작 전, 결과만 단일 UPDATE(save)에 반영 — PR-A 등록과
+   * 동일 패턴. 기존 사진 삭제는 성공 후 best effort (실패해도 흐름 정상 진행).
+   */
+  public StoreDetailResponse updateStore(
+      Long sellerId, Long storeId, StoreUpdateRequest request, MultipartFile image) {
+    Store store = findOwnedStore(sellerId, storeId);
+
+    boolean addressChanged =
+        request.roadAddress() != null && !request.roadAddress().equals(store.getRoadAddress());
+    boolean photoChanged = image != null && !image.isEmpty();
+    if (photoChanged) {
+      validateImage(image);
+    }
+
+    Point newLocation = addressChanged ? geocodingService.geocode(request.roadAddress()) : null;
+    String newImageUrl = photoChanged ? uploadStoreImage(image) : null;
+    String oldImageUrl = photoChanged ? store.getImageUrl() : null;
+
+    applyUpdate(store, request, addressChanged, newLocation, photoChanged, newImageUrl);
+    Store updated = storeRepository.save(store);
+    log.info("매장 정보 수정. storeId={}, sellerId={}", store.getId(), sellerId);
+
+    if (photoChanged) {
+      deleteImageBestEffort(oldImageUrl);
+    }
+    return storeMapper.toDetailResponse(updated);
+  }
+
+  private void applyUpdate(
+      Store store,
+      StoreUpdateRequest request,
+      boolean addressChanged,
+      Point newLocation,
+      boolean photoChanged,
+      String newImageUrl) {
+    if (request.name() != null) {
+      store.changeName(request.name());
+    }
+    if (request.phone() != null) {
+      store.changePhone(request.phone());
+    }
+    if (request.description() != null) {
+      store.changeDescription(request.description());
+    }
+    if (request.detailAddress() != null) {
+      store.changeDetailAddress(request.detailAddress());
+    }
+    if (addressChanged) {
+      String jibun =
+          request.jibunAddress() != null ? request.jibunAddress() : store.getJibunAddress();
+      String zone = request.zonecode() != null ? request.zonecode() : store.getZonecode();
+      store.changeAddress(request.roadAddress(), jibun, zone, newLocation);
+    }
+    if (photoChanged) {
+      store.changeImageUrl(newImageUrl);
+    }
+  }
+
+  private void deleteImageBestEffort(String url) {
+    if (url == null) {
+      return;
+    }
+    try {
+      storageService.delete(url);
+    } catch (RuntimeException e) {
+      log.warn("기존 매장 사진 삭제 실패 (무시). url={}", url, e);
+    }
   }
 
   /** 본인 매장 영업 상태 + 오늘 영업 요일 여부 + 오늘 마감 시각 조회. */

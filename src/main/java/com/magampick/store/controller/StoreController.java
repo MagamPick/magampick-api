@@ -10,6 +10,7 @@ import com.magampick.store.dto.StoreCreateRequest;
 import com.magampick.store.dto.StoreDetailResponse;
 import com.magampick.store.dto.StoreRegisterResponse;
 import com.magampick.store.dto.StoreResponse;
+import com.magampick.store.dto.StoreUpdateRequest;
 import com.magampick.store.service.StoreService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -106,6 +107,26 @@ public class StoreController {
   public ResponseEntity<StoreDetailResponse> detail(
       @AuthenticationPrincipal CustomUserDetails userDetails, @PathVariable Long storeId) {
     return ResponseEntity.ok(storeService.getMyStore(userDetails.getUserId(), storeId));
+  }
+
+  @PatchMapping(value = "/{storeId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+  @Operation(
+      summary = "매장 정보 수정",
+      description =
+          "본인 매장의 매장명·주소·상세 주소·우편번호·전화·소개·대표 사진을 부분 수정한다 (null = 변경 X). 주소 변경 시 카카오 지오코딩 재호출, 사진 변경 시 OCI 재업로드 + 기존 사진 best effort 삭제. 사업자번호·영업상태·영업시간은 수정 불가 — 요청에 포함돼도 무시.")
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "수정 성공"),
+    @ApiResponse(responseCode = "400", description = "입력 검증 실패 / 지오코딩 실패 / 이미지 규격 위반"),
+    @ApiResponse(responseCode = "401", description = "미인증"),
+    @ApiResponse(responseCode = "403", description = "권한 없음 또는 타인 매장 접근")
+  })
+  public ResponseEntity<StoreDetailResponse> update(
+      @AuthenticationPrincipal CustomUserDetails userDetails,
+      @PathVariable Long storeId,
+      @RequestPart("request") @Valid StoreUpdateRequest request,
+      @RequestPart(value = "image", required = false) MultipartFile image) {
+    return ResponseEntity.ok(
+        storeService.updateStore(userDetails.getUserId(), storeId, request, image));
   }
 
   @GetMapping("/{storeId}/operation-status")

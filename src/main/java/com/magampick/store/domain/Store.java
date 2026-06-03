@@ -107,4 +107,33 @@ public class Store extends BaseEntity {
   public void changeOperationStatus(OperationStatus to) {
     this.operationStatus = to;
   }
+
+  public void changeName(String name) {
+    this.name = name;
+  }
+
+  public void changePhone(String phone) {
+    this.phone = phone;
+  }
+
+  public void changeDescription(String description) {
+    this.description = description;
+  }
+
+  public void changeDetailAddress(String detailAddress) {
+    this.detailAddress = detailAddress;
+  }
+
+  /** 주소 변경 — 카카오 지오코딩 결과까지 한 묶음. 4필드 atomic update. */
+  public void changeAddress(
+      String roadAddress, String jibunAddress, String zonecode, Point location) {
+    this.roadAddress = roadAddress;
+    this.jibunAddress = jibunAddress;
+    this.zonecode = zonecode;
+    this.location = location;
+  }
+
+  public void changeImageUrl(String imageUrl) {
+    this.imageUrl = imageUrl;
+  }
 }
