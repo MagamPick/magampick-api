@@ -17,7 +17,7 @@ import java.util.UUID;
 import javax.crypto.SecretKey;
 import org.springframework.stereotype.Component;
 
-/** JWT 발급 / 검증 유틸. HS256, claim 은 sub(userId) + role (auth.md §4). */
+/** JWT 발급 / 검증 유틸. HS256, claim 은 sub(userId) + role + jti (auth.md §4). */
 @Component
 public class JwtProvider {
 
@@ -48,18 +48,23 @@ public class JwtProvider {
     return new CustomUserDetails(payload.userId(), payload.role());
   }
 
-  /** 토큰을 검증하고 payload 를 반환한다. refresh token 처리에서 사용자 일치 검증에 사용한다. */
+  /** 토큰을 검증하고 payload 를 반환한다. tokenId(jti) 는 refresh 의 Redis 세션 키 생성에 쓴다. */
   public TokenPayload parsePayload(String token) {
     Claims claims = parseClaims(token);
     Long userId = Long.valueOf(claims.getSubject());
     Role role = Role.valueOf(claims.get(ROLE_CLAIM, String.class));
+    String tokenId = claims.getId();
     LocalDateTime expiresAt =
         LocalDateTime.ofInstant(claims.getExpiration().toInstant(), ZoneId.systemDefault());
-    return new TokenPayload(userId, role, expiresAt);
+    return new TokenPayload(userId, role, tokenId, expiresAt);
   }
 
   public long accessTokenExpiresInSeconds() {
     return accessTokenValidity.toSeconds();
+  }
+
+  public long refreshTokenExpiresInSeconds() {
+    return refreshTokenValidity.toSeconds();
   }
 
   private String issueToken(Long userId, Role role, Duration validity) {
@@ -85,5 +90,5 @@ public class JwtProvider {
     }
   }
 
-  public record TokenPayload(Long userId, Role role, LocalDateTime expiresAt) {}
+  public record TokenPayload(Long userId, Role role, String tokenId, LocalDateTime expiresAt) {}
 }

@@ -3,11 +3,10 @@ package com.magampick.auth.service;
 import com.magampick.address.service.AddressService;
 import com.magampick.auth.domain.CustomerOAuthAccount;
 import com.magampick.auth.domain.OAuthProviderType;
-import com.magampick.auth.domain.RefreshToken;
 import com.magampick.auth.dto.CustomerSignupRequest;
+import com.magampick.auth.dto.IssuedTokens;
 import com.magampick.auth.dto.KakaoLoginRequest;
 import com.magampick.auth.dto.LoginRequest;
-import com.magampick.auth.dto.RefreshTokenRequest;
 import com.magampick.auth.dto.SellerSignupRequest;
 import com.magampick.auth.dto.TokenResponse;
 import com.magampick.auth.exception.AuthErrorCode;
@@ -18,7 +17,6 @@ import com.magampick.customer.domain.Customer;
 import com.magampick.customer.exception.CustomerErrorCode;
 import com.magampick.customer.repository.CustomerRepository;
 import com.magampick.global.exception.BusinessException;
-import com.magampick.global.security.JwtProvider;
 import com.magampick.global.security.Role;
 import com.magampick.phone.service.PhoneVerificationService;
 import com.magampick.seller.domain.Seller;
@@ -45,7 +43,6 @@ public class AuthService {
   private final RefreshTokenService refreshTokenService;
   private final PasswordValidator passwordValidator;
   private final PasswordEncoder passwordEncoder;
-  private final JwtProvider jwtProvider;
   private final OAuthProvider kakaoOAuthProvider;
   private final PhoneVerificationService phoneVerificationService;
   private final TermService termService;
@@ -53,11 +50,10 @@ public class AuthService {
 
   /**
    * 소비자 회원가입 오케스트레이션 (5단계 통합). 한 트랜잭션으로 본인인증 토큰 소비 → customers 생성 → 약관 동의 기록 → 기본 주소 생성 → 토큰 발급.
-   * 본인인증 토큰 소비(Redis 삭제)는 입력 검증을 모두 통과한 뒤 수행한다 — Redis 는 JPA 롤백에 안 묶이므로, 이후 DB 실패 시 토큰이 소멸해 재인증이
-   * 필요할 수 있다(드묾).
+   * 본인인증 토큰 소비(Redis 삭제)는 입력 검증을 모두 통과한 뒤 수행한다.
    */
   @Transactional
-  public TokenResponse signupCustomer(CustomerSignupRequest request) {
+  public IssuedTokens signupCustomer(CustomerSignupRequest request) {
     if (customerRepository.existsByEmail(request.email())) {
       throw new BusinessException(AuthErrorCode.EMAIL_ALREADY_EXISTS);
     }
@@ -87,7 +83,7 @@ public class AuthService {
   }
 
   @Transactional
-  public TokenResponse loginCustomer(LoginRequest request) {
+  public IssuedTokens loginCustomer(LoginRequest request) {
     Customer customer =
         customerRepository.findByEmail(request.email()).orElseThrow(this::invalidCredentials);
     if (customer.isDeleted() || customer.getPasswordHash() == null) {
@@ -101,7 +97,7 @@ public class AuthService {
   }
 
   @Transactional
-  public TokenResponse signupSeller(SellerSignupRequest request) {
+  public IssuedTokens signupSeller(SellerSignupRequest request) {
     if (sellerRepository.existsByEmail(request.email())) {
       throw new BusinessException(AuthErrorCode.EMAIL_ALREADY_EXISTS);
     }
@@ -120,7 +116,7 @@ public class AuthService {
   }
 
   @Transactional
-  public TokenResponse loginSeller(LoginRequest request) {
+  public IssuedTokens loginSeller(LoginRequest request) {
     Seller seller =
         sellerRepository.findByEmail(request.email()).orElseThrow(this::invalidCredentials);
     if (seller.isDeleted()) {
@@ -134,7 +130,7 @@ public class AuthService {
   }
 
   @Transactional
-  public TokenResponse kakaoLogin(KakaoLoginRequest request) {
+  public IssuedTokens kakaoLogin(KakaoLoginRequest request) {
     OAuthUserInfo userInfo = kakaoOAuthProvider.getUserInfo(request.kakaoAccessToken());
 
     Customer customer =
@@ -147,35 +143,14 @@ public class AuthService {
     return refreshTokenService.issueTokens(customer.getId(), Role.CUSTOMER);
   }
 
-  @Transactional
-  public TokenResponse refresh(RefreshTokenRequest request) {
-    JwtProvider.TokenPayload payload = jwtProvider.parsePayload(request.refreshToken());
-    RefreshToken refreshToken = refreshTokenService.getActiveByRawToken(request.refreshToken());
-    if (refreshToken.isExpired(LocalDateTime.now())) {
-      throw new BusinessException(
-          com.magampick.global.security.exception.AuthErrorCode.INVALID_TOKEN);
-    }
-    if (!refreshToken.getOwnerId().equals(payload.userId())
-        || refreshToken.getOwnerRole() != payload.role()) {
-      throw new BusinessException(
-          com.magampick.global.security.exception.AuthErrorCode.INVALID_TOKEN);
-    }
-
-    refreshTokenService.revoke(refreshToken);
-    TokenResponse tokens = refreshTokenService.issueTokens(payload.userId(), payload.role());
-    log.info("토큰 갱신됨. ownerId={}, ownerRole={}", payload.userId(), payload.role());
-    return tokens;
+  /** 쿠키 refresh 로 새 access 만 재발급 (rotation X). 검증 실패 시 REFRESH_INVALID. */
+  public TokenResponse refresh(String rawRefreshToken) {
+    return refreshTokenService.reissueAccess(rawRefreshToken);
   }
 
-  @Transactional
-  public void logout(Long userId, Role role, RefreshTokenRequest request) {
-    RefreshToken refreshToken = refreshTokenService.getActiveByRawToken(request.refreshToken());
-    if (!refreshToken.getOwnerId().equals(userId) || refreshToken.getOwnerRole() != role) {
-      throw new BusinessException(
-          com.magampick.global.security.exception.AuthErrorCode.INVALID_TOKEN);
-    }
-    refreshTokenService.revoke(refreshToken);
-    log.info("로그아웃 완료. ownerId={}, ownerRole={}", userId, role);
+  /** 로그아웃 — refresh 세션(Redis) 무효화. 쿠키 토큰이 곧 자격증명이므로 별도 소유자 검증 불필요. */
+  public void logout(String rawRefreshToken) {
+    refreshTokenService.revoke(rawRefreshToken);
   }
 
   private Customer upsertKakaoCustomer(OAuthUserInfo userInfo) {

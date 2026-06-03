@@ -10,11 +10,10 @@ import static org.mockito.BDDMockito.willThrow;
 
 import com.magampick.address.dto.AddressCreateRequest;
 import com.magampick.address.service.AddressService;
-import com.magampick.auth.domain.RefreshToken;
 import com.magampick.auth.dto.CustomerSignupRequest;
+import com.magampick.auth.dto.IssuedTokens;
 import com.magampick.auth.dto.KakaoLoginRequest;
 import com.magampick.auth.dto.LoginRequest;
-import com.magampick.auth.dto.RefreshTokenRequest;
 import com.magampick.auth.dto.SellerSignupRequest;
 import com.magampick.auth.dto.TokenResponse;
 import com.magampick.auth.exception.AuthErrorCode;
@@ -25,7 +24,6 @@ import com.magampick.customer.domain.Customer;
 import com.magampick.customer.exception.CustomerErrorCode;
 import com.magampick.customer.repository.CustomerRepository;
 import com.magampick.global.exception.BusinessException;
-import com.magampick.global.security.JwtProvider;
 import com.magampick.global.security.Role;
 import com.magampick.phone.exception.PhoneVerificationErrorCode;
 import com.magampick.phone.service.PhoneVerificationService;
@@ -54,7 +52,6 @@ class AuthServiceTest {
   @Mock RefreshTokenService refreshTokenService;
   @Mock PasswordValidator passwordValidator;
   @Mock PasswordEncoder passwordEncoder;
-  @Mock JwtProvider jwtProvider;
   @Mock OAuthProvider kakaoOAuthProvider;
   @Mock PhoneVerificationService phoneVerificationService;
   @Mock TermService termService;
@@ -94,7 +91,7 @@ class AuthServiceTest {
             .phoneVerifiedAt(LocalDateTime.now())
             .build();
     ReflectionTestUtils.setField(savedCustomer, "id", 10L);
-    TokenResponse tokens = new TokenResponse("access", "refresh", 1800L);
+    IssuedTokens tokens = new IssuedTokens("access", "refresh", 1800L);
 
     given(customerRepository.existsByEmail(request.email())).willReturn(false);
     given(phoneVerificationService.consumeVerificationToken("vtoken", RAW_PHONE))
@@ -104,7 +101,7 @@ class AuthServiceTest {
     given(refreshTokenService.issueTokens(10L, Role.CUSTOMER)).willReturn(tokens);
 
     // when
-    TokenResponse response = authService.signupCustomer(request);
+    IssuedTokens response = authService.signupCustomer(request);
 
     // then
     assertThat(response).isEqualTo(tokens);
@@ -118,11 +115,9 @@ class AuthServiceTest {
 
   @Test
   void 소비자_회원가입_이메일_중복시_예외() {
-    // given
     CustomerSignupRequest request = validRequest();
     given(customerRepository.existsByEmail(request.email())).willReturn(true);
 
-    // when / then
     assertThatThrownBy(() -> authService.signupCustomer(request))
         .isInstanceOf(BusinessException.class)
         .hasFieldOrPropertyWithValue("errorCode", AuthErrorCode.EMAIL_ALREADY_EXISTS);
@@ -130,14 +125,12 @@ class AuthServiceTest {
 
   @Test
   void 소비자_회원가입_비밀번호_정책_위반시_예외() {
-    // given
     CustomerSignupRequest request = validRequest();
     given(customerRepository.existsByEmail(request.email())).willReturn(false);
     willThrow(new BusinessException(AuthErrorCode.PASSWORD_POLICY_VIOLATION))
         .given(passwordValidator)
         .validate(request.password());
 
-    // when / then
     assertThatThrownBy(() -> authService.signupCustomer(request))
         .isInstanceOf(BusinessException.class)
         .hasFieldOrPropertyWithValue("errorCode", AuthErrorCode.PASSWORD_POLICY_VIOLATION);
@@ -145,13 +138,11 @@ class AuthServiceTest {
 
   @Test
   void 소비자_회원가입_닉네임_길이_위반시_예외() {
-    // given — 닉네임 1자
     CustomerSignupRequest request =
         new CustomerSignupRequest(
             "a@test.com", "Abcd1234!", "a", RAW_PHONE, "vtoken", List.of(1L), validAddress());
     given(customerRepository.existsByEmail(request.email())).willReturn(false);
 
-    // when / then
     assertThatThrownBy(() -> authService.signupCustomer(request))
         .isInstanceOf(BusinessException.class)
         .hasFieldOrPropertyWithValue("errorCode", CustomerErrorCode.NICKNAME_LENGTH);
@@ -159,13 +150,11 @@ class AuthServiceTest {
 
   @Test
   void 소비자_회원가입_기본주소_누락시_예외() {
-    // given — address null
     CustomerSignupRequest request =
         new CustomerSignupRequest(
             "a@test.com", "Abcd1234!", "nick", RAW_PHONE, "vtoken", List.of(1L), null);
     given(customerRepository.existsByEmail(request.email())).willReturn(false);
 
-    // when / then
     assertThatThrownBy(() -> authService.signupCustomer(request))
         .isInstanceOf(BusinessException.class)
         .hasFieldOrPropertyWithValue("errorCode", AuthErrorCode.DEFAULT_ADDRESS_REQUIRED);
@@ -173,14 +162,12 @@ class AuthServiceTest {
 
   @Test
   void 소비자_회원가입_본인인증_토큰_무효시_예외() {
-    // given — 토큰 만료(phone 도메인 예외) → 가입 레벨 PHONE_VERIFICATION_REQUIRED 로 변환
     CustomerSignupRequest request = validRequest();
     given(customerRepository.existsByEmail(request.email())).willReturn(false);
     willThrow(new BusinessException(PhoneVerificationErrorCode.PHONE_VERIFICATION_EXPIRED))
         .given(phoneVerificationService)
         .consumeVerificationToken("vtoken", RAW_PHONE);
 
-    // when / then
     assertThatThrownBy(() -> authService.signupCustomer(request))
         .isInstanceOf(BusinessException.class)
         .hasFieldOrPropertyWithValue("errorCode", AuthErrorCode.PHONE_VERIFICATION_REQUIRED);
@@ -188,7 +175,6 @@ class AuthServiceTest {
 
   @Test
   void 소비자_회원가입_필수약관_미동의시_예외() {
-    // given — 약관 기록 단계에서 필수약관 미동의
     CustomerSignupRequest request = validRequest();
     Customer savedCustomer = Customer.builder().email(request.email()).nickname("nick").build();
     ReflectionTestUtils.setField(savedCustomer, "id", 10L);
@@ -201,7 +187,6 @@ class AuthServiceTest {
         .given(termService)
         .recordAgreements(savedCustomer, request.agreedTermIds());
 
-    // when / then
     assertThatThrownBy(() -> authService.signupCustomer(request))
         .isInstanceOf(BusinessException.class)
         .hasFieldOrPropertyWithValue("errorCode", TermErrorCode.REQUIRED_TERMS_NOT_AGREED);
@@ -209,7 +194,6 @@ class AuthServiceTest {
 
   @Test
   void 사장_회원가입_사업자번호_중복도_허용() {
-    // given
     SellerSignupRequest request =
         new SellerSignupRequest("seller@test.com", "Abcd1234!", "owner", "1234567890");
     Seller savedSeller =
@@ -225,12 +209,10 @@ class AuthServiceTest {
     given(passwordEncoder.encode(request.password())).willReturn("encoded");
     given(sellerRepository.save(any(Seller.class))).willReturn(savedSeller);
     given(refreshTokenService.issueTokens(11L, Role.SELLER))
-        .willReturn(new TokenResponse("access", "refresh", 1800L));
+        .willReturn(new IssuedTokens("access", "refresh", 1800L));
 
-    // when
-    TokenResponse response = authService.signupSeller(request);
+    IssuedTokens response = authService.signupSeller(request);
 
-    // then
     assertThat(response.accessToken()).isEqualTo("access");
     verify(sellerRepository).save(any(Seller.class));
     verify(refreshTokenService).issueTokens(11L, Role.SELLER);
@@ -238,15 +220,13 @@ class AuthServiceTest {
 
   @Test
   void 소비자_로그인_비밀번호_불일치시_예외() {
-    // given
-    LoginRequest request = new LoginRequest("customer@test.com", "wrong!");
+    LoginRequest request = new LoginRequest("customer@test.com", "wrong!", true);
     Customer customer =
         Customer.builder().email("customer@test.com").passwordHash("encoded").nickname("c").build();
     given(customerRepository.findByEmail(request.email())).willReturn(Optional.of(customer));
     given(passwordEncoder.matches(request.password(), customer.getPasswordHash()))
         .willReturn(false);
 
-    // when / then
     assertThatThrownBy(() -> authService.loginCustomer(request))
         .isInstanceOf(BusinessException.class)
         .hasFieldOrPropertyWithValue("errorCode", AuthErrorCode.INVALID_CREDENTIALS);
@@ -254,7 +234,6 @@ class AuthServiceTest {
 
   @Test
   void 카카오_mock_로그인_신규_계정이면_소비자_생성() {
-    // given
     KakaoLoginRequest request = new KakaoLoginRequest("mock-token");
     OAuthUserInfo userInfo = new OAuthUserInfo("kakao-uid", "kakao@test.com", "kakao_user");
     Customer customer =
@@ -269,60 +248,33 @@ class AuthServiceTest {
     given(customerRepository.findByEmail(userInfo.email())).willReturn(Optional.empty());
     given(customerRepository.save(any(Customer.class))).willReturn(customer);
     given(refreshTokenService.issueTokens(20L, Role.CUSTOMER))
-        .willReturn(new TokenResponse("access", "refresh", 1800L));
+        .willReturn(new IssuedTokens("access", "refresh", 1800L));
 
-    // when
-    TokenResponse response = authService.kakaoLogin(request);
+    IssuedTokens response = authService.kakaoLogin(request);
 
-    // then
     assertThat(response.accessToken()).isEqualTo("access");
     verify(customerOAuthAccountRepository).save(any());
   }
 
   @Test
-  void 토큰_갱신_성공시_refresh_token_rotation() {
-    // given
-    RefreshTokenRequest request = new RefreshTokenRequest("refresh-token");
-    JwtProvider.TokenPayload payload =
-        new JwtProvider.TokenPayload(1L, Role.CUSTOMER, LocalDateTime.now().plusDays(1));
-    RefreshToken refreshToken =
-        RefreshToken.builder()
-            .ownerId(1L)
-            .ownerRole(Role.CUSTOMER)
-            .tokenHash("hash")
-            .expiresAt(LocalDateTime.now().plusHours(1))
-            .build();
-    TokenResponse tokens = new TokenResponse("new-access", "new-refresh", 1800L);
-
-    given(jwtProvider.parsePayload(request.refreshToken())).willReturn(payload);
-    given(refreshTokenService.getActiveByRawToken(request.refreshToken())).willReturn(refreshToken);
-    given(refreshTokenService.issueTokens(1L, Role.CUSTOMER)).willReturn(tokens);
+  void 토큰_갱신_성공시_새_access_발급() {
+    // given — rotation 없음: refreshTokenService.reissueAccess 위임
+    given(refreshTokenService.reissueAccess("rawR"))
+        .willReturn(new TokenResponse("newAccess", 1800L));
 
     // when
-    TokenResponse response = authService.refresh(request);
+    TokenResponse response = authService.refresh("rawR");
 
     // then
-    assertThat(response).isEqualTo(tokens);
-    verify(refreshTokenService).revoke(refreshToken);
+    assertThat(response.accessToken()).isEqualTo("newAccess");
   }
 
   @Test
-  void 로그아웃_다른_사용자의_refresh_token이면_예외() {
-    // given
-    RefreshTokenRequest request = new RefreshTokenRequest("refresh-token");
-    RefreshToken refreshToken =
-        RefreshToken.builder()
-            .ownerId(2L)
-            .ownerRole(Role.CUSTOMER)
-            .tokenHash("hash")
-            .expiresAt(LocalDateTime.now().plusHours(1))
-            .build();
-    given(refreshTokenService.getActiveByRawToken(request.refreshToken())).willReturn(refreshToken);
+  void 로그아웃시_refresh_세션_무효화_위임() {
+    // when
+    authService.logout("rawR");
 
-    // when / then
-    assertThatThrownBy(() -> authService.logout(1L, Role.CUSTOMER, request))
-        .isInstanceOf(BusinessException.class)
-        .hasFieldOrPropertyWithValue(
-            "errorCode", com.magampick.global.security.exception.AuthErrorCode.INVALID_TOKEN);
+    // then
+    verify(refreshTokenService).revoke("rawR");
   }
 }

@@ -11,3 +11,7 @@ cors:
   allowed-origins:
     - https://dev.magampick.com
     - https://admin.dev.magampick.com
+
+auth:
+  refresh-cookie:
+    secure: true

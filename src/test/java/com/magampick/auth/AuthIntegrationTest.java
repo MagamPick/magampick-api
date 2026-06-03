@@ -10,13 +10,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.magampick.TestcontainersConfiguration;
 import com.magampick.address.dto.AddressCreateRequest;
 import com.magampick.auth.dto.CustomerSignupRequest;
-import com.magampick.auth.dto.RefreshTokenRequest;
 import com.magampick.auth.dto.SellerSignupRequest;
 import com.magampick.auth.support.SellerTestSupportController;
 import com.magampick.global.support.CrossCuttingTestController;
 import com.magampick.phone.repository.PhoneVerificationStore;
 import com.magampick.terms.domain.Term;
 import com.magampick.terms.repository.TermRepository;
+import jakarta.servlet.http.Cookie;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -136,29 +136,37 @@ class AuthIntegrationTest {
   }
 
   @Test
-  void refresh_token_갱신시_기존_refresh_token은_재사용_불가() throws Exception {
+  void refresh_쿠키로_갱신_가능하고_로그아웃후_차단() throws Exception {
     String uniqueEmail = "refresh_" + System.nanoTime() + "@test.com";
     MvcResult signupResult = signupCustomer(uniqueEmail, "010-3333-4444");
-
     org.junit.jupiter.api.Assertions.assertEquals(201, signupResult.getResponse().getStatus());
-    JsonNode signupRoot = objectMapper.readTree(signupResult.getResponse().getContentAsString());
-    String oldRefreshToken = signupRoot.path("data").path("refreshToken").asText();
 
+    Cookie refreshCookie = refreshCookieOf(signupResult);
+
+    // 쿠키로 갱신 → 새 access. rotation 없으니 같은 쿠키 재사용 가능.
     mockMvc
-        .perform(
-            post("/api/v1/auth/refresh")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(new RefreshTokenRequest(oldRefreshToken))))
+        .perform(post("/api/v1/auth/refresh").cookie(refreshCookie))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.success").value(true));
+        .andExpect(jsonPath("$.data.accessToken").exists());
+    mockMvc.perform(post("/api/v1/auth/refresh").cookie(refreshCookie)).andExpect(status().isOk());
 
+    // 로그아웃 → Redis 세션 삭제.
     mockMvc
-        .perform(
-            post("/api/v1/auth/refresh")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(new RefreshTokenRequest(oldRefreshToken))))
+        .perform(post("/api/v1/auth/logout").cookie(refreshCookie))
+        .andExpect(status().isNoContent());
+
+    // 같은 쿠키로 갱신 → REFRESH_INVALID.
+    mockMvc
+        .perform(post("/api/v1/auth/refresh").cookie(refreshCookie))
         .andExpect(status().isUnauthorized())
-        .andExpect(jsonPath("$.success").value(false))
-        .andExpect(jsonPath("$.error.code").value("INVALID_TOKEN"));
+        .andExpect(jsonPath("$.error.code").value("REFRESH_INVALID"));
+  }
+
+  /** signup/login 응답의 Set-Cookie 헤더에서 refresh 쿠키 값을 추출한다. */
+  private Cookie refreshCookieOf(MvcResult result) {
+    String setCookie = result.getResponse().getHeader(HttpHeaders.SET_COOKIE);
+    org.junit.jupiter.api.Assertions.assertNotNull(setCookie);
+    String value = setCookie.substring("refresh_token=".length(), setCookie.indexOf(';'));
+    return new Cookie("refresh_token", value);
   }
 }

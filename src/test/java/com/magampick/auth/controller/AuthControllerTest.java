@@ -1,28 +1,38 @@
 package com.magampick.auth.controller;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.magampick.address.dto.AddressCreateRequest;
 import com.magampick.auth.dto.CustomerSignupRequest;
+import com.magampick.auth.dto.IssuedTokens;
 import com.magampick.auth.dto.KakaoLoginRequest;
 import com.magampick.auth.dto.LoginRequest;
-import com.magampick.auth.dto.RefreshTokenRequest;
 import com.magampick.auth.dto.SellerSignupRequest;
 import com.magampick.auth.dto.TokenResponse;
 import com.magampick.auth.service.AuthService;
 import com.magampick.global.security.CustomUserDetails;
+import com.magampick.global.security.RefreshTokenCookie;
 import com.magampick.global.security.Role;
+import jakarta.servlet.http.Cookie;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseCookie;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -35,6 +45,10 @@ class AuthControllerTest {
   @Autowired ObjectMapper objectMapper;
 
   @MockitoBean AuthService authService;
+  @MockitoBean RefreshTokenCookie refreshTokenCookie;
+
+  private static final ResponseCookie REFRESH_COOKIE =
+      ResponseCookie.from("refresh_token", "r").httpOnly(true).path("/api/v1/auth").build();
 
   private CustomerSignupRequest validSignupRequest() {
     return new CustomerSignupRequest(
@@ -49,8 +63,9 @@ class AuthControllerTest {
   }
 
   @Test
-  void 소비자_회원가입_성공시_201() throws Exception {
-    given(authService.signupCustomer(any())).willReturn(new TokenResponse("a", "r", 1800L));
+  void 소비자_회원가입_성공시_201_쿠키발급() throws Exception {
+    given(authService.signupCustomer(any())).willReturn(new IssuedTokens("a", "r", 1800L));
+    given(refreshTokenCookie.create(eq("r"), anyBoolean())).willReturn(REFRESH_COOKIE);
 
     mockMvc
         .perform(
@@ -58,8 +73,9 @@ class AuthControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(validSignupRequest())))
         .andExpect(status().isCreated())
-        .andExpect(jsonPath("$.success").value(true))
-        .andExpect(jsonPath("$.data.accessToken").value("a"));
+        .andExpect(jsonPath("$.data.accessToken").value("a"))
+        .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("refresh_token")))
+        .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("HttpOnly")));
   }
 
   @Test
@@ -67,7 +83,6 @@ class AuthControllerTest {
     mockMvc
         .perform(post("/api/v1/auth/signup").contentType(MediaType.APPLICATION_JSON).content("{}"))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.success").value(false))
         .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
   }
 
@@ -88,23 +103,26 @@ class AuthControllerTest {
   }
 
   @Test
-  void 사장_로그인_성공시_200() throws Exception {
-    given(authService.loginSeller(any())).willReturn(new TokenResponse("a", "r", 1800L));
+  void 사장_로그인_성공시_200_access바디_refresh쿠키() throws Exception {
+    given(authService.loginSeller(any())).willReturn(new IssuedTokens("a", "r", 1800L));
+    given(refreshTokenCookie.create(eq("r"), anyBoolean())).willReturn(REFRESH_COOKIE);
 
     mockMvc
         .perform(
             post("/api/v1/auth/seller/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
-                    objectMapper.writeValueAsString(new LoginRequest("s@test.com", "Abcd1234!"))))
+                    objectMapper.writeValueAsString(
+                        new LoginRequest("s@test.com", "Abcd1234!", true))))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.success").value(true))
-        .andExpect(jsonPath("$.data.refreshToken").value("r"));
+        .andExpect(jsonPath("$.data.accessToken").value("a"))
+        .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("refresh_token")));
   }
 
   @Test
   void 카카오_mock_로그인_성공시_200() throws Exception {
-    given(authService.kakaoLogin(any())).willReturn(new TokenResponse("a", "r", 1800L));
+    given(authService.kakaoLogin(any())).willReturn(new IssuedTokens("a", "r", 1800L));
+    given(refreshTokenCookie.create(eq("r"), anyBoolean())).willReturn(REFRESH_COOKIE);
 
     mockMvc
         .perform(
@@ -112,35 +130,41 @@ class AuthControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(new KakaoLoginRequest("token"))))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.success").value(true));
+        .andExpect(jsonPath("$.data.accessToken").value("a"));
   }
 
   @Test
   void 토큰_갱신_성공시_200() throws Exception {
-    given(authService.refresh(any())).willReturn(new TokenResponse("newA", "newR", 1800L));
+    given(refreshTokenCookie.read(any())).willReturn(Optional.of("rawR"));
+    given(authService.refresh("rawR")).willReturn(new TokenResponse("newA", 1800L));
 
     mockMvc
-        .perform(
-            post("/api/v1/auth/refresh")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(new RefreshTokenRequest("r"))))
+        .perform(post("/api/v1/auth/refresh").cookie(new Cookie("refresh_token", "rawR")))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data.accessToken").value("newA"));
   }
 
   @Test
-  void 로그아웃_성공시_204() throws Exception {
-    CustomUserDetails principal = new CustomUserDetails(1L, Role.CUSTOMER);
-    UsernamePasswordAuthenticationToken auth =
-        new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
+  void 토큰_갱신_refresh쿠키_없으면_401() throws Exception {
+    given(refreshTokenCookie.read(any())).willReturn(Optional.empty());
 
     mockMvc
-        .perform(
-            post("/api/v1/auth/logout")
-                .principal(auth)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(new RefreshTokenRequest("refresh"))))
+        .perform(post("/api/v1/auth/refresh"))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.error.code").value("REFRESH_INVALID"));
+  }
+
+  @Test
+  void 로그아웃_성공시_204_쿠키삭제() throws Exception {
+    given(refreshTokenCookie.read(any())).willReturn(Optional.of("rawR"));
+    given(refreshTokenCookie.clear())
+        .willReturn(
+            ResponseCookie.from("refresh_token", "").maxAge(0).path("/api/v1/auth").build());
+
+    mockMvc
+        .perform(post("/api/v1/auth/logout").cookie(new Cookie("refresh_token", "rawR")))
         .andExpect(status().isNoContent());
+    verify(authService).logout("rawR");
   }
 
   @Test
@@ -156,7 +180,8 @@ class AuthControllerTest {
 
   @Test
   void 사장_회원가입_성공시_201() throws Exception {
-    given(authService.signupSeller(any())).willReturn(new TokenResponse("a", "r", 1800L));
+    given(authService.signupSeller(any())).willReturn(new IssuedTokens("a", "r", 1800L));
+    given(refreshTokenCookie.create(eq("r"), anyBoolean())).willReturn(REFRESH_COOKIE);
 
     mockMvc
         .perform(
@@ -166,6 +191,6 @@ class AuthControllerTest {
                     objectMapper.writeValueAsString(
                         new SellerSignupRequest("s@test.com", "Abcd1234!", "owner", "1234567890"))))
         .andExpect(status().isCreated())
-        .andExpect(jsonPath("$.success").value(true));
+        .andExpect(jsonPath("$.data.accessToken").value("a"));
   }
 }

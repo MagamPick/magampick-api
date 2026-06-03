@@ -26,7 +26,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 @Configuration
 @EnableMethodSecurity
 @RequiredArgsConstructor
-@EnableConfigurationProperties({JwtProperties.class, CorsProperties.class})
+@EnableConfigurationProperties({JwtProperties.class, CorsProperties.class, CookieProperties.class})
 public class SecurityConfig {
 
   private static final String[] DOCS_PATHS = {
@@ -53,8 +53,6 @@ public class SecurityConfig {
                     .permitAll()
                     .requestMatchers("/actuator/health")
                     .permitAll()
-                    .requestMatchers("/api/v1/auth/logout")
-                    .authenticated()
                     .requestMatchers("/api/v1/auth/**")
                     .permitAll()
                     .requestMatchers(HttpMethod.GET, PUBLIC_GET_PATHS)
