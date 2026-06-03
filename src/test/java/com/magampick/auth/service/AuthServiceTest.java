@@ -7,9 +7,12 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.verify;
 import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.never;
 
 import com.magampick.address.dto.AddressCreateRequest;
 import com.magampick.address.service.AddressService;
+import com.magampick.auth.domain.CustomerOAuthAccount;
+import com.magampick.auth.domain.OAuthProviderType;
 import com.magampick.auth.dto.CustomerSignupRequest;
 import com.magampick.auth.dto.IssuedTokens;
 import com.magampick.auth.dto.KakaoLoginRequest;
@@ -254,6 +257,60 @@ class AuthServiceTest {
 
     assertThat(response.accessToken()).isEqualTo("access");
     verify(customerOAuthAccountRepository).save(any());
+  }
+
+  @Test
+  void 카카오_이메일이_기존_가입계정과_충돌시_거부() {
+    // given — 카카오 매핑 없음 + 같은 이메일의 기존 일반가입 계정 존재 (자동연결 거부)
+    KakaoLoginRequest request = new KakaoLoginRequest("mock-token");
+    OAuthUserInfo userInfo = new OAuthUserInfo("kakao-uid", "kakao@test.com", "kakao_user");
+    Customer existing =
+        Customer.builder().email(userInfo.email()).passwordHash("encoded").nickname("기존").build();
+
+    given(kakaoOAuthProvider.getUserInfo(request.kakaoAccessToken())).willReturn(userInfo);
+    given(
+            customerOAuthAccountRepository.findByProviderAndProviderUserId(
+                any(), eq(userInfo.providerUserId())))
+        .willReturn(Optional.empty());
+    given(customerRepository.findByEmail(userInfo.email())).willReturn(Optional.of(existing));
+
+    // when & then — 거부 + 신규 생성/매핑 저장 안 함
+    assertThatThrownBy(() -> authService.kakaoLogin(request))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", AuthErrorCode.EMAIL_ALREADY_REGISTERED);
+    verify(customerRepository, never()).save(any());
+    verify(customerOAuthAccountRepository, never()).save(any());
+  }
+
+  @Test
+  void 카카오_기존_매핑이면_바로_로그인() {
+    // given — 카카오 ID 매핑 존재 → 추가정보/생성 없이 바로 토큰 발급
+    KakaoLoginRequest request = new KakaoLoginRequest("mock-token");
+    OAuthUserInfo userInfo = new OAuthUserInfo("kakao-uid", "kakao@test.com", "kakao_user");
+    Customer mapped = Customer.builder().email(userInfo.email()).nickname("기존").build();
+    ReflectionTestUtils.setField(mapped, "id", 30L);
+    CustomerOAuthAccount account =
+        CustomerOAuthAccount.builder()
+            .customer(mapped)
+            .provider(OAuthProviderType.KAKAO)
+            .providerUserId(userInfo.providerUserId())
+            .build();
+
+    given(kakaoOAuthProvider.getUserInfo(request.kakaoAccessToken())).willReturn(userInfo);
+    given(
+            customerOAuthAccountRepository.findByProviderAndProviderUserId(
+                any(), eq(userInfo.providerUserId())))
+        .willReturn(Optional.of(account));
+    given(refreshTokenService.issueTokens(30L, Role.CUSTOMER))
+        .willReturn(new IssuedTokens("access", "refresh", 1800L));
+
+    // when
+    IssuedTokens response = authService.kakaoLogin(request);
+
+    // then — 기존 매핑 경로는 생성/매핑 저장 안 함
+    assertThat(response.accessToken()).isEqualTo("access");
+    verify(customerRepository, never()).save(any());
+    verify(customerOAuthAccountRepository, never()).save(any());
   }
 
   @Test

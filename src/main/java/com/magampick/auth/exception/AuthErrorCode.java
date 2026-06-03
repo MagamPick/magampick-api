@@ -11,6 +11,8 @@ import org.springframework.http.HttpStatus;
 public enum AuthErrorCode implements BaseErrorCode {
   INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "INVALID_CREDENTIALS", "이메일 또는 비밀번호가 올바르지 않습니다"),
   EMAIL_ALREADY_EXISTS(HttpStatus.CONFLICT, "EMAIL_ALREADY_EXISTS", "이미 사용 중인 이메일입니다"),
+  EMAIL_ALREADY_REGISTERED(
+      HttpStatus.CONFLICT, "EMAIL_ALREADY_REGISTERED", "이미 가입된 이메일입니다. 일반 로그인을 이용하세요"),
   PASSWORD_POLICY_VIOLATION(
       HttpStatus.BAD_REQUEST, "PASSWORD_POLICY_VIOLATION", "비밀번호는 8자 이상이며 영문·숫자·특수문자를 모두 포함해야 합니다"),
   PHONE_VERIFICATION_REQUIRED(

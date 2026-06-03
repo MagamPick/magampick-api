@@ -137,7 +137,7 @@ public class AuthService {
         customerOAuthAccountRepository
             .findByProviderAndProviderUserId(OAuthProviderType.KAKAO, userInfo.providerUserId())
             .map(CustomerOAuthAccount::getCustomer)
-            .orElseGet(() -> upsertKakaoCustomer(userInfo));
+            .orElseGet(() -> createKakaoCustomer(userInfo));
 
     log.info("소비자 카카오 로그인 성공. customerId={}", customer.getId());
     return refreshTokenService.issueTokens(customer.getId(), Role.CUSTOMER);
@@ -153,26 +153,29 @@ public class AuthService {
     refreshTokenService.revoke(rawRefreshToken);
   }
 
-  private Customer upsertKakaoCustomer(OAuthUserInfo userInfo) {
-    Customer customer =
+  /**
+   * 신규 카카오 계정 생성. 같은 이메일의 기존 일반가입 계정이 있으면 자동 연결하지 않고 거부한다(도용 방지 — 소셜 로그인 명세). 신규 이메일만 customers +
+   * customer_oauth_accounts 를 생성한다.
+   */
+  private Customer createKakaoCustomer(OAuthUserInfo userInfo) {
+    boolean emailTaken =
         customerRepository
             .findByEmail(userInfo.email())
             .filter(existing -> !existing.isDeleted())
-            .orElseGet(
-                () ->
-                    customerRepository.save(
-                        Customer.builder()
-                            .email(userInfo.email())
-                            .nickname(userInfo.nickname())
-                            .build()));
+            .isPresent();
+    if (emailTaken) {
+      throw new BusinessException(AuthErrorCode.EMAIL_ALREADY_REGISTERED);
+    }
 
-    CustomerOAuthAccount account =
+    Customer customer =
+        customerRepository.save(
+            Customer.builder().email(userInfo.email()).nickname(userInfo.nickname()).build());
+    customerOAuthAccountRepository.save(
         CustomerOAuthAccount.builder()
             .customer(customer)
             .provider(OAuthProviderType.KAKAO)
             .providerUserId(userInfo.providerUserId())
-            .build();
-    customerOAuthAccountRepository.save(account);
+            .build());
     return customer;
   }
 
