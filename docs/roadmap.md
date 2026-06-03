@@ -57,6 +57,7 @@
 | 매장 삭제 승인/반려 — 관리자, 미정산 확인 후 | stores | 미착수 | - |
 | 매장 영업 상태 관리 — 3상태(`OPEN`/`BREAK`/`CLOSED_TODAY`) 사장 수동 토글 + `store_business_hours` 테이블 도입 (Repository 만) | stores | 완료 | #79 |
 | 영업시간 설정 — 요일별(`store_business_hours`) 전체 교체 저장 + OPEN 중 오늘 잠금 (`TODAY_BUSINESS_HOURS_LOCKED`) | stores | 완료 | #80 |
+| 보유 매장 목록 조회 — 사장 보유 매장 (id/name/operationStatus 3필드), 등록순(`created_at` asc) 정렬 | stores | 완료 | #82 |
 
 - 회원 탈퇴 / 매장 삭제의 **"진행 중 주문 시 제한"** → 주문 도메인(계층 5) 전이라 제약 훅(빈 검증)만, 이후 연결.
 
