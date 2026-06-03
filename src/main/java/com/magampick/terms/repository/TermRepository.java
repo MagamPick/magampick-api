@@ -8,4 +8,7 @@ public interface TermRepository extends JpaRepository<Term, Long> {
 
   /** 가입 화면 표시용 약관 목록 (type 순). */
   List<Term> findAllByOrderByTypeAsc();
+
+  /** 필수 약관 (가입 시 모두 동의 강제). */
+  List<Term> findByRequiredTrue();
 }

@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.magampick.address.dto.AddressCreateRequest;
 import com.magampick.auth.dto.CustomerSignupRequest;
 import com.magampick.auth.dto.KakaoLoginRequest;
 import com.magampick.auth.dto.LoginRequest;
@@ -16,6 +17,7 @@ import com.magampick.auth.dto.TokenResponse;
 import com.magampick.auth.service.AuthService;
 import com.magampick.global.security.CustomUserDetails;
 import com.magampick.global.security.Role;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -34,6 +36,18 @@ class AuthControllerTest {
 
   @MockitoBean AuthService authService;
 
+  private CustomerSignupRequest validSignupRequest() {
+    return new CustomerSignupRequest(
+        "c@test.com",
+        "Abcd1234!",
+        "nick",
+        "010-1234-5678",
+        "vtoken",
+        List.of(1L, 2L, 3L, 4L),
+        new AddressCreateRequest(
+            "집", "서울특별시 강남구 테헤란로 427", null, "101동 1502호", "06158", 37.5066, 127.0535));
+  }
+
   @Test
   void 소비자_회원가입_성공시_201() throws Exception {
     given(authService.signupCustomer(any())).willReturn(new TokenResponse("a", "r", 1800L));
@@ -42,9 +56,7 @@ class AuthControllerTest {
         .perform(
             post("/api/v1/auth/signup")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(
-                    objectMapper.writeValueAsString(
-                        new CustomerSignupRequest("c@test.com", "Abcd1234!", "nick"))))
+                .content(objectMapper.writeValueAsString(validSignupRequest())))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.accessToken").value("a"));
@@ -57,6 +69,22 @@ class AuthControllerTest {
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.success").value(false))
         .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
+  }
+
+  @Test
+  void 로그인_상태로_회원가입_진입시_403() throws Exception {
+    CustomUserDetails principal = new CustomUserDetails(1L, Role.CUSTOMER);
+    UsernamePasswordAuthenticationToken auth =
+        new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
+
+    mockMvc
+        .perform(
+            post("/api/v1/auth/signup")
+                .principal(auth)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(validSignupRequest())))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
   }
 
   @Test

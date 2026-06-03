@@ -6,7 +6,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.verify;
+import static org.mockito.BDDMockito.willThrow;
 
+import com.magampick.address.dto.AddressCreateRequest;
+import com.magampick.address.service.AddressService;
 import com.magampick.auth.domain.RefreshToken;
 import com.magampick.auth.dto.CustomerSignupRequest;
 import com.magampick.auth.dto.KakaoLoginRequest;
@@ -19,16 +22,23 @@ import com.magampick.auth.oauth.OAuthProvider;
 import com.magampick.auth.oauth.OAuthUserInfo;
 import com.magampick.auth.repository.CustomerOAuthAccountRepository;
 import com.magampick.customer.domain.Customer;
+import com.magampick.customer.exception.CustomerErrorCode;
 import com.magampick.customer.repository.CustomerRepository;
 import com.magampick.global.exception.BusinessException;
 import com.magampick.global.security.JwtProvider;
 import com.magampick.global.security.Role;
+import com.magampick.phone.exception.PhoneVerificationErrorCode;
+import com.magampick.phone.service.PhoneVerificationService;
 import com.magampick.seller.domain.Seller;
 import com.magampick.seller.repository.SellerRepository;
+import com.magampick.terms.exception.TermErrorCode;
+import com.magampick.terms.service.TermService;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -46,23 +56,49 @@ class AuthServiceTest {
   @Mock PasswordEncoder passwordEncoder;
   @Mock JwtProvider jwtProvider;
   @Mock OAuthProvider kakaoOAuthProvider;
+  @Mock PhoneVerificationService phoneVerificationService;
+  @Mock TermService termService;
+  @Mock AddressService addressService;
 
   @InjectMocks AuthService authService;
+
+  private static final String RAW_PHONE = "010-1234-5678";
+  private static final String VERIFIED_PHONE = "01012345678";
+
+  private AddressCreateRequest validAddress() {
+    return new AddressCreateRequest(
+        "집", "서울특별시 강남구 테헤란로 427", null, "101동 1502호", "06158", 37.5066, 127.0535);
+  }
+
+  private CustomerSignupRequest validRequest() {
+    return new CustomerSignupRequest(
+        "a@test.com",
+        "Abcd1234!",
+        "nick",
+        RAW_PHONE,
+        "vtoken",
+        List.of(1L, 2L, 3L, 4L),
+        validAddress());
+  }
 
   @Test
   void 소비자_회원가입_성공() {
     // given
-    CustomerSignupRequest request = new CustomerSignupRequest("a@test.com", "Abcd1234!", "nick");
+    CustomerSignupRequest request = validRequest();
     Customer savedCustomer =
         Customer.builder()
             .email(request.email())
             .passwordHash("encoded")
-            .nickname(request.nickname())
+            .nickname("nick")
+            .phone(VERIFIED_PHONE)
+            .phoneVerifiedAt(LocalDateTime.now())
             .build();
     ReflectionTestUtils.setField(savedCustomer, "id", 10L);
     TokenResponse tokens = new TokenResponse("access", "refresh", 1800L);
 
     given(customerRepository.existsByEmail(request.email())).willReturn(false);
+    given(phoneVerificationService.consumeVerificationToken("vtoken", RAW_PHONE))
+        .willReturn(VERIFIED_PHONE);
     given(passwordEncoder.encode(request.password())).willReturn("encoded");
     given(customerRepository.save(any(Customer.class))).willReturn(savedCustomer);
     given(refreshTokenService.issueTokens(10L, Role.CUSTOMER)).willReturn(tokens);
@@ -72,20 +108,103 @@ class AuthServiceTest {
 
     // then
     assertThat(response).isEqualTo(tokens);
-    verify(passwordValidator).validate(request.password());
-    verify(refreshTokenService).issueTokens(10L, Role.CUSTOMER);
+    ArgumentCaptor<Customer> captor = ArgumentCaptor.forClass(Customer.class);
+    verify(customerRepository).save(captor.capture());
+    assertThat(captor.getValue().getPhone()).isEqualTo(VERIFIED_PHONE);
+    assertThat(captor.getValue().getPhoneVerifiedAt()).isNotNull();
+    verify(termService).recordAgreements(savedCustomer, request.agreedTermIds());
+    verify(addressService).create(10L, request.address());
   }
 
   @Test
   void 소비자_회원가입_이메일_중복시_예외() {
     // given
-    CustomerSignupRequest request = new CustomerSignupRequest("dup@test.com", "Abcd1234!", "nick");
+    CustomerSignupRequest request = validRequest();
     given(customerRepository.existsByEmail(request.email())).willReturn(true);
 
     // when / then
     assertThatThrownBy(() -> authService.signupCustomer(request))
         .isInstanceOf(BusinessException.class)
         .hasFieldOrPropertyWithValue("errorCode", AuthErrorCode.EMAIL_ALREADY_EXISTS);
+  }
+
+  @Test
+  void 소비자_회원가입_비밀번호_정책_위반시_예외() {
+    // given
+    CustomerSignupRequest request = validRequest();
+    given(customerRepository.existsByEmail(request.email())).willReturn(false);
+    willThrow(new BusinessException(AuthErrorCode.PASSWORD_POLICY_VIOLATION))
+        .given(passwordValidator)
+        .validate(request.password());
+
+    // when / then
+    assertThatThrownBy(() -> authService.signupCustomer(request))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", AuthErrorCode.PASSWORD_POLICY_VIOLATION);
+  }
+
+  @Test
+  void 소비자_회원가입_닉네임_길이_위반시_예외() {
+    // given — 닉네임 1자
+    CustomerSignupRequest request =
+        new CustomerSignupRequest(
+            "a@test.com", "Abcd1234!", "a", RAW_PHONE, "vtoken", List.of(1L), validAddress());
+    given(customerRepository.existsByEmail(request.email())).willReturn(false);
+
+    // when / then
+    assertThatThrownBy(() -> authService.signupCustomer(request))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", CustomerErrorCode.NICKNAME_LENGTH);
+  }
+
+  @Test
+  void 소비자_회원가입_기본주소_누락시_예외() {
+    // given — address null
+    CustomerSignupRequest request =
+        new CustomerSignupRequest(
+            "a@test.com", "Abcd1234!", "nick", RAW_PHONE, "vtoken", List.of(1L), null);
+    given(customerRepository.existsByEmail(request.email())).willReturn(false);
+
+    // when / then
+    assertThatThrownBy(() -> authService.signupCustomer(request))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", AuthErrorCode.DEFAULT_ADDRESS_REQUIRED);
+  }
+
+  @Test
+  void 소비자_회원가입_본인인증_토큰_무효시_예외() {
+    // given — 토큰 만료(phone 도메인 예외) → 가입 레벨 PHONE_VERIFICATION_REQUIRED 로 변환
+    CustomerSignupRequest request = validRequest();
+    given(customerRepository.existsByEmail(request.email())).willReturn(false);
+    willThrow(new BusinessException(PhoneVerificationErrorCode.PHONE_VERIFICATION_EXPIRED))
+        .given(phoneVerificationService)
+        .consumeVerificationToken("vtoken", RAW_PHONE);
+
+    // when / then
+    assertThatThrownBy(() -> authService.signupCustomer(request))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", AuthErrorCode.PHONE_VERIFICATION_REQUIRED);
+  }
+
+  @Test
+  void 소비자_회원가입_필수약관_미동의시_예외() {
+    // given — 약관 기록 단계에서 필수약관 미동의
+    CustomerSignupRequest request = validRequest();
+    Customer savedCustomer = Customer.builder().email(request.email()).nickname("nick").build();
+    ReflectionTestUtils.setField(savedCustomer, "id", 10L);
+    given(customerRepository.existsByEmail(request.email())).willReturn(false);
+    given(phoneVerificationService.consumeVerificationToken("vtoken", RAW_PHONE))
+        .willReturn(VERIFIED_PHONE);
+    given(passwordEncoder.encode(request.password())).willReturn("encoded");
+    given(customerRepository.save(any(Customer.class))).willReturn(savedCustomer);
+    willThrow(new BusinessException(TermErrorCode.REQUIRED_TERMS_NOT_AGREED))
+        .given(termService)
+        .recordAgreements(savedCustomer, request.agreedTermIds());
+
+    // when / then
+    assertThatThrownBy(() -> authService.signupCustomer(request))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", TermErrorCode.REQUIRED_TERMS_NOT_AGREED);
   }
 
   @Test

@@ -10,6 +10,7 @@ import org.springframework.http.HttpStatus;
 @RequiredArgsConstructor
 public enum CustomerErrorCode implements BaseErrorCode {
   CUSTOMER_NOT_FOUND(HttpStatus.NOT_FOUND, "CUSTOMER_NOT_FOUND", "소비자 계정을 찾을 수 없습니다"),
+  NICKNAME_LENGTH(HttpStatus.BAD_REQUEST, "NICKNAME_LENGTH", "닉네임은 2~12자여야 합니다"),
   ;
 
   private final HttpStatus status;

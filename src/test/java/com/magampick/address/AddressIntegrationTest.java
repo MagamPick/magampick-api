@@ -11,7 +11,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.magampick.TestcontainersConfiguration;
 import com.magampick.address.dto.AddressCreateRequest;
-import com.magampick.auth.dto.CustomerSignupRequest;
+import com.magampick.customer.domain.Customer;
+import com.magampick.customer.repository.CustomerRepository;
+import com.magampick.global.security.JwtProvider;
+import com.magampick.global.security.Role;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -29,23 +32,19 @@ class AddressIntegrationTest {
 
   @Autowired MockMvc mockMvc;
   @Autowired ObjectMapper objectMapper;
+  @Autowired CustomerRepository customerRepository;
+  @Autowired JwtProvider jwtProvider;
 
-  /** 회원가입 → access token 반환. */
-  private String signupAndGetToken() throws Exception {
-    String email = "addr_" + System.nanoTime() + "@test.com";
-    CustomerSignupRequest request = new CustomerSignupRequest(email, "Abcd1234!", "nick");
-
-    MvcResult result =
-        mockMvc
-            .perform(
-                post("/api/v1/auth/signup")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content(objectMapper.writeValueAsString(request)))
-            .andExpect(status().isCreated())
-            .andReturn();
-
-    JsonNode root = objectMapper.readTree(result.getResponse().getContentAsString());
-    return root.path("data").path("accessToken").asText();
+  /** 주소 테스트용 — 가입 흐름을 거치지 않고 주소 0개인 소비자 + access token 을 만든다. */
+  private String newCustomerToken() {
+    Customer customer =
+        customerRepository.save(
+            Customer.builder()
+                .email("addr_" + System.nanoTime() + "@test.com")
+                .passwordHash("x")
+                .nickname("nick")
+                .build());
+    return jwtProvider.issueAccessToken(customer.getId(), Role.CUSTOMER);
   }
 
   private long createAddress(String token, String label, double lat, double lng) throws Exception {
@@ -68,8 +67,8 @@ class AddressIntegrationTest {
 
   @Test
   void 주소지_등록_후_목록_조회_default_TRUE_반환() throws Exception {
-    // given — 회원가입 + 토큰 발급
-    String token = signupAndGetToken();
+    // given — 소비자 + 토큰
+    String token = newCustomerToken();
 
     // when — 주소지 1개 등록
     long addressId = createAddress(token, "집", 37.5066, 127.0535);
@@ -89,8 +88,8 @@ class AddressIntegrationTest {
 
   @Test
   void 기본_주소지_변경시_기존_default_FALSE_로_unset() throws Exception {
-    // given — 회원가입 + 주소 2개 등록 (첫 번째가 default)
-    String token = signupAndGetToken();
+    // given — 소비자 + 주소 2개 등록 (첫 번째가 default)
+    String token = newCustomerToken();
     long firstId = createAddress(token, "집", 37.5066, 127.0535);
     long secondId = createAddress(token, "회사", 37.4979, 127.0276);
 
@@ -125,7 +124,7 @@ class AddressIntegrationTest {
   @Test
   void default_삭제시_가장_오래된_주소_자동_승계() throws Exception {
     // given — 3개 등록 (1번이 default, 시간순)
-    String token = signupAndGetToken();
+    String token = newCustomerToken();
     long firstId = createAddress(token, "집", 37.5066, 127.0535);
     long secondId = createAddress(token, "회사", 37.4979, 127.0276);
     long thirdId = createAddress(token, "엄마집", 37.5172, 127.0473);

@@ -41,7 +41,9 @@ public class AuthController {
     @ApiResponse(responseCode = "400", description = "입력 검증 실패"),
     @ApiResponse(responseCode = "409", description = "이메일 중복")
   })
-  public TokenResponse signupCustomer(@Valid @RequestBody CustomerSignupRequest request) {
+  public TokenResponse signupCustomer(
+      Authentication authentication, @Valid @RequestBody CustomerSignupRequest request) {
+    rejectIfAuthenticated(authentication);
     return authService.signupCustomer(request);
   }
 
@@ -114,5 +116,12 @@ public class AuthController {
     }
     authService.logout(userDetails.getUserId(), userDetails.getRole(), request);
     return ResponseEntity.noContent().build();
+  }
+
+  /** 비로그인 사용자만 회원가입 가능 — 이미 로그인된 토큰으로 진입하면 거부 (명세 "로그인 상태 진입 차단"). */
+  private void rejectIfAuthenticated(Authentication authentication) {
+    if (authentication != null && authentication.getPrincipal() instanceof CustomUserDetails) {
+      throw new BusinessException(CommonErrorCode.FORBIDDEN);
+    }
   }
 }
