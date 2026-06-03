@@ -19,7 +19,9 @@ import com.magampick.auth.dto.KakaoLoginRequest;
 import com.magampick.auth.dto.LoginRequest;
 import com.magampick.auth.dto.SellerSignupRequest;
 import com.magampick.auth.dto.TokenResponse;
+import com.magampick.auth.exception.AuthErrorCode;
 import com.magampick.auth.service.AuthService;
+import com.magampick.global.exception.BusinessException;
 import com.magampick.global.security.CustomUserDetails;
 import com.magampick.global.security.RefreshTokenCookie;
 import com.magampick.global.security.Role;
@@ -131,6 +133,20 @@ class AuthControllerTest {
                 .content(objectMapper.writeValueAsString(new KakaoLoginRequest("token"))))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data.accessToken").value("a"));
+  }
+
+  @Test
+  void 카카오_이메일_충돌시_409() throws Exception {
+    given(authService.kakaoLogin(any()))
+        .willThrow(new BusinessException(AuthErrorCode.EMAIL_ALREADY_REGISTERED));
+
+    mockMvc
+        .perform(
+            post("/api/v1/auth/kakao")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new KakaoLoginRequest("token"))))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.error.code").value("EMAIL_ALREADY_REGISTERED"));
   }
 
   @Test
