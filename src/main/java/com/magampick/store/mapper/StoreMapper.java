@@ -14,7 +14,6 @@ import org.mapstruct.Named;
 @Mapper(componentModel = "spring")
 public interface StoreMapper {
 
-  @Mapping(target = "createdAt", source = "createdAt", qualifiedByName = "toKst")
   StoreResponse toResponse(Store store);
 
   @Mapping(target = "latitude", expression = "java(toLatitude(store))")

@@ -113,15 +113,7 @@ class StoreControllerTest {
   }
 
   private StoreResponse stubStoreResponse() {
-    return new StoreResponse(
-        1L,
-        "동네빵집",
-        "서울 강남구 테헤란로 427",
-        null,
-        "0212345678",
-        "/uploads/uuid.jpg",
-        OperationStatus.CLOSED_TODAY,
-        OffsetDateTime.now());
+    return new StoreResponse(1L, "동네빵집", OperationStatus.CLOSED_TODAY);
   }
 
   // ── POST /api/v1/seller/stores/business-verification ──────────────────────

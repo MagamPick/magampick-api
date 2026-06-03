@@ -349,18 +349,9 @@ class StoreServiceTest {
   void 본인_매장_목록_조회_성공() {
     // given
     Store s = store(STORE_ID, seller());
-    given(storeRepository.findBySellerId(SELLER_ID)).willReturn(List.of(s));
+    given(storeRepository.findBySellerIdOrderByCreatedAtAsc(SELLER_ID)).willReturn(List.of(s));
     given(storeMapper.toResponse(s))
-        .willReturn(
-            new StoreResponse(
-                STORE_ID,
-                "동네빵집",
-                "서울 강남구",
-                null,
-                "0212345678",
-                "/uploads/uuid.jpg",
-                OperationStatus.CLOSED_TODAY,
-                OffsetDateTime.now()));
+        .willReturn(new StoreResponse(STORE_ID, "동네빵집", OperationStatus.CLOSED_TODAY));
 
     // when
     List<StoreResponse> result = storeService.getMyStores(SELLER_ID);
@@ -369,6 +360,19 @@ class StoreServiceTest {
     assertThat(result).hasSize(1);
     assertThat(result.get(0).id()).isEqualTo(STORE_ID);
     assertThat(result.get(0).operationStatus()).isEqualTo(OperationStatus.CLOSED_TODAY);
+  }
+
+  @Test
+  void 본인_매장_목록_조회_등록순_정렬() {
+    // given - Repository derived 시그니처 자체로 등록순 보장 (DB 책임). Service 는 호출만 검증.
+    given(storeRepository.findBySellerIdOrderByCreatedAtAsc(SELLER_ID)).willReturn(List.of());
+
+    // when
+    List<StoreResponse> result = storeService.getMyStores(SELLER_ID);
+
+    // then - derived 메서드가 호출됐는지 확인 (findBySellerId 가 아닌)
+    assertThat(result).isEmpty();
+    then(storeRepository).should().findBySellerIdOrderByCreatedAtAsc(SELLER_ID);
   }
 
   @Test

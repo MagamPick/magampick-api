@@ -108,7 +108,9 @@ public class StoreService {
 
   @Transactional(readOnly = true)
   public List<StoreResponse> getMyStores(Long sellerId) {
-    return storeRepository.findBySellerId(sellerId).stream().map(storeMapper::toResponse).toList();
+    return storeRepository.findBySellerIdOrderByCreatedAtAsc(sellerId).stream()
+        .map(storeMapper::toResponse)
+        .toList();
   }
 
   @Transactional(readOnly = true)
