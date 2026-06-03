@@ -30,7 +30,14 @@ spring:
 jwt:
   secret: ${JWT_SECRET}
   access-token-validity-minutes: ${JWT_ACCESS_TTL_MINUTES:30}
-  refresh-token-validity-days: ${JWT_REFRESH_TTL_DAYS:14}
+  refresh-token-validity-days: ${JWT_REFRESH_TTL_DAYS:30}
+
+auth:
+  refresh-cookie:
+    name: refresh_token
+    path: /api/v1/auth
+    same-site: Lax
+    secure: ${REFRESH_COOKIE_SECURE:false}
 
 magampick:
   storage:

@@ -12,6 +12,10 @@ cors:
     - https://magampick.com
     - https://admin.magampick.com
 
+auth:
+  refresh-cookie:
+    secure: true
+
 springdoc:
   api-docs:
     enabled: false

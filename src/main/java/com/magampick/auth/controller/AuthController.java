@@ -1,21 +1,26 @@
 package com.magampick.auth.controller;
 
 import com.magampick.auth.dto.CustomerSignupRequest;
+import com.magampick.auth.dto.IssuedTokens;
 import com.magampick.auth.dto.KakaoLoginRequest;
 import com.magampick.auth.dto.LoginRequest;
-import com.magampick.auth.dto.RefreshTokenRequest;
 import com.magampick.auth.dto.SellerSignupRequest;
 import com.magampick.auth.dto.TokenResponse;
 import com.magampick.auth.service.AuthService;
 import com.magampick.global.exception.BusinessException;
 import com.magampick.global.exception.CommonErrorCode;
 import com.magampick.global.security.CustomUserDetails;
+import com.magampick.global.security.RefreshTokenCookie;
+import com.magampick.global.security.exception.AuthErrorCode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -32,90 +37,107 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
   private final AuthService authService;
+  private final RefreshTokenCookie refreshTokenCookie;
 
   @PostMapping("/signup")
   @ResponseStatus(HttpStatus.CREATED)
-  @Operation(summary = "소비자 회원가입", description = "소비자 계정을 생성하고 자동 로그인 토큰을 발급한다.")
+  @Operation(
+      summary = "소비자 회원가입",
+      description = "소비자 계정을 생성하고 자동 로그인한다. refresh 는 HttpOnly 쿠키로 발급.")
   @ApiResponses({
     @ApiResponse(responseCode = "201", description = "회원가입 성공"),
     @ApiResponse(responseCode = "400", description = "입력 검증 실패"),
+    @ApiResponse(responseCode = "403", description = "로그인 상태 진입"),
     @ApiResponse(responseCode = "409", description = "이메일 중복")
   })
   public TokenResponse signupCustomer(
-      Authentication authentication, @Valid @RequestBody CustomerSignupRequest request) {
+      Authentication authentication,
+      @Valid @RequestBody CustomerSignupRequest request,
+      HttpServletResponse response) {
     rejectIfAuthenticated(authentication);
-    return authService.signupCustomer(request);
+    return issue(authService.signupCustomer(request), true, response);
   }
 
   @PostMapping("/login")
-  @Operation(summary = "소비자 로그인", description = "이메일/비밀번호로 소비자 로그인 후 토큰을 발급한다.")
+  @Operation(summary = "소비자 로그인", description = "이메일/비밀번호 로그인. access 는 바디, refresh 는 HttpOnly 쿠키.")
   @ApiResponses({
     @ApiResponse(responseCode = "200", description = "로그인 성공"),
     @ApiResponse(responseCode = "400", description = "입력 검증 실패"),
     @ApiResponse(responseCode = "401", description = "인증 실패")
   })
-  public TokenResponse loginCustomer(@Valid @RequestBody LoginRequest request) {
-    return authService.loginCustomer(request);
+  public TokenResponse loginCustomer(
+      @Valid @RequestBody LoginRequest request, HttpServletResponse response) {
+    return issue(authService.loginCustomer(request), request.persistent(), response);
   }
 
   @PostMapping("/seller/signup")
   @ResponseStatus(HttpStatus.CREATED)
-  @Operation(summary = "사장 회원가입", description = "사장 계정을 생성하고 자동 로그인 토큰을 발급한다.")
+  @Operation(summary = "사장 회원가입", description = "사장 계정을 생성하고 자동 로그인한다. refresh 는 HttpOnly 쿠키로 발급.")
   @ApiResponses({
     @ApiResponse(responseCode = "201", description = "회원가입 성공"),
     @ApiResponse(responseCode = "400", description = "입력 검증 실패"),
     @ApiResponse(responseCode = "409", description = "이메일 중복")
   })
-  public TokenResponse signupSeller(@Valid @RequestBody SellerSignupRequest request) {
-    return authService.signupSeller(request);
+  public TokenResponse signupSeller(
+      @Valid @RequestBody SellerSignupRequest request, HttpServletResponse response) {
+    return issue(authService.signupSeller(request), true, response);
   }
 
   @PostMapping("/seller/login")
-  @Operation(summary = "사장 로그인", description = "이메일/비밀번호로 사장 로그인 후 토큰을 발급한다.")
+  @Operation(summary = "사장 로그인", description = "이메일/비밀번호 로그인. access 는 바디, refresh 는 HttpOnly 쿠키.")
   @ApiResponses({
     @ApiResponse(responseCode = "200", description = "로그인 성공"),
     @ApiResponse(responseCode = "400", description = "입력 검증 실패"),
-    @ApiResponse(responseCode = "401", description = "인증 실패"),
-    @ApiResponse(responseCode = "403", description = "미승인 사장")
+    @ApiResponse(responseCode = "401", description = "인증 실패")
   })
-  public TokenResponse loginSeller(@Valid @RequestBody LoginRequest request) {
-    return authService.loginSeller(request);
+  public TokenResponse loginSeller(
+      @Valid @RequestBody LoginRequest request, HttpServletResponse response) {
+    return issue(authService.loginSeller(request), request.persistent(), response);
   }
 
   @PostMapping("/kakao")
-  @Operation(summary = "카카오 로그인(Mock)", description = "카카오 OAuth Mock 사용자 정보로 소비자 로그인/자동가입을 처리한다.")
+  @Operation(
+      summary = "카카오 로그인(Mock)",
+      description = "카카오 OAuth Mock 으로 소비자 로그인/자동가입. refresh 는 HttpOnly 쿠키.")
   @ApiResponses({
     @ApiResponse(responseCode = "200", description = "로그인 성공"),
     @ApiResponse(responseCode = "400", description = "입력 검증 실패")
   })
-  public TokenResponse kakaoLogin(@Valid @RequestBody KakaoLoginRequest request) {
-    return authService.kakaoLogin(request);
+  public TokenResponse kakaoLogin(
+      @Valid @RequestBody KakaoLoginRequest request, HttpServletResponse response) {
+    return issue(authService.kakaoLogin(request), true, response);
   }
 
   @PostMapping("/refresh")
-  @Operation(summary = "토큰 갱신", description = "refresh token rotation으로 access/refresh 토큰을 재발급한다.")
+  @Operation(summary = "토큰 갱신", description = "refresh 쿠키로 새 access 토큰을 재발급한다 (rotation 없음).")
   @ApiResponses({
     @ApiResponse(responseCode = "200", description = "갱신 성공"),
-    @ApiResponse(responseCode = "401", description = "유효하지 않거나 만료된 토큰")
+    @ApiResponse(responseCode = "401", description = "refresh 쿠키 없음/만료/무효")
   })
-  public TokenResponse refresh(@Valid @RequestBody RefreshTokenRequest request) {
-    return authService.refresh(request);
+  public TokenResponse refresh(HttpServletRequest request) {
+    String refreshToken =
+        refreshTokenCookie
+            .read(request)
+            .orElseThrow(() -> new BusinessException(AuthErrorCode.REFRESH_INVALID));
+    return authService.refresh(refreshToken);
   }
 
   @PostMapping("/logout")
-  @Operation(summary = "로그아웃", description = "현재 기기의 refresh token을 무효화한다.")
-  @ApiResponses({
-    @ApiResponse(responseCode = "204", description = "로그아웃 성공"),
-    @ApiResponse(responseCode = "401", description = "인증 실패")
-  })
-  public ResponseEntity<Void> logout(
-      Authentication authentication, @Valid @RequestBody RefreshTokenRequest request) {
-    if (authentication == null
-        || !(authentication.getPrincipal() instanceof CustomUserDetails userDetails)) {
-      throw new BusinessException(CommonErrorCode.UNAUTHORIZED);
-    }
-    authService.logout(userDetails.getUserId(), userDetails.getRole(), request);
+  @Operation(summary = "로그아웃", description = "refresh 세션을 무효화하고 쿠키를 만료시킨다.")
+  @ApiResponses(@ApiResponse(responseCode = "204", description = "로그아웃 성공"))
+  public ResponseEntity<Void> logout(HttpServletRequest request, HttpServletResponse response) {
+    refreshTokenCookie.read(request).ifPresent(authService::logout);
+    response.addHeader(HttpHeaders.SET_COOKIE, refreshTokenCookie.clear().toString());
     return ResponseEntity.noContent().build();
+  }
+
+  /** access(바디) + refresh(HttpOnly 쿠키) 발급. persistent 면 max-age 쿠키, 아니면 세션 쿠키. */
+  private TokenResponse issue(
+      IssuedTokens tokens, boolean persistent, HttpServletResponse response) {
+    response.addHeader(
+        HttpHeaders.SET_COOKIE,
+        refreshTokenCookie.create(tokens.refreshToken(), persistent).toString());
+    return new TokenResponse(tokens.accessToken(), tokens.accessExpiresInSeconds());
   }
 
   /** 비로그인 사용자만 회원가입 가능 — 이미 로그인된 토큰으로 진입하면 거부 (명세 "로그인 상태 진입 차단"). */
