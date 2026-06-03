@@ -4,12 +4,16 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       TZ: Asia/Seoul
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
       DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-magampick}
       DB_USERNAME: ${POSTGRES_USER:-magampick}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-magampick}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     restart: unless-stopped
     networks:
       - magampick
@@ -33,8 +37,25 @@ services:
     networks:
       - magampick
 
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    environment:
+      TZ: Asia/Seoul
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - magampick
+
 volumes:
   postgres_data:
+  redis_data:
 
 networks:
   magampick:
