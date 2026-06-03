@@ -27,6 +27,7 @@ import com.magampick.store.dto.StoreCreateRequest;
 import com.magampick.store.dto.StoreDetailResponse;
 import com.magampick.store.dto.StoreRegisterResponse;
 import com.magampick.store.dto.StoreResponse;
+import com.magampick.store.dto.StoreUpdateRequest;
 import com.magampick.store.exception.StoreErrorCode;
 import com.magampick.store.mapper.StoreMapper;
 import com.magampick.store.repository.StoreBusinessHourRepository;
@@ -875,5 +876,245 @@ class StoreServiceTest {
     assertThatThrownBy(() -> storeService.saveBusinessHours(SELLER_ID, STORE_ID, List.of()))
         .isInstanceOf(BusinessException.class)
         .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.STORE_ACCESS_DENIED);
+  }
+
+  // ── 매장 정보 수정 ──────────────────────────────────────────────────────────
+
+  private StoreUpdateRequest updateOf(
+      String name,
+      String roadAddress,
+      String jibunAddress,
+      String detailAddress,
+      String zonecode,
+      String phone,
+      String description) {
+    return new StoreUpdateRequest(
+        name, roadAddress, jibunAddress, detailAddress, zonecode, phone, description);
+  }
+
+  private StoreUpdateRequest emptyUpdate() {
+    return new StoreUpdateRequest(null, null, null, null, null, null, null);
+  }
+
+  private StoreDetailResponse stubDetail() {
+    return new StoreDetailResponse(
+        STORE_ID,
+        "1234567890",
+        "동네빵집",
+        "서울 강남구",
+        null,
+        null,
+        "06158",
+        37.5,
+        127.0,
+        "0212345678",
+        "소개",
+        "/uploads/2026/5/uuid.jpg",
+        OffsetDateTime.now());
+  }
+
+  @Test
+  void 매장_정보_수정_성공_매장명만_변경() {
+    // given
+    Store s = store(STORE_ID, seller());
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(s));
+    given(storeRepository.save(any(Store.class))).willReturn(s);
+    given(storeMapper.toDetailResponse(any(Store.class))).willReturn(stubDetail());
+
+    StoreUpdateRequest req = updateOf("새이름", null, null, null, null, null, null);
+
+    // when
+    StoreDetailResponse result = storeService.updateStore(SELLER_ID, STORE_ID, req, null);
+
+    // then
+    assertThat(result).isNotNull();
+    assertThat(s.getName()).isEqualTo("새이름");
+    then(geocodingService).should(never()).geocode(any());
+    then(storageService).should(never()).upload(any());
+    then(storageService).should(never()).delete(any());
+  }
+
+  @Test
+  void 매장_정보_수정_주소_변경시_지오코딩_재호출() {
+    // given
+    Store s = store(STORE_ID, seller());
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(s));
+    given(geocodingService.geocode("새 주소")).willReturn(GeometryUtil.toPoint(37.6, 127.1));
+    given(storeRepository.save(any(Store.class))).willReturn(s);
+    given(storeMapper.toDetailResponse(any(Store.class))).willReturn(stubDetail());
+
+    StoreUpdateRequest req = updateOf(null, "새 주소", "지번 새", null, "12345", null, null);
+
+    // when
+    storeService.updateStore(SELLER_ID, STORE_ID, req, null);
+
+    // then
+    assertThat(s.getRoadAddress()).isEqualTo("새 주소");
+    assertThat(s.getJibunAddress()).isEqualTo("지번 새");
+    assertThat(s.getZonecode()).isEqualTo("12345");
+    then(geocodingService).should().geocode("새 주소");
+    then(storageService).should(never()).upload(any());
+  }
+
+  @Test
+  void 매장_정보_수정_주소_동일하면_지오코딩_호출_안함() {
+    // given - request.roadAddress == prev
+    Store s = store(STORE_ID, seller());
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(s));
+    given(storeRepository.save(any(Store.class))).willReturn(s);
+    given(storeMapper.toDetailResponse(any(Store.class))).willReturn(stubDetail());
+
+    StoreUpdateRequest req =
+        updateOf(null, "서울 강남구 테헤란로 427", null, null, null, null, null); // store() helper 와 동일
+
+    // when
+    storeService.updateStore(SELLER_ID, STORE_ID, req, null);
+
+    // then
+    then(geocodingService).should(never()).geocode(any());
+  }
+
+  @Test
+  void 매장_정보_수정_사진_변경시_업로드_및_기존_삭제() {
+    // given
+    Store s = store(STORE_ID, seller()); // imageUrl = /uploads/2026/5/uuid.jpg
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(s));
+    given(storageService.upload(any())).willReturn("/uploads/2026/6/new.jpg");
+    given(storeRepository.save(any(Store.class))).willReturn(s);
+    given(storeMapper.toDetailResponse(any(Store.class))).willReturn(stubDetail());
+
+    MockMultipartFile newImage =
+        new MockMultipartFile("image", "new.jpg", "image/jpeg", new byte[1024]);
+
+    // when
+    storeService.updateStore(SELLER_ID, STORE_ID, emptyUpdate(), newImage);
+
+    // then
+    assertThat(s.getImageUrl()).isEqualTo("/uploads/2026/6/new.jpg");
+    then(storageService).should().upload(any());
+    then(storageService).should().delete("/uploads/2026/5/uuid.jpg"); // best effort
+    then(geocodingService).should(never()).geocode(any());
+  }
+
+  @Test
+  void 매장_정보_수정_사진_미변경_업로드_및_삭제_없음() {
+    // given - image = null
+    Store s = store(STORE_ID, seller());
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(s));
+    given(storeRepository.save(any(Store.class))).willReturn(s);
+    given(storeMapper.toDetailResponse(any(Store.class))).willReturn(stubDetail());
+
+    // when
+    storeService.updateStore(SELLER_ID, STORE_ID, emptyUpdate(), null);
+
+    // then
+    then(storageService).should(never()).upload(any());
+    then(storageService).should(never()).delete(any());
+  }
+
+  @Test
+  void 매장_정보_수정_지오코딩_실패_DB_변경_없음() {
+    // given
+    Store s = store(STORE_ID, seller());
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(s));
+    given(geocodingService.geocode(any()))
+        .willThrow(new BusinessException(StoreErrorCode.ADDRESS_GEOCODING_FAILED));
+
+    StoreUpdateRequest req = updateOf(null, "새 주소", null, null, "12345", null, null);
+
+    // when / then
+    assertThatThrownBy(() -> storeService.updateStore(SELLER_ID, STORE_ID, req, null))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.ADDRESS_GEOCODING_FAILED);
+    then(storageService).should(never()).upload(any());
+    then(storeRepository).should(never()).save(any());
+  }
+
+  @Test
+  void 매장_정보_수정_사진_업로드_실패_DB_변경_없음() {
+    // given
+    Store s = store(STORE_ID, seller());
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(s));
+    given(storageService.upload(any()))
+        .willThrow(new BusinessException(CommonErrorCode.INTERNAL_ERROR));
+
+    MockMultipartFile newImage =
+        new MockMultipartFile("image", "new.jpg", "image/jpeg", new byte[1024]);
+
+    // when / then
+    assertThatThrownBy(() -> storeService.updateStore(SELLER_ID, STORE_ID, emptyUpdate(), newImage))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.STORE_IMAGE_UPLOAD_FAILED);
+    then(storeRepository).should(never()).save(any());
+    then(storageService).should(never()).delete(any());
+  }
+
+  @Test
+  void 매장_정보_수정_파일_크기_초과_예외() {
+    // given
+    Store s = store(STORE_ID, seller());
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(s));
+
+    MockMultipartFile bigFile =
+        new MockMultipartFile("image", "big.jpg", "image/jpeg", new byte[6 * 1024 * 1024]);
+
+    // when / then
+    assertThatThrownBy(() -> storeService.updateStore(SELLER_ID, STORE_ID, emptyUpdate(), bigFile))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.STORE_IMAGE_TOO_LARGE);
+    then(storageService).should(never()).upload(any());
+  }
+
+  @Test
+  void 매장_정보_수정_기존사진_삭제_실패해도_업데이트_성공() {
+    // given - delete 가 RuntimeException 던져도 흐름 진행 (best effort)
+    Store s = store(STORE_ID, seller());
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(s));
+    given(storageService.upload(any())).willReturn("/uploads/new.jpg");
+    willThrow(new RuntimeException("storage unreachable")).given(storageService).delete(any());
+    given(storeRepository.save(any(Store.class))).willReturn(s);
+    given(storeMapper.toDetailResponse(any(Store.class))).willReturn(stubDetail());
+
+    MockMultipartFile newImage =
+        new MockMultipartFile("image", "new.jpg", "image/jpeg", new byte[1024]);
+
+    // when - 예외 없이 통과
+    StoreDetailResponse result =
+        storeService.updateStore(SELLER_ID, STORE_ID, emptyUpdate(), newImage);
+
+    // then
+    assertThat(result).isNotNull();
+    then(storeRepository).should().save(any(Store.class));
+  }
+
+  @Test
+  void 매장_정보_수정_모든_필드_null_변경_없음_save_호출() {
+    // given - request 모두 null + image null → 변경 없지만 save 는 호출 (단순 흐름)
+    Store s = store(STORE_ID, seller());
+    String prevName = s.getName();
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(s));
+    given(storeRepository.save(any(Store.class))).willReturn(s);
+    given(storeMapper.toDetailResponse(any(Store.class))).willReturn(stubDetail());
+
+    // when
+    storeService.updateStore(SELLER_ID, STORE_ID, emptyUpdate(), null);
+
+    // then
+    assertThat(s.getName()).isEqualTo(prevName);
+    then(geocodingService).should(never()).geocode(any());
+    then(storageService).should(never()).upload(any());
+  }
+
+  @Test
+  void 매장_정보_수정_소유권_없음_예외() {
+    // given
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.empty());
+
+    // when / then
+    assertThatThrownBy(() -> storeService.updateStore(SELLER_ID, STORE_ID, emptyUpdate(), null))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.STORE_ACCESS_DENIED);
+    then(geocodingService).should(never()).geocode(any());
+    then(storageService).should(never()).upload(any());
   }
 }

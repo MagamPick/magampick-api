@@ -31,6 +31,7 @@ import com.magampick.store.dto.StoreCreateRequest;
 import com.magampick.store.dto.StoreDetailResponse;
 import com.magampick.store.dto.StoreRegisterResponse;
 import com.magampick.store.dto.StoreResponse;
+import com.magampick.store.dto.StoreUpdateRequest;
 import com.magampick.store.exception.StoreErrorCode;
 import com.magampick.store.service.StoreService;
 import java.time.DayOfWeek;
@@ -562,5 +563,138 @@ class StoreControllerTest {
                 .with(user(SELLER_USER)))
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.error.code").value("TODAY_BUSINESS_HOURS_LOCKED"));
+  }
+
+  // ── PATCH /api/v1/seller/stores/{id} ────────────────────────────────────────
+
+  private String updateRequestJson(String name) throws Exception {
+    return objectMapper.writeValueAsString(
+        new StoreUpdateRequest(name, null, null, null, null, null, null));
+  }
+
+  private String invalidUpdateRequestJson() throws Exception {
+    // zonecode 형식 오류 (5자리 숫자 아님)
+    return objectMapper.writeValueAsString(
+        new StoreUpdateRequest(null, null, null, null, "abc", null, null));
+  }
+
+  private StoreDetailResponse stubUpdatedDetail() {
+    return new StoreDetailResponse(
+        1L,
+        "1234567890",
+        "새이름",
+        "서울 강남구",
+        null,
+        null,
+        "06158",
+        37.5,
+        127.0,
+        "0212345678",
+        "소개",
+        "/uploads/uuid.jpg",
+        OffsetDateTime.now());
+  }
+
+  @Test
+  void PATCH_stores_id_200_성공_request_only() throws Exception {
+    given(storeService.updateStore(eq(1L), eq(1L), any(), eq(null)))
+        .willReturn(stubUpdatedDetail());
+
+    mockMvc
+        .perform(
+            multipart("/api/v1/seller/stores/1")
+                .file(requestPart(updateRequestJson("새이름")))
+                .with(
+                    request -> {
+                      request.setMethod("PATCH");
+                      return request;
+                    })
+                .with(user(SELLER_USER)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.name").value("새이름"));
+  }
+
+  @Test
+  void PATCH_stores_id_200_성공_request_와_image() throws Exception {
+    given(storeService.updateStore(eq(1L), eq(1L), any(), any())).willReturn(stubUpdatedDetail());
+
+    mockMvc
+        .perform(
+            multipart("/api/v1/seller/stores/1")
+                .file(requestPart(updateRequestJson("새이름")))
+                .file(imagePart())
+                .with(
+                    request -> {
+                      request.setMethod("PATCH");
+                      return request;
+                    })
+                .with(user(SELLER_USER)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.name").value("새이름"));
+  }
+
+  @Test
+  void PATCH_stores_id_400_검증_실패() throws Exception {
+    mockMvc
+        .perform(
+            multipart("/api/v1/seller/stores/1")
+                .file(requestPart(invalidUpdateRequestJson()))
+                .with(
+                    request -> {
+                      request.setMethod("PATCH");
+                      return request;
+                    })
+                .with(user(SELLER_USER)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
+  }
+
+  @Test
+  void PATCH_stores_id_401_미인증() throws Exception {
+    mockMvc
+        .perform(
+            multipart("/api/v1/seller/stores/1")
+                .file(requestPart(updateRequestJson("새이름")))
+                .with(
+                    request -> {
+                      request.setMethod("PATCH");
+                      return request;
+                    }))
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void PATCH_stores_id_403_소비자() throws Exception {
+    mockMvc
+        .perform(
+            multipart("/api/v1/seller/stores/1")
+                .file(requestPart(updateRequestJson("새이름")))
+                .with(
+                    request -> {
+                      request.setMethod("PATCH");
+                      return request;
+                    })
+                .with(user(CUSTOMER_USER)))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void PATCH_stores_id_403_타인매장() throws Exception {
+    willThrow(new BusinessException(StoreErrorCode.STORE_ACCESS_DENIED))
+        .given(storeService)
+        .updateStore(any(), any(), any(), any());
+
+    mockMvc
+        .perform(
+            multipart("/api/v1/seller/stores/99")
+                .file(requestPart(updateRequestJson("새이름")))
+                .with(
+                    request -> {
+                      request.setMethod("PATCH");
+                      return request;
+                    })
+                .with(user(SELLER_USER)))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.error.code").value("STORE_ACCESS_DENIED"));
   }
 }
