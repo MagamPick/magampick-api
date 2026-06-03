@@ -33,10 +33,10 @@
 | 기능 | 도메인 | 상태 | 이슈 |
 |---|---|---|---|
 | 회원가입/로그인 — 이메일·비밀번호, 소비자/사장 유형 분리 (`customers`/`sellers`/`admins` 엔티티 + JWT) | users | 완료 | #15 |
-| 본인인증 — 휴대폰 인증, 토스 인증 **(stub)** | users | 미착수 | - |
+| 본인인증 — 휴대폰 SMS OTP (SOLAPI **mock**) + Redis (OTP·본인인증 토큰·발송/시도 제한) + verificationToken (15분·1회용) | users | 완료 | #83 |
 
 - **카카오 소셜 로그인 → stub**: `OAuthProvider` 인터페이스 + Mock. 회원가입/로그인 이슈에 stub 으로 포함, 실제 연동은 별도 후속 이슈.
-- **본인인증 → stub**: `auth.md §8` 에서 Mock 으로 명시됨. 인터페이스만 두고 성공 반환.
+- **본인인증 → SMS OTP (SOLAPI mock)**: `SmsSender` + `MockSmsSender`(`@Profile("!prod")`) + Redis 기반 OTP/토큰/발송·시도 제한. 실 SOLAPI 는 후속. (#83)
 
 ## 계층 1 — users 완성 + stores
 
@@ -196,7 +196,7 @@
 
 | 항목 | 처리 | 실제 구현 시점 |
 |---|---|---|
-| 휴대폰 본인인증 | Mock (`auth.md §8` 기존 방침) | 외부 인증 API 계약 후 |
+| 휴대폰 본인인증 SMS 발송 | `MockSmsSender` (`@Profile("!prod")`) | SOLAPI 계약 후 |
 | 카카오 소셜 로그인 | `OAuthProvider` 인터페이스 + Mock | 별도 이슈, 출시 전 |
 | 이메일 발송 | stub | 출시 시점 인프라 도입 |
 | 국세청 사업자 인증 | stub 권장 | API 연동 시점 |
