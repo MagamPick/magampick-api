@@ -18,9 +18,11 @@ import com.magampick.auth.dto.IssuedTokens;
 import com.magampick.auth.dto.KakaoLoginRequest;
 import com.magampick.auth.dto.LoginRequest;
 import com.magampick.auth.dto.SellerSignupRequest;
+import com.magampick.auth.dto.SocialSignupRequest;
 import com.magampick.auth.dto.TokenResponse;
 import com.magampick.auth.exception.AuthErrorCode;
 import com.magampick.auth.service.AuthService;
+import com.magampick.auth.service.KakaoLoginResult;
 import com.magampick.global.exception.BusinessException;
 import com.magampick.global.security.CustomUserDetails;
 import com.magampick.global.security.RefreshTokenCookie;
@@ -56,6 +58,17 @@ class AuthControllerTest {
     return new CustomerSignupRequest(
         "c@test.com",
         "Abcd1234!",
+        "nick",
+        "010-1234-5678",
+        "vtoken",
+        List.of(1L, 2L, 3L, 4L),
+        new AddressCreateRequest(
+            "집", "서울특별시 강남구 테헤란로 427", null, "101동 1502호", "06158", 37.5066, 127.0535));
+  }
+
+  private SocialSignupRequest validSocialSignupRequest() {
+    return new SocialSignupRequest(
+        "social-token",
         "nick",
         "010-1234-5678",
         "vtoken",
@@ -122,8 +135,9 @@ class AuthControllerTest {
   }
 
   @Test
-  void 카카오_mock_로그인_성공시_200() throws Exception {
-    given(authService.kakaoLogin(any())).willReturn(new IssuedTokens("a", "r", 1800L));
+  void 카카오_기존회원_로그인시_200_EXISTING_쿠키발급() throws Exception {
+    given(authService.kakaoLogin(any()))
+        .willReturn(new KakaoLoginResult.Existing(new IssuedTokens("a", "r", 1800L)));
     given(refreshTokenCookie.create(eq("r"), anyBoolean())).willReturn(REFRESH_COOKIE);
 
     mockMvc
@@ -135,7 +149,28 @@ class AuthControllerTest {
                         new KakaoLoginRequest(
                             "auth-code", "https://app.example/login/kakao/callback"))))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.data.accessToken").value("a"));
+        .andExpect(jsonPath("$.data.status").value("EXISTING"))
+        .andExpect(jsonPath("$.data.accessToken").value("a"))
+        .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("refresh_token")));
+  }
+
+  @Test
+  void 카카오_신규회원_분기시_200_NEW_소셜토큰() throws Exception {
+    given(authService.kakaoLogin(any()))
+        .willReturn(new KakaoLoginResult.New("social-token", "kakao@test.com", "카카오유저"));
+
+    mockMvc
+        .perform(
+            post("/api/v1/auth/kakao")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        new KakaoLoginRequest(
+                            "auth-code", "https://app.example/login/kakao/callback"))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.status").value("NEW"))
+        .andExpect(jsonPath("$.data.socialToken").value("social-token"))
+        .andExpect(jsonPath("$.data.email").value("kakao@test.com"));
   }
 
   @Test
@@ -153,6 +188,32 @@ class AuthControllerTest {
                             "auth-code", "https://app.example/login/kakao/callback"))))
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.error.code").value("EMAIL_ALREADY_REGISTERED"));
+  }
+
+  @Test
+  void 소셜가입_성공시_201_쿠키발급() throws Exception {
+    given(authService.signupSocial(any())).willReturn(new IssuedTokens("a", "r", 1800L));
+    given(refreshTokenCookie.create(eq("r"), anyBoolean())).willReturn(REFRESH_COOKIE);
+
+    mockMvc
+        .perform(
+            post("/api/v1/auth/signup/social")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(validSocialSignupRequest())))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.data.accessToken").value("a"))
+        .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("refresh_token")));
+  }
+
+  @Test
+  void 소셜가입_검증_실패시_400() throws Exception {
+    mockMvc
+        .perform(
+            post("/api/v1/auth/signup/social")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
   }
 
   @Test

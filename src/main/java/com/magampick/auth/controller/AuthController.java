@@ -2,11 +2,14 @@ package com.magampick.auth.controller;
 
 import com.magampick.auth.dto.CustomerSignupRequest;
 import com.magampick.auth.dto.IssuedTokens;
+import com.magampick.auth.dto.KakaoAuthResponse;
 import com.magampick.auth.dto.KakaoLoginRequest;
 import com.magampick.auth.dto.LoginRequest;
 import com.magampick.auth.dto.SellerSignupRequest;
+import com.magampick.auth.dto.SocialSignupRequest;
 import com.magampick.auth.dto.TokenResponse;
 import com.magampick.auth.service.AuthService;
+import com.magampick.auth.service.KakaoLoginResult;
 import com.magampick.global.exception.BusinessException;
 import com.magampick.global.exception.CommonErrorCode;
 import com.magampick.global.security.CustomUserDetails;
@@ -97,15 +100,47 @@ public class AuthController {
 
   @PostMapping("/kakao")
   @Operation(
-      summary = "카카오 로그인(Mock)",
-      description = "카카오 OAuth Mock 으로 소비자 로그인/자동가입. refresh 는 HttpOnly 쿠키.")
+      summary = "카카오 로그인",
+      description = "카카오 인가코드로 기존/신규 분기. 기존=즉시 로그인(refresh 쿠키), 신규=소셜 토큰 반환(추가정보 가입 필요).")
   @ApiResponses({
-    @ApiResponse(responseCode = "200", description = "로그인 성공"),
-    @ApiResponse(responseCode = "400", description = "입력 검증 실패")
+    @ApiResponse(responseCode = "200", description = "기존 회원 로그인 / 신규 회원 추가정보 가입 필요"),
+    @ApiResponse(responseCode = "400", description = "입력 검증 실패 / 카카오 이메일 미동의"),
+    @ApiResponse(responseCode = "409", description = "카카오 이메일이 기존 계정과 충돌"),
+    @ApiResponse(responseCode = "502", description = "카카오 OAuth 인증 실패")
   })
-  public TokenResponse kakaoLogin(
+  public KakaoAuthResponse kakaoLogin(
       @Valid @RequestBody KakaoLoginRequest request, HttpServletResponse response) {
-    return issue(authService.kakaoLogin(request), true, response);
+    return switch (authService.kakaoLogin(request)) {
+      case KakaoLoginResult.Existing existing -> {
+        IssuedTokens tokens = existing.tokens();
+        response.addHeader(
+            HttpHeaders.SET_COOKIE,
+            refreshTokenCookie.create(tokens.refreshToken(), true).toString());
+        yield KakaoAuthResponse.existing(tokens.accessToken(), tokens.accessExpiresInSeconds());
+      }
+      case KakaoLoginResult.New newMember ->
+          KakaoAuthResponse.signupRequired(
+              newMember.socialToken(), newMember.email(), newMember.nickname());
+    };
+  }
+
+  @PostMapping("/signup/social")
+  @ResponseStatus(HttpStatus.CREATED)
+  @Operation(
+      summary = "카카오 신규 회원 추가정보 가입",
+      description = "소셜 토큰 + 약관·본인인증·주소·닉네임으로 가입하고 자동 로그인한다. refresh 는 HttpOnly 쿠키.")
+  @ApiResponses({
+    @ApiResponse(responseCode = "201", description = "가입 성공"),
+    @ApiResponse(responseCode = "400", description = "입력 검증 실패 / 소셜 토큰 만료 / 본인인증 미완료"),
+    @ApiResponse(responseCode = "403", description = "로그인 상태 진입"),
+    @ApiResponse(responseCode = "409", description = "카카오 이메일이 기존 계정과 충돌")
+  })
+  public TokenResponse signupSocial(
+      Authentication authentication,
+      @Valid @RequestBody SocialSignupRequest request,
+      HttpServletResponse response) {
+    rejectIfAuthenticated(authentication);
+    return issue(authService.signupSocial(request), true, response);
   }
 
   @PostMapping("/refresh")
