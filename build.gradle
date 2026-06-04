@@ -41,6 +41,8 @@ dependencies {
 	implementation 'org.mapstruct:mapstruct:1.6.3'
 	implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
 	implementation 'com.google.firebase:firebase-admin:9.4.1'
+	// SOLAPI SMS SDK — 휴대폰 본인인증 인증번호 실발송 (RealSolapiSmsSender, @Profile("!test"))
+	implementation 'net.nurigo:sdk:4.3.2'
 	compileOnly 'org.projectlombok:lombok'
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 	runtimeOnly 'org.postgresql:postgresql'
