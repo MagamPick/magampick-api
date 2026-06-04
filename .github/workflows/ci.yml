@@ -75,12 +75,23 @@ jobs:
           username: kasto6329
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Build and push
+      - name: Build and push app image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
           tags: kasto6329/magampick-api:dev
+          platforms: linux/amd64,linux/arm64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push postgres image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.postgres
+          push: true
+          tags: kasto6329/magampick-postgres:16
           platforms: linux/amd64,linux/arm64
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -106,6 +117,7 @@ jobs:
             SPRING_PROFILES_ACTIVE=dev
             APP_IMAGE=kasto6329/magampick-api:dev
             DOMAIN=api.dev.magampick.com
+            POSTGRES_IMAGE=kasto6329/magampick-postgres:16
             POSTGRES_DB=magampick
             POSTGRES_USER=magampick
             POSTGRES_PASSWORD=${{ secrets.DEV_POSTGRES_PASSWORD }}

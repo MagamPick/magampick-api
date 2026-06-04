@@ -22,7 +22,7 @@ services:
       - magampick
 
   postgres:
-    image: postgis/postgis:16-3.4
+    image: ${POSTGRES_IMAGE:-kasto6329/magampick-postgres:16}
     environment:
       TZ: Asia/Seoul
       PGTZ: Asia/Seoul
