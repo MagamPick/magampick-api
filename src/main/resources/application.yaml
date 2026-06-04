@@ -50,3 +50,11 @@ magampick:
   storage:
     local:
       root-path: ${STORAGE_LOCAL_ROOT_PATH:${user.home}/.magampick/uploads}
+    oci:
+      namespace: ${OCI_NAMESPACE:axuqml8mwqye}
+      region: ${OCI_REGION:ap-chuncheon-1}
+      # local·dev 공유 버킷. prod 는 application-prod.yaml 에서 override
+      bucket: ${OCI_BUCKET:magampick-dev-uploads}
+      # 아래 둘은 local 프로파일의 API Key 인증에만 사용 (dev/prod 는 Instance Principal)
+      config-path: ${OCI_CONFIG_PATH:${user.home}/.oci/config}
+      config-profile: ${OCI_CONFIG_PROFILE:APIKEY}

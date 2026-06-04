@@ -12,9 +12,10 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+/** 테스트(test 프로파일) 전용 로컬 파일시스템 저장소. 런타임(local·dev·prod)은 {@link OciStorageService} 가 담당한다. */
 @Slf4j
 @Service
-@Profile("!prod")
+@Profile("test")
 @RequiredArgsConstructor
 public class LocalStorageService implements StorageService {
 

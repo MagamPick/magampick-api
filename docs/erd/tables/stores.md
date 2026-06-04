@@ -43,7 +43,7 @@
 
 - **자동 승인**: 국세청 검증 + 지오코딩 + 이미지 업로드 성공 시 즉시 생성. 관리자 승인/반려 흐름 없음 (#48 의 `status`/`rejection_reason` 제거)
 - **사업자 번호**: 매장별 (`stores.business_number`). 입력은 하이픈 포함 가능, 저장은 숫자 10자리. **중복 허용** (UNIQUE 미적용 — 사칭 방지는 본인확인 모듈 백로그)
-- **외부 연동 (MVP stub)**: 국세청 검증 / 지오코딩 = Mock 인터페이스, 이미지 = Local 저장. 실연동(공공데이터포털·카카오 로컬·OCI)은 후속 작업
+- **외부 연동**: 국세청 검증 / 지오코딩 = Mock 인터페이스 (실연동 = 공공데이터포털·카카오 로컬, 후속 작업). 이미지 = **OCI Object Storage** 연동 완료 — local 은 `~/.oci` API Key, dev/prod 는 Instance Principal (`StorageService` 의 prod 구현체 `OciStorageService`)
 - **이미지**: 대표 1장. 5MB / jpg·png·webp
 - **노출 제어**: 등록 직후 `operation_status=CLOSED_TODAY` 라 소비자 노출 X — 사장이 영업시간 입력 후 [영업 시작] 으로 `OPEN` 전환해야 운영 시작. 전이 그래프 / 노출 룰 상세는 노션 "매장 영업 상태 관리" 소관
 - **진입 경로**: 현재 경로 B(로그인 사장 독립 등록)만. 경로 A(가입 wizard 통합 + `sellers.business_number` 정리)는 후속 PR
