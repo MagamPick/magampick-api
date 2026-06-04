@@ -18,6 +18,9 @@ public enum AuthErrorCode implements BaseErrorCode {
   PHONE_VERIFICATION_REQUIRED(
       HttpStatus.BAD_REQUEST, "PHONE_VERIFICATION_REQUIRED", "휴대폰 본인인증이 필요합니다"),
   DEFAULT_ADDRESS_REQUIRED(HttpStatus.BAD_REQUEST, "DEFAULT_ADDRESS_REQUIRED", "기본 주소를 입력해야 합니다"),
+  SOCIAL_AUTH_FAILED(
+      HttpStatus.BAD_GATEWAY, "SOCIAL_AUTH_FAILED", "소셜 로그인 인증에 실패했습니다. 잠시 후 다시 시도해 주세요"),
+  KAKAO_EMAIL_REQUIRED(HttpStatus.BAD_REQUEST, "KAKAO_EMAIL_REQUIRED", "카카오 이메일 제공 동의가 필요합니다"),
   ;
 
   private final HttpStatus status;

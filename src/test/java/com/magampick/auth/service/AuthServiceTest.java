@@ -237,13 +237,15 @@ class AuthServiceTest {
 
   @Test
   void 카카오_mock_로그인_신규_계정이면_소비자_생성() {
-    KakaoLoginRequest request = new KakaoLoginRequest("mock-token");
+    KakaoLoginRequest request =
+        new KakaoLoginRequest("auth-code", "https://app.example/login/kakao/callback");
     OAuthUserInfo userInfo = new OAuthUserInfo("kakao-uid", "kakao@test.com", "kakao_user");
     Customer customer =
         Customer.builder().email(userInfo.email()).nickname(userInfo.nickname()).build();
     ReflectionTestUtils.setField(customer, "id", 20L);
 
-    given(kakaoOAuthProvider.getUserInfo(request.kakaoAccessToken())).willReturn(userInfo);
+    given(kakaoOAuthProvider.fetchUserInfo(request.authorizationCode(), request.redirectUri()))
+        .willReturn(userInfo);
     given(
             customerOAuthAccountRepository.findByProviderAndProviderUserId(
                 any(), eq(userInfo.providerUserId())))
@@ -262,12 +264,14 @@ class AuthServiceTest {
   @Test
   void 카카오_이메일이_기존_가입계정과_충돌시_거부() {
     // given — 카카오 매핑 없음 + 같은 이메일의 기존 일반가입 계정 존재 (자동연결 거부)
-    KakaoLoginRequest request = new KakaoLoginRequest("mock-token");
+    KakaoLoginRequest request =
+        new KakaoLoginRequest("auth-code", "https://app.example/login/kakao/callback");
     OAuthUserInfo userInfo = new OAuthUserInfo("kakao-uid", "kakao@test.com", "kakao_user");
     Customer existing =
         Customer.builder().email(userInfo.email()).passwordHash("encoded").nickname("기존").build();
 
-    given(kakaoOAuthProvider.getUserInfo(request.kakaoAccessToken())).willReturn(userInfo);
+    given(kakaoOAuthProvider.fetchUserInfo(request.authorizationCode(), request.redirectUri()))
+        .willReturn(userInfo);
     given(
             customerOAuthAccountRepository.findByProviderAndProviderUserId(
                 any(), eq(userInfo.providerUserId())))
@@ -285,7 +289,8 @@ class AuthServiceTest {
   @Test
   void 카카오_기존_매핑이면_바로_로그인() {
     // given — 카카오 ID 매핑 존재 → 추가정보/생성 없이 바로 토큰 발급
-    KakaoLoginRequest request = new KakaoLoginRequest("mock-token");
+    KakaoLoginRequest request =
+        new KakaoLoginRequest("auth-code", "https://app.example/login/kakao/callback");
     OAuthUserInfo userInfo = new OAuthUserInfo("kakao-uid", "kakao@test.com", "kakao_user");
     Customer mapped = Customer.builder().email(userInfo.email()).nickname("기존").build();
     ReflectionTestUtils.setField(mapped, "id", 30L);
@@ -296,7 +301,8 @@ class AuthServiceTest {
             .providerUserId(userInfo.providerUserId())
             .build();
 
-    given(kakaoOAuthProvider.getUserInfo(request.kakaoAccessToken())).willReturn(userInfo);
+    given(kakaoOAuthProvider.fetchUserInfo(request.authorizationCode(), request.redirectUri()))
+        .willReturn(userInfo);
     given(
             customerOAuthAccountRepository.findByProviderAndProviderUserId(
                 any(), eq(userInfo.providerUserId())))
@@ -309,6 +315,23 @@ class AuthServiceTest {
 
     // then — 기존 매핑 경로는 생성/매핑 저장 안 함
     assertThat(response.accessToken()).isEqualTo("access");
+    verify(customerRepository, never()).save(any());
+    verify(customerOAuthAccountRepository, never()).save(any());
+  }
+
+  @Test
+  void 카카오_OAuth_인증_실패시_SOCIAL_AUTH_FAILED_전파() {
+    // given — provider 가 인가 코드 교환/조회 실패로 SOCIAL_AUTH_FAILED 를 던짐
+    KakaoLoginRequest request =
+        new KakaoLoginRequest("bad-code", "https://app.example/login/kakao/callback");
+    willThrow(new BusinessException(AuthErrorCode.SOCIAL_AUTH_FAILED))
+        .given(kakaoOAuthProvider)
+        .fetchUserInfo(request.authorizationCode(), request.redirectUri());
+
+    // when & then — 전파 + 신규 생성/매핑 저장 안 함
+    assertThatThrownBy(() -> authService.kakaoLogin(request))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", AuthErrorCode.SOCIAL_AUTH_FAILED);
     verify(customerRepository, never()).save(any());
     verify(customerOAuthAccountRepository, never()).save(any());
   }

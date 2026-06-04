@@ -6,10 +6,12 @@ import com.magampick.global.exception.CommonErrorCode;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
-/** 실제 카카오 API 연동 전까지 사용하는 mock provider. */
+/** 실제 카카오 API 연동(dev/prod) 전까지 local/test 에서 쓰는 mock provider. 인가 코드 해시로 결정적 사용자 정보를 만든다. */
 @Component
+@Profile("!dev & !prod")
 public class MockKakaoOAuthProvider implements OAuthProvider {
 
   @Override
@@ -18,8 +20,8 @@ public class MockKakaoOAuthProvider implements OAuthProvider {
   }
 
   @Override
-  public OAuthUserInfo getUserInfo(String accessToken) {
-    String suffix = sha256Hex(accessToken).substring(0, 12);
+  public OAuthUserInfo fetchUserInfo(String authorizationCode, String redirectUri) {
+    String suffix = sha256Hex(authorizationCode).substring(0, 12);
     return new OAuthUserInfo(
         "kakao-" + suffix,
         "kakao_" + suffix + "@mock.magampick.local",
