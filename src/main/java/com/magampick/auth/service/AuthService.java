@@ -131,7 +131,8 @@ public class AuthService {
 
   @Transactional
   public IssuedTokens kakaoLogin(KakaoLoginRequest request) {
-    OAuthUserInfo userInfo = kakaoOAuthProvider.getUserInfo(request.kakaoAccessToken());
+    OAuthUserInfo userInfo =
+        kakaoOAuthProvider.fetchUserInfo(request.authorizationCode(), request.redirectUri());
 
     Customer customer =
         customerOAuthAccountRepository

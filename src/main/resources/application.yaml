@@ -39,6 +39,13 @@ auth:
     same-site: Lax
     secure: ${REFRESH_COOKIE_SECURE:false}
 
+oauth:
+  kakao:
+    client-id: ${KAKAO_CLIENT_ID:}
+    client-secret: ${KAKAO_CLIENT_SECRET:}
+    token-uri: https://kauth.kakao.com/oauth/token
+    user-info-uri: https://kapi.kakao.com/v2/user/me
+
 magampick:
   storage:
     local:

@@ -130,7 +130,10 @@ class AuthControllerTest {
         .perform(
             post("/api/v1/auth/kakao")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(new KakaoLoginRequest("token"))))
+                .content(
+                    objectMapper.writeValueAsString(
+                        new KakaoLoginRequest(
+                            "auth-code", "https://app.example/login/kakao/callback"))))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data.accessToken").value("a"));
   }
@@ -144,7 +147,10 @@ class AuthControllerTest {
         .perform(
             post("/api/v1/auth/kakao")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(new KakaoLoginRequest("token"))))
+                .content(
+                    objectMapper.writeValueAsString(
+                        new KakaoLoginRequest(
+                            "auth-code", "https://app.example/login/kakao/callback"))))
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.error.code").value("EMAIL_ALREADY_REGISTERED"));
   }
