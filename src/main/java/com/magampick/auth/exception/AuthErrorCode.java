@@ -21,6 +21,8 @@ public enum AuthErrorCode implements BaseErrorCode {
   SOCIAL_AUTH_FAILED(
       HttpStatus.BAD_GATEWAY, "SOCIAL_AUTH_FAILED", "소셜 로그인 인증에 실패했습니다. 잠시 후 다시 시도해 주세요"),
   KAKAO_EMAIL_REQUIRED(HttpStatus.BAD_REQUEST, "KAKAO_EMAIL_REQUIRED", "카카오 이메일 제공 동의가 필요합니다"),
+  SOCIAL_TOKEN_INVALID(
+      HttpStatus.BAD_REQUEST, "SOCIAL_TOKEN_INVALID", "소셜 가입 세션이 만료되었습니다. 다시 시도해 주세요"),
   ;
 
   private final HttpStatus status;

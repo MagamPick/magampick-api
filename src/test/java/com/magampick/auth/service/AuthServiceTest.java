@@ -18,11 +18,13 @@ import com.magampick.auth.dto.IssuedTokens;
 import com.magampick.auth.dto.KakaoLoginRequest;
 import com.magampick.auth.dto.LoginRequest;
 import com.magampick.auth.dto.SellerSignupRequest;
+import com.magampick.auth.dto.SocialSignupRequest;
 import com.magampick.auth.dto.TokenResponse;
 import com.magampick.auth.exception.AuthErrorCode;
 import com.magampick.auth.oauth.OAuthProvider;
 import com.magampick.auth.oauth.OAuthUserInfo;
 import com.magampick.auth.repository.CustomerOAuthAccountRepository;
+import com.magampick.auth.repository.SocialAuthStore;
 import com.magampick.customer.domain.Customer;
 import com.magampick.customer.exception.CustomerErrorCode;
 import com.magampick.customer.repository.CustomerRepository;
@@ -59,6 +61,7 @@ class AuthServiceTest {
   @Mock PhoneVerificationService phoneVerificationService;
   @Mock TermService termService;
   @Mock AddressService addressService;
+  @Mock SocialAuthStore socialAuthStore;
 
   @InjectMocks AuthService authService;
 
@@ -236,13 +239,11 @@ class AuthServiceTest {
   }
 
   @Test
-  void 카카오_mock_로그인_신규_계정이면_소비자_생성() {
+  void 카카오_신규회원이면_소셜토큰_발급하고_가입_보류() {
+    // given — 카카오 매핑 없음 + 이메일 충돌 없음 → 소셜 토큰만 발급(가입은 /signup/social)
     KakaoLoginRequest request =
         new KakaoLoginRequest("auth-code", "https://app.example/login/kakao/callback");
     OAuthUserInfo userInfo = new OAuthUserInfo("kakao-uid", "kakao@test.com", "kakao_user");
-    Customer customer =
-        Customer.builder().email(userInfo.email()).nickname(userInfo.nickname()).build();
-    ReflectionTestUtils.setField(customer, "id", 20L);
 
     given(kakaoOAuthProvider.fetchUserInfo(request.authorizationCode(), request.redirectUri()))
         .willReturn(userInfo);
@@ -251,14 +252,18 @@ class AuthServiceTest {
                 any(), eq(userInfo.providerUserId())))
         .willReturn(Optional.empty());
     given(customerRepository.findByEmail(userInfo.email())).willReturn(Optional.empty());
-    given(customerRepository.save(any(Customer.class))).willReturn(customer);
-    given(refreshTokenService.issueTokens(20L, Role.CUSTOMER))
-        .willReturn(new IssuedTokens("access", "refresh", 1800L));
+    given(socialAuthStore.issueToken(userInfo)).willReturn("social-token");
 
-    IssuedTokens response = authService.kakaoLogin(request);
+    // when
+    KakaoLoginResult result = authService.kakaoLogin(request);
 
-    assertThat(response.accessToken()).isEqualTo("access");
-    verify(customerOAuthAccountRepository).save(any());
+    // then — New + 소셜 토큰, customer/매핑 저장 안 함
+    assertThat(result).isInstanceOf(KakaoLoginResult.New.class);
+    KakaoLoginResult.New newMember = (KakaoLoginResult.New) result;
+    assertThat(newMember.socialToken()).isEqualTo("social-token");
+    assertThat(newMember.email()).isEqualTo("kakao@test.com");
+    verify(customerRepository, never()).save(any());
+    verify(customerOAuthAccountRepository, never()).save(any());
   }
 
   @Test
@@ -311,10 +316,11 @@ class AuthServiceTest {
         .willReturn(new IssuedTokens("access", "refresh", 1800L));
 
     // when
-    IssuedTokens response = authService.kakaoLogin(request);
+    KakaoLoginResult result = authService.kakaoLogin(request);
 
-    // then — 기존 매핑 경로는 생성/매핑 저장 안 함
-    assertThat(response.accessToken()).isEqualTo("access");
+    // then — Existing + 토큰, 기존 매핑 경로는 생성/매핑 저장 안 함
+    assertThat(result).isInstanceOf(KakaoLoginResult.Existing.class);
+    assertThat(((KakaoLoginResult.Existing) result).tokens().accessToken()).isEqualTo("access");
     verify(customerRepository, never()).save(any());
     verify(customerOAuthAccountRepository, never()).save(any());
   }
@@ -334,6 +340,72 @@ class AuthServiceTest {
         .hasFieldOrPropertyWithValue("errorCode", AuthErrorCode.SOCIAL_AUTH_FAILED);
     verify(customerRepository, never()).save(any());
     verify(customerOAuthAccountRepository, never()).save(any());
+  }
+
+  @Test
+  void 소셜가입_성공시_customer_oauth_약관_주소_저장() {
+    // given
+    SocialSignupRequest request =
+        new SocialSignupRequest(
+            "social-token", "닉네임", RAW_PHONE, "vtoken", List.of(1L, 2L, 3L, 4L), validAddress());
+    OAuthUserInfo userInfo = new OAuthUserInfo("kakao-uid", "kakao@test.com", "kakao_user");
+    Customer saved = Customer.builder().email(userInfo.email()).nickname("닉네임").build();
+    ReflectionTestUtils.setField(saved, "id", 40L);
+
+    given(socialAuthStore.require("social-token")).willReturn(userInfo);
+    given(customerRepository.findByEmail(userInfo.email())).willReturn(Optional.empty());
+    given(phoneVerificationService.consumeVerificationToken("vtoken", RAW_PHONE))
+        .willReturn(VERIFIED_PHONE);
+    given(customerRepository.save(any(Customer.class))).willReturn(saved);
+    given(refreshTokenService.issueTokens(40L, Role.CUSTOMER))
+        .willReturn(new IssuedTokens("access", "refresh", 1800L));
+
+    // when
+    IssuedTokens response = authService.signupSocial(request);
+
+    // then
+    assertThat(response.accessToken()).isEqualTo("access");
+    verify(socialAuthStore).delete("social-token");
+    verify(customerOAuthAccountRepository).save(any());
+    verify(termService).recordAgreements(saved, request.agreedTermIds());
+    verify(addressService).create(40L, request.address());
+  }
+
+  @Test
+  void 소셜가입_소셜토큰_만료시_SOCIAL_TOKEN_INVALID() {
+    // given — 소셜 토큰 만료/무효
+    SocialSignupRequest request =
+        new SocialSignupRequest("expired", "닉네임", RAW_PHONE, "vtoken", List.of(1L), validAddress());
+    willThrow(new BusinessException(AuthErrorCode.SOCIAL_TOKEN_INVALID))
+        .given(socialAuthStore)
+        .require("expired");
+
+    // when & then
+    assertThatThrownBy(() -> authService.signupSocial(request))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", AuthErrorCode.SOCIAL_TOKEN_INVALID);
+    verify(customerRepository, never()).save(any());
+  }
+
+  @Test
+  void 소셜가입_이메일이_기존_계정과_충돌시_거부() {
+    // given — 카카오 이메일이 기존 일반가입 계정과 충돌
+    SocialSignupRequest request =
+        new SocialSignupRequest(
+            "social-token", "닉네임", RAW_PHONE, "vtoken", List.of(1L), validAddress());
+    OAuthUserInfo userInfo = new OAuthUserInfo("kakao-uid", "kakao@test.com", "kakao_user");
+    Customer existing =
+        Customer.builder().email(userInfo.email()).passwordHash("enc").nickname("기존").build();
+
+    given(socialAuthStore.require("social-token")).willReturn(userInfo);
+    given(customerRepository.findByEmail(userInfo.email())).willReturn(Optional.of(existing));
+
+    // when & then
+    assertThatThrownBy(() -> authService.signupSocial(request))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", AuthErrorCode.EMAIL_ALREADY_REGISTERED);
+    verify(customerRepository, never()).save(any());
+    verify(socialAuthStore, never()).delete(any());
   }
 
   @Test

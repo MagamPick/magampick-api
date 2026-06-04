@@ -8,11 +8,13 @@ import com.magampick.auth.dto.IssuedTokens;
 import com.magampick.auth.dto.KakaoLoginRequest;
 import com.magampick.auth.dto.LoginRequest;
 import com.magampick.auth.dto.SellerSignupRequest;
+import com.magampick.auth.dto.SocialSignupRequest;
 import com.magampick.auth.dto.TokenResponse;
 import com.magampick.auth.exception.AuthErrorCode;
 import com.magampick.auth.oauth.OAuthProvider;
 import com.magampick.auth.oauth.OAuthUserInfo;
 import com.magampick.auth.repository.CustomerOAuthAccountRepository;
+import com.magampick.auth.repository.SocialAuthStore;
 import com.magampick.customer.domain.Customer;
 import com.magampick.customer.exception.CustomerErrorCode;
 import com.magampick.customer.repository.CustomerRepository;
@@ -47,6 +49,7 @@ public class AuthService {
   private final PhoneVerificationService phoneVerificationService;
   private final TermService termService;
   private final AddressService addressService;
+  private final SocialAuthStore socialAuthStore;
 
   /**
    * 소비자 회원가입 오케스트레이션 (5단계 통합). 한 트랜잭션으로 본인인증 토큰 소비 → customers 생성 → 약관 동의 기록 → 기본 주소 생성 → 토큰 발급.
@@ -129,18 +132,52 @@ public class AuthService {
     return refreshTokenService.issueTokens(seller.getId(), Role.SELLER);
   }
 
+  /** 카카오 1단계 — 인가코드로 카카오 정보 조회 후 기존/신규 분기. 기존은 즉시 토큰, 신규는 소셜 토큰 발급(가입 보류). */
   @Transactional
-  public IssuedTokens kakaoLogin(KakaoLoginRequest request) {
+  public KakaoLoginResult kakaoLogin(KakaoLoginRequest request) {
     OAuthUserInfo userInfo =
         kakaoOAuthProvider.fetchUserInfo(request.authorizationCode(), request.redirectUri());
 
-    Customer customer =
-        customerOAuthAccountRepository
-            .findByProviderAndProviderUserId(OAuthProviderType.KAKAO, userInfo.providerUserId())
-            .map(CustomerOAuthAccount::getCustomer)
-            .orElseGet(() -> createKakaoCustomer(userInfo));
+    return customerOAuthAccountRepository
+        .findByProviderAndProviderUserId(OAuthProviderType.KAKAO, userInfo.providerUserId())
+        .map(account -> existingLogin(account.getCustomer()))
+        .orElseGet(() -> newSignupPending(userInfo));
+  }
 
-    log.info("소비자 카카오 로그인 성공. customerId={}", customer.getId());
+  /**
+   * 카카오 2단계 — 신규 회원 추가정보 가입. 소셜 토큰으로 카카오 정보를 복원하고 약관·본인인증·주소·닉네임을 한 트랜잭션으로 저장한다 (비밀번호 없음 — 소셜 전용
+   * 계정). 카카오 이메일이 기존 일반가입 계정과 충돌하면 거부한다(도용 방지). 소셜 토큰·본인인증 토큰 소비는 입력 검증을 모두 통과한 뒤 수행한다.
+   */
+  @Transactional
+  public IssuedTokens signupSocial(SocialSignupRequest request) {
+    OAuthUserInfo userInfo = socialAuthStore.require(request.socialToken());
+    rejectIfKakaoEmailTaken(userInfo.email());
+    validateNickname(request.nickname());
+    if (request.address() == null) {
+      throw new BusinessException(AuthErrorCode.DEFAULT_ADDRESS_REQUIRED);
+    }
+
+    String verifiedPhone = consumePhoneVerification(request.verificationToken(), request.phone());
+    socialAuthStore.delete(request.socialToken());
+
+    Customer customer =
+        customerRepository.save(
+            Customer.builder()
+                .email(userInfo.email())
+                .nickname(request.nickname())
+                .phone(verifiedPhone)
+                .phoneVerifiedAt(LocalDateTime.now())
+                .build());
+    customerOAuthAccountRepository.save(
+        CustomerOAuthAccount.builder()
+            .customer(customer)
+            .provider(OAuthProviderType.KAKAO)
+            .providerUserId(userInfo.providerUserId())
+            .build());
+    termService.recordAgreements(customer, request.agreedTermIds());
+    addressService.create(customer.getId(), request.address());
+
+    log.info("카카오 신규 회원 가입 완료. customerId={}", customer.getId());
     return refreshTokenService.issueTokens(customer.getId(), Role.CUSTOMER);
   }
 
@@ -154,30 +191,26 @@ public class AuthService {
     refreshTokenService.revoke(rawRefreshToken);
   }
 
-  /**
-   * 신규 카카오 계정 생성. 같은 이메일의 기존 일반가입 계정이 있으면 자동 연결하지 않고 거부한다(도용 방지 — 소셜 로그인 명세). 신규 이메일만 customers +
-   * customer_oauth_accounts 를 생성한다.
-   */
-  private Customer createKakaoCustomer(OAuthUserInfo userInfo) {
-    boolean emailTaken =
-        customerRepository
-            .findByEmail(userInfo.email())
-            .filter(existing -> !existing.isDeleted())
-            .isPresent();
-    if (emailTaken) {
+  private KakaoLoginResult existingLogin(Customer customer) {
+    log.info("소비자 카카오 로그인 성공(기존 회원). customerId={}", customer.getId());
+    return new KakaoLoginResult.Existing(
+        refreshTokenService.issueTokens(customer.getId(), Role.CUSTOMER));
+  }
+
+  /** 신규 카카오 회원 — 이메일 충돌 검사 후 소셜 토큰 발급. 실제 가입은 {@link #signupSocial} 에서. */
+  private KakaoLoginResult newSignupPending(OAuthUserInfo userInfo) {
+    rejectIfKakaoEmailTaken(userInfo.email());
+    String socialToken = socialAuthStore.issueToken(userInfo);
+    log.info("카카오 신규 회원 — 추가정보 가입 대기.");
+    return new KakaoLoginResult.New(socialToken, userInfo.email(), userInfo.nickname());
+  }
+
+  /** 카카오 이메일이 기존 일반가입(비삭제) 계정과 충돌하면 거부 (자동 연결 안 함 — 도용 방지). */
+  private void rejectIfKakaoEmailTaken(String email) {
+    boolean taken = customerRepository.findByEmail(email).filter(c -> !c.isDeleted()).isPresent();
+    if (taken) {
       throw new BusinessException(AuthErrorCode.EMAIL_ALREADY_REGISTERED);
     }
-
-    Customer customer =
-        customerRepository.save(
-            Customer.builder().email(userInfo.email()).nickname(userInfo.nickname()).build());
-    customerOAuthAccountRepository.save(
-        CustomerOAuthAccount.builder()
-            .customer(customer)
-            .provider(OAuthProviderType.KAKAO)
-            .providerUserId(userInfo.providerUserId())
-            .build());
-    return customer;
   }
 
   private void validateNickname(String nickname) {

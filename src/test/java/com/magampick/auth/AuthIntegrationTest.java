@@ -11,7 +11,10 @@ import com.magampick.TestcontainersConfiguration;
 import com.magampick.address.dto.AddressCreateRequest;
 import com.magampick.auth.dto.CustomerSignupRequest;
 import com.magampick.auth.dto.SellerSignupRequest;
+import com.magampick.auth.dto.SocialSignupRequest;
 import com.magampick.auth.support.SellerTestSupportController;
+import com.magampick.customer.domain.Customer;
+import com.magampick.customer.repository.CustomerRepository;
 import com.magampick.global.support.CrossCuttingTestController;
 import com.magampick.phone.repository.PhoneVerificationStore;
 import com.magampick.terms.domain.Term;
@@ -43,6 +46,7 @@ class AuthIntegrationTest {
   @Autowired ObjectMapper objectMapper;
   @Autowired PhoneVerificationStore phoneVerificationStore;
   @Autowired TermRepository termRepository;
+  @Autowired CustomerRepository customerRepository;
 
   /** 본인인증(실 Redis) → 약관 seed → 좌표 주소까지 갖춘 실제 소비자 가입을 수행하고 signup 응답을 반환한다. */
   private MvcResult signupCustomer(String email, String phone) throws Exception {
@@ -162,6 +166,92 @@ class AuthIntegrationTest {
         .perform(post("/api/v1/auth/refresh").cookie(refreshCookie))
         .andExpect(status().isUnauthorized())
         .andExpect(jsonPath("$.error.code").value("REFRESH_INVALID"));
+  }
+
+  @Test
+  void 카카오_신규회원_소셜가입_후_재로그인은_기존회원() throws Exception {
+    // 1. 카카오 1단계 — 신규 분기 (Mock provider, 인가코드 해시 기반)
+    String reqBody =
+        "{\"authorizationCode\":\"kakao-code-"
+            + System.nanoTime()
+            + "\",\"redirectUri\":\"https://app.example/cb\"}";
+    MvcResult first =
+        mockMvc
+            .perform(
+                post("/api/v1/auth/kakao").contentType(MediaType.APPLICATION_JSON).content(reqBody))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.status").value("NEW"))
+            .andReturn();
+    JsonNode data = objectMapper.readTree(first.getResponse().getContentAsString()).path("data");
+    String socialToken = data.path("socialToken").asText();
+    String kakaoEmail = data.path("email").asText();
+
+    // 2. 본인인증 (실 Redis)
+    String phone = "010-7777-8888";
+    mockMvc
+        .perform(
+            post("/api/v1/auth/phone-verifications")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"phone\":\"" + phone + "\"}"))
+        .andExpect(status().isOk());
+    String digits = phone.replaceAll("[^0-9]", "");
+    String code = phoneVerificationStore.findOtpCode(digits).orElseThrow();
+    MvcResult confirm =
+        mockMvc
+            .perform(
+                post("/api/v1/auth/phone-verifications/confirm")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"phone\":\"" + phone + "\",\"code\":\"" + code + "\"}"))
+            .andExpect(status().isOk())
+            .andReturn();
+    String verificationToken =
+        objectMapper
+            .readTree(confirm.getResponse().getContentAsString())
+            .path("data")
+            .path("verificationToken")
+            .asText();
+
+    // 3. 약관 동의 + /signup/social → 201
+    List<Long> requiredTermIds =
+        termRepository.findByRequiredTrue().stream().map(Term::getId).toList();
+    SocialSignupRequest signupRequest =
+        new SocialSignupRequest(
+            socialToken,
+            "소셜닉",
+            phone,
+            verificationToken,
+            requiredTermIds,
+            new AddressCreateRequest(
+                "집", "서울특별시 강남구 테헤란로 427", null, "101동 1502호", "06158", 37.5066, 127.0535));
+    MvcResult signup =
+        mockMvc
+            .perform(
+                post("/api/v1/auth/signup/social")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(signupRequest)))
+            .andExpect(status().isCreated())
+            .andReturn();
+    String accessToken =
+        objectMapper
+            .readTree(signup.getResponse().getContentAsString())
+            .path("data")
+            .path("accessToken")
+            .asText();
+
+    // 4. 발급 토큰으로 인증 API 접근 + 소셜 계정(password NULL) 검증
+    mockMvc
+        .perform(get("/test-support/ok").header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken))
+        .andExpect(status().isOk());
+    Customer customer = customerRepository.findByEmail(kakaoEmail).orElseThrow();
+    org.junit.jupiter.api.Assertions.assertNull(customer.getPasswordHash());
+
+    // 5. 같은 카카오로 재로그인 → 기존 회원(EXISTING)
+    mockMvc
+        .perform(
+            post("/api/v1/auth/kakao").contentType(MediaType.APPLICATION_JSON).content(reqBody))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.status").value("EXISTING"))
+        .andExpect(jsonPath("$.data.accessToken").exists());
   }
 
   /** signup/login 응답의 Set-Cookie 헤더에서 refresh 쿠키 값을 추출한다. */
