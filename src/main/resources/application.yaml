@@ -52,6 +52,11 @@ solapi:
   sender-number: ${SOLAPI_SENDER_NUMBER:}
   api-url: ${SOLAPI_API_URL:https://api.solapi.com}
 
+# 국세청 사업자등록 진위확인 (공공데이터포털). service-key 는 환경변수(미설정 시 호출 거부 → VERIFICATION_FAILED). test 프로파일은 Mock 사용.
+nts:
+  service-key: ${NTS_BUSINESS_API_KEY:}
+  validate-url: https://api.odcloud.kr/api/nts-businessman/v1/validate
+
 magampick:
   storage:
     local:
