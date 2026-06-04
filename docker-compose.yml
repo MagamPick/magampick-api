@@ -22,7 +22,7 @@ services:
       - magampick
 
   postgres:
-    image: postgis/postgis:16-3.4-alpine
+    image: postgis/postgis:16-3.4
     environment:
       TZ: Asia/Seoul
       PGTZ: Asia/Seoul
