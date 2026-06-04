@@ -54,3 +54,68 @@ jobs:
           path: build/reports/jacoco/test/
           if-no-files-found: ignore
           retention-days: 14
+
+  deploy-dev:
+    name: Deploy to Dev
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    environment: dev
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: kasto6329
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: kasto6329/magampick-api:dev
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Copy compose and nginx files to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEV_SERVER_HOST }}
+          username: ubuntu
+          key: ${{ secrets.DEV_SERVER_SSH_KEY }}
+          source: "docker-compose.yml,docker-compose.prod.yml,nginx/"
+          target: "~/magampick-api/"
+
+      - name: Deploy
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEV_SERVER_HOST }}
+          username: ubuntu
+          key: ${{ secrets.DEV_SERVER_SSH_KEY }}
+          script: |
+            cd ~/magampick-api
+            cat > .env << 'ENVEOF'
+            SPRING_PROFILES_ACTIVE=dev
+            APP_IMAGE=kasto6329/magampick-api:dev
+            DOMAIN=api.dev.magampick.com
+            POSTGRES_DB=magampick
+            POSTGRES_USER=magampick
+            POSTGRES_PASSWORD=${{ secrets.DEV_POSTGRES_PASSWORD }}
+            JWT_SECRET=${{ secrets.DEV_JWT_SECRET }}
+            KAKAO_CLIENT_ID=${{ secrets.DEV_KAKAO_CLIENT_ID }}
+            KAKAO_CLIENT_SECRET=${{ secrets.DEV_KAKAO_CLIENT_SECRET }}
+            SOLAPI_API_KEY=${{ secrets.DEV_SOLAPI_API_KEY }}
+            SOLAPI_API_SECRET=${{ secrets.DEV_SOLAPI_API_SECRET }}
+            SOLAPI_SENDER_NUMBER=${{ secrets.DEV_SOLAPI_SENDER_NUMBER }}
+            NTS_BUSINESS_API_KEY=${{ secrets.DEV_NTS_BUSINESS_API_KEY }}
+            ENVEOF
+            docker login -u kasto6329 -p '${{ secrets.DOCKERHUB_TOKEN }}'
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans
