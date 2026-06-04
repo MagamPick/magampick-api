@@ -14,9 +14,13 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD:-magampick}
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET}
+      KAKAO_CLIENT_ID: ${KAKAO_CLIENT_ID:-}
+      KAKAO_CLIENT_SECRET: ${KAKAO_CLIENT_SECRET:-}
       SOLAPI_API_KEY: ${SOLAPI_API_KEY:-}
       SOLAPI_API_SECRET: ${SOLAPI_API_SECRET:-}
       SOLAPI_SENDER_NUMBER: ${SOLAPI_SENDER_NUMBER:-}
+      NTS_BUSINESS_API_KEY: ${NTS_BUSINESS_API_KEY:-}
     restart: unless-stopped
     networks:
       - magampick
