@@ -12,11 +12,13 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 /** SecurityConfig + JwtAuthenticationFilter + EntryPoint 의 인증 흐름 통합 검증. */
 @SpringBootTest
 @AutoConfigureMockMvc
+@ActiveProfiles("test")
 @Import({TestcontainersConfiguration.class, CrossCuttingTestController.class})
 class SecurityIntegrationTest {
 

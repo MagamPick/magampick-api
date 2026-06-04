@@ -8,8 +8,9 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+/** 테스트(test 프로파일) 전용 {@code /uploads/**} 정적 리소스 핸들러. 런타임은 OCI public URL 직접 접근이라 불필요. */
 @Configuration
-@Profile("!prod")
+@Profile("test")
 @RequiredArgsConstructor
 @EnableConfigurationProperties(StorageProperties.class)
 public class LocalStorageWebConfig implements WebMvcConfigurer {

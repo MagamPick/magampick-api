@@ -33,6 +33,10 @@ dependencies {
 	implementation 'org.hibernate.orm:hibernate-spatial'
 	implementation 'org.flywaydb:flyway-core'
 	implementation 'org.flywaydb:flyway-database-postgresql'
+	implementation platform('com.oracle.oci.sdk:oci-java-sdk-bom:3.67.3')
+	implementation 'com.oracle.oci.sdk:oci-java-sdk-objectstorage'
+	// OCI SDK 의 HTTP client 구현 (SPI) — 없으면 client 빈 생성 시 HttpProvider NoSuchElementException
+	implementation 'com.oracle.oci.sdk:oci-java-sdk-common-httpclient-jersey3'
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.6'
 	implementation 'org.mapstruct:mapstruct:1.6.3'
 	implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
