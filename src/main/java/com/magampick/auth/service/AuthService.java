@@ -22,7 +22,10 @@ import com.magampick.global.exception.BusinessException;
 import com.magampick.global.security.Role;
 import com.magampick.phone.service.PhoneVerificationService;
 import com.magampick.seller.domain.Seller;
+import com.magampick.seller.exception.SellerErrorCode;
 import com.magampick.seller.repository.SellerRepository;
+import com.magampick.store.service.PreparedStoreRegistration;
+import com.magampick.store.service.StoreService;
 import com.magampick.terms.service.TermService;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +33,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.multipart.MultipartFile;
 
 @Slf4j
 @Service
@@ -38,6 +43,8 @@ public class AuthService {
 
   private static final int NICKNAME_MIN = 2;
   private static final int NICKNAME_MAX = 12;
+  private static final int SELLER_NAME_MIN = 2;
+  private static final int SELLER_NAME_MAX = 20;
 
   private final CustomerRepository customerRepository;
   private final SellerRepository sellerRepository;
@@ -50,6 +57,8 @@ public class AuthService {
   private final TermService termService;
   private final AddressService addressService;
   private final SocialAuthStore socialAuthStore;
+  private final StoreService storeService;
+  private final TransactionTemplate transactionTemplate;
 
   /**
    * 소비자 회원가입 오케스트레이션 (5단계 통합). 한 트랜잭션으로 본인인증 토큰 소비 → customers 생성 → 약관 동의 기록 → 기본 주소 생성 → 토큰 발급.
@@ -99,23 +108,40 @@ public class AuthService {
     return refreshTokenService.issueTokens(customer.getId(), Role.CUSTOMER);
   }
 
-  @Transactional
-  public IssuedTokens signupSeller(SellerSignupRequest request) {
+  public IssuedTokens signupSeller(SellerSignupRequest request, MultipartFile image) {
     if (sellerRepository.existsByEmail(request.email())) {
       throw new BusinessException(AuthErrorCode.EMAIL_ALREADY_EXISTS);
     }
     passwordValidator.validate(request.password());
+    validateSellerName(request.ownerName());
 
-    Seller seller =
-        sellerRepository.save(
-            Seller.builder()
-                .email(request.email())
-                .passwordHash(passwordEncoder.encode(request.password()))
-                .ownerName(request.ownerName())
-                .businessNumber(request.businessNumber())
-                .build());
-    log.info("사장 회원가입 완료. sellerId={}", seller.getId());
-    return refreshTokenService.issueTokens(seller.getId(), Role.SELLER);
+    PreparedStoreRegistration prepared =
+        storeService.prepareStoreRegistration(request.store(), image);
+    String verifiedPhone = consumePhoneVerification(request.verificationToken(), request.phone());
+
+    try {
+      return transactionTemplate.execute(
+          status -> {
+            Seller seller =
+                sellerRepository.save(
+                    Seller.builder()
+                        .email(request.email())
+                        .passwordHash(passwordEncoder.encode(request.password()))
+                        .ownerName(request.ownerName())
+                        .businessNumber(prepared.businessNumber())
+                        .phone(verifiedPhone)
+                        .phoneVerifiedAt(LocalDateTime.now())
+                        .build());
+            termService.recordSellerAgreements(seller, request.agreedTermIds());
+            storeService.createStore(seller, prepared);
+
+            log.info("사장 회원가입 완료. sellerId={}", seller.getId());
+            return refreshTokenService.issueTokens(seller.getId(), Role.SELLER);
+          });
+    } catch (RuntimeException e) {
+      storeService.deletePreparedImageBestEffort(prepared);
+      throw e;
+    }
   }
 
   @Transactional
@@ -217,6 +243,13 @@ public class AuthService {
     int length = nickname == null ? 0 : nickname.trim().length();
     if (length < NICKNAME_MIN || length > NICKNAME_MAX) {
       throw new BusinessException(CustomerErrorCode.NICKNAME_LENGTH);
+    }
+  }
+
+  private void validateSellerName(String ownerName) {
+    int length = ownerName == null ? 0 : ownerName.trim().length();
+    if (length < SELLER_NAME_MIN || length > SELLER_NAME_MAX) {
+      throw new BusinessException(SellerErrorCode.SELLER_NAME_INVALID);
     }
   }
 

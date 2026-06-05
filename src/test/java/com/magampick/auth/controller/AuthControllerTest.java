@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -27,7 +28,9 @@ import com.magampick.global.exception.BusinessException;
 import com.magampick.global.security.CustomUserDetails;
 import com.magampick.global.security.RefreshTokenCookie;
 import com.magampick.global.security.Role;
+import com.magampick.store.dto.StoreCreateRequest;
 import jakarta.servlet.http.Cookie;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -37,6 +40,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseCookie;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -75,6 +79,43 @@ class AuthControllerTest {
         List.of(1L, 2L, 3L, 4L),
         new AddressCreateRequest(
             "집", "서울특별시 강남구 테헤란로 427", null, "101동 1502호", "06158", 37.5066, 127.0535));
+  }
+
+  private StoreCreateRequest validStoreRequest() {
+    return new StoreCreateRequest(
+        "123-45-67890",
+        "홍길동",
+        LocalDate.of(2024, 3, 15),
+        "동네빵집",
+        "서울 강남구 테헤란로 427",
+        null,
+        "1층",
+        "06158",
+        "0212345678",
+        "신선한 빵");
+  }
+
+  private SellerSignupRequest validSellerSignupRequest() {
+    return new SellerSignupRequest(
+        "s@test.com",
+        "Abcd1234!",
+        "홍길동",
+        "010-1234-5678",
+        "vtoken",
+        List.of(1L, 2L, 3L, 6L),
+        validStoreRequest());
+  }
+
+  private MockMultipartFile requestPart(Object request) throws Exception {
+    return new MockMultipartFile(
+        "request",
+        "request",
+        MediaType.APPLICATION_JSON_VALUE,
+        objectMapper.writeValueAsBytes(request));
+  }
+
+  private MockMultipartFile imagePart() {
+    return new MockMultipartFile("image", "store.jpg", MediaType.IMAGE_JPEG_VALUE, new byte[1024]);
   }
 
   @Test
@@ -254,26 +295,42 @@ class AuthControllerTest {
   void 사장_회원가입_검증_실패시_400() throws Exception {
     mockMvc
         .perform(
-            post("/api/v1/auth/seller/signup")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{}"))
+            multipart("/api/v1/auth/seller/signup")
+                .file(
+                    new MockMultipartFile(
+                        "request", "request", MediaType.APPLICATION_JSON_VALUE, "{}".getBytes()))
+                .file(imagePart()))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
   }
 
   @Test
   void 사장_회원가입_성공시_201() throws Exception {
-    given(authService.signupSeller(any())).willReturn(new IssuedTokens("a", "r", 1800L));
+    given(authService.signupSeller(any(), any())).willReturn(new IssuedTokens("a", "r", 1800L));
     given(refreshTokenCookie.create(eq("r"), anyBoolean())).willReturn(REFRESH_COOKIE);
 
     mockMvc
         .perform(
-            post("/api/v1/auth/seller/signup")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(
-                    objectMapper.writeValueAsString(
-                        new SellerSignupRequest("s@test.com", "Abcd1234!", "owner", "1234567890"))))
+            multipart("/api/v1/auth/seller/signup")
+                .file(requestPart(validSellerSignupRequest()))
+                .file(imagePart()))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.data.accessToken").value("a"));
+  }
+
+  @Test
+  void 로그인_상태로_사장_회원가입_진입시_403() throws Exception {
+    CustomUserDetails principal = new CustomUserDetails(1L, Role.SELLER);
+    UsernamePasswordAuthenticationToken auth =
+        new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
+
+    mockMvc
+        .perform(
+            multipart("/api/v1/auth/seller/signup")
+                .file(requestPart(validSellerSignupRequest()))
+                .file(imagePart())
+                .principal(auth))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
   }
 }

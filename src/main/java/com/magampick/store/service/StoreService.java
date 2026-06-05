@@ -71,6 +71,26 @@ public class StoreService {
    */
   public StoreRegisterResponse registerStore(
       Long sellerId, StoreCreateRequest request, MultipartFile image) {
+    PreparedStoreRegistration prepared = prepareStoreRegistration(request, image);
+
+    try {
+      Seller seller =
+          sellerRepository
+              .findById(sellerId)
+              .filter(s -> !s.isDeleted())
+              .orElseThrow(() -> new BusinessException(SellerErrorCode.SELLER_NOT_FOUND));
+      Store store = createStore(seller, prepared);
+
+      log.info("매장 등록됨. storeId={}, sellerId={}", store.getId(), sellerId);
+      return new StoreRegisterResponse(store.getId(), store.getOperationStatus());
+    } catch (RuntimeException e) {
+      deletePreparedImageBestEffort(prepared);
+      throw e;
+    }
+  }
+
+  public PreparedStoreRegistration prepareStoreRegistration(
+      StoreCreateRequest request, MultipartFile image) {
     String businessNumber = normalizeBusinessNumber(request.businessNumber());
     validateImage(image);
 
@@ -78,32 +98,33 @@ public class StoreService {
         businessNumber, request.representativeName(), request.openDate());
     Point location = geocodingService.geocode(request.roadAddress());
     String imageUrl = uploadStoreImage(image);
+    return new PreparedStoreRegistration(businessNumber, request, location, imageUrl);
+  }
 
-    Seller seller =
-        sellerRepository
-            .findById(sellerId)
-            .filter(s -> !s.isDeleted())
-            .orElseThrow(() -> new BusinessException(SellerErrorCode.SELLER_NOT_FOUND));
+  public Store createStore(Seller seller, PreparedStoreRegistration prepared) {
+    StoreCreateRequest request = prepared.request();
+    return storeRepository.save(
+        Store.builder()
+            .seller(seller)
+            .businessNumber(prepared.businessNumber())
+            .name(request.name())
+            .roadAddress(request.roadAddress())
+            .jibunAddress(request.jibunAddress())
+            .detailAddress(request.detailAddress())
+            .zonecode(request.zonecode())
+            .location(prepared.location())
+            .phone(request.phone())
+            .description(request.description())
+            .imageUrl(prepared.imageUrl())
+            .operationStatus(OperationStatus.CLOSED_TODAY)
+            .build());
+  }
 
-    Store store =
-        storeRepository.save(
-            Store.builder()
-                .seller(seller)
-                .businessNumber(businessNumber)
-                .name(request.name())
-                .roadAddress(request.roadAddress())
-                .jibunAddress(request.jibunAddress())
-                .detailAddress(request.detailAddress())
-                .zonecode(request.zonecode())
-                .location(location)
-                .phone(request.phone())
-                .description(request.description())
-                .imageUrl(imageUrl)
-                .operationStatus(OperationStatus.CLOSED_TODAY)
-                .build());
-
-    log.info("매장 등록됨. storeId={}, sellerId={}", store.getId(), sellerId);
-    return new StoreRegisterResponse(store.getId(), store.getOperationStatus());
+  public void deletePreparedImageBestEffort(PreparedStoreRegistration prepared) {
+    if (prepared == null) {
+      return;
+    }
+    deleteImageBestEffort(prepared.imageUrl());
   }
 
   @Transactional(readOnly = true)

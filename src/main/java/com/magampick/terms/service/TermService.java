@@ -2,12 +2,16 @@ package com.magampick.terms.service;
 
 import com.magampick.customer.domain.Customer;
 import com.magampick.global.exception.BusinessException;
+import com.magampick.seller.domain.Seller;
 import com.magampick.terms.domain.CustomerTermsAgreement;
+import com.magampick.terms.domain.SellerTermsAgreement;
 import com.magampick.terms.domain.Term;
+import com.magampick.terms.domain.TermType;
 import com.magampick.terms.dto.TermResponse;
 import com.magampick.terms.exception.TermErrorCode;
 import com.magampick.terms.mapper.TermMapper;
 import com.magampick.terms.repository.CustomerTermsAgreementRepository;
+import com.magampick.terms.repository.SellerTermsAgreementRepository;
 import com.magampick.terms.repository.TermRepository;
 import java.util.HashSet;
 import java.util.List;
@@ -22,13 +26,38 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class TermService {
 
+  private static final Set<TermType> CUSTOMER_SIGNUP_TYPES =
+      Set.of(
+          TermType.TERMS_OF_SERVICE,
+          TermType.PRIVACY,
+          TermType.LOCATION,
+          TermType.AGE_14,
+          TermType.MARKETING);
+  private static final Set<TermType> SELLER_SIGNUP_TYPES =
+      Set.of(
+          TermType.TERMS_OF_SERVICE,
+          TermType.PRIVACY,
+          TermType.LOCATION,
+          TermType.AGE_19,
+          TermType.MARKETING);
+
   private final TermRepository termRepository;
   private final CustomerTermsAgreementRepository customerTermsAgreementRepository;
+  private final SellerTermsAgreementRepository sellerTermsAgreementRepository;
   private final TermMapper termMapper;
 
   /** 회원가입 화면에 표시할 약관 목록 (필수 + 선택). */
   public List<TermResponse> getTermsForSignup() {
-    return termRepository.findAllByOrderByTypeAsc().stream().map(termMapper::toResponse).toList();
+    return termRepository.findByTypeInOrderByTypeAsc(CUSTOMER_SIGNUP_TYPES).stream()
+        .map(termMapper::toResponse)
+        .toList();
+  }
+
+  /** 사장 회원가입 화면에 표시할 약관 목록 (필수 + 선택). */
+  public List<TermResponse> getTermsForSellerSignup() {
+    return termRepository.findByTypeInOrderByTypeAsc(SELLER_SIGNUP_TYPES).stream()
+        .map(termMapper::toResponse)
+        .toList();
   }
 
   /**
@@ -39,7 +68,9 @@ public class TermService {
   public void recordAgreements(Customer customer, List<Long> agreedTermIds) {
     Set<Long> agreedIds = new HashSet<>(agreedTermIds);
     Set<Long> requiredIds =
-        termRepository.findByRequiredTrue().stream().map(Term::getId).collect(Collectors.toSet());
+        termRepository.findByRequiredTrueAndTypeIn(CUSTOMER_SIGNUP_TYPES).stream()
+            .map(Term::getId)
+            .collect(Collectors.toSet());
     if (!agreedIds.containsAll(requiredIds)) {
       throw new BusinessException(TermErrorCode.REQUIRED_TERMS_NOT_AGREED);
     }
@@ -52,6 +83,28 @@ public class TermService {
     customerTermsAgreementRepository.saveAll(
         agreedTerms.stream()
             .map(term -> CustomerTermsAgreement.builder().customer(customer).term(term).build())
+            .toList());
+  }
+
+  @Transactional
+  public void recordSellerAgreements(Seller seller, List<Long> agreedTermIds) {
+    Set<Long> agreedIds = new HashSet<>(agreedTermIds);
+    Set<Long> requiredIds =
+        termRepository.findByRequiredTrueAndTypeIn(SELLER_SIGNUP_TYPES).stream()
+            .map(Term::getId)
+            .collect(Collectors.toSet());
+    if (!agreedIds.containsAll(requiredIds)) {
+      throw new BusinessException(TermErrorCode.REQUIRED_TERMS_NOT_AGREED);
+    }
+
+    List<Term> agreedTerms = termRepository.findAllById(agreedIds);
+    if (agreedTerms.size() != agreedIds.size()) {
+      throw new BusinessException(TermErrorCode.INVALID_TERM);
+    }
+
+    sellerTermsAgreementRepository.saveAll(
+        agreedTerms.stream()
+            .map(term -> SellerTermsAgreement.builder().seller(seller).term(term).build())
             .toList());
   }
 }

@@ -20,7 +20,7 @@
 | 이름 | 컬럼 | 용도 |
 |---|---|---|
 | `PRIMARY KEY` | `id` | surrogate PK |
-| `chk_terms_type` | `type` | enum 값 강제 (TERMS_OF_SERVICE / PRIVACY / LOCATION / AGE_14 / MARKETING) |
+| `chk_terms_type` | `type` | enum 값 강제 (TERMS_OF_SERVICE / PRIVACY / LOCATION / AGE_14 / AGE_19 / MARKETING) |
 | `chk_terms_version_positive` | `version` | version > 0 |
 | `uk_terms_type_version` | `(type, version)` | type별 버전 중복 차단 + `type` prefix로 type 조회 커버 |
 
@@ -32,11 +32,13 @@
 | `PRIVACY` | 개인정보 수집·이용 동의 | ✓ |
 | `LOCATION` | 위치 기반 서비스 이용약관 | ✓ |
 | `AGE_14` | 만 14세 이상 확인 (개인정보보호법 제22조의2) | ✓ |
+| `AGE_19` | 만 19세 이상 확인 (사장 가입 자기 신고) | ✓ |
 | `MARKETING` | 마케팅 정보 수신 동의 | (선택) |
 
 ## 비즈니스 규칙 / 운영 메모
 
 - 초기 약관 5종(version 1)은 마이그레이션 seed. body는 placeholder — 운영자가 SQL로 실제 약관 본문 갱신 (관리 UI는 백로그).
 - 약관 변경 = 새 version row 추가 (기존 row 보존, 이력 추적). MVP는 type당 1 row.
-- 가입 화면 조회: `GET /api/v1/terms` (public). `findAllByOrderByTypeAsc`.
+- 가입 화면 조회: `GET /api/v1/terms` (public). 기본값은 소비자 약관(`AGE_14`)이고, 사장 가입 화면은 `GET /api/v1/terms?role=SELLER` 로 `AGE_19` 약관을 조회한다.
 - 동의 기록은 [`customer_terms_agreements`](customer_terms_agreements.md) 참조.
+- 사장 동의 기록은 [`seller_terms_agreements`](seller_terms_agreements.md) 참조.

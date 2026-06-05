@@ -25,13 +25,16 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -73,17 +76,24 @@ public class AuthController {
     return issue(authService.loginCustomer(request), request.persistent(), response);
   }
 
-  @PostMapping("/seller/signup")
+  @PostMapping(value = "/seller/signup", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
   @ResponseStatus(HttpStatus.CREATED)
-  @Operation(summary = "사장 회원가입", description = "사장 계정을 생성하고 자동 로그인한다. refresh 는 HttpOnly 쿠키로 발급.")
+  @Operation(
+      summary = "사장 회원가입",
+      description = "사장 계정과 첫 매장을 한 트랜잭션으로 생성하고 자동 로그인한다. refresh 는 HttpOnly 쿠키로 발급.")
   @ApiResponses({
     @ApiResponse(responseCode = "201", description = "회원가입 성공"),
     @ApiResponse(responseCode = "400", description = "입력 검증 실패"),
+    @ApiResponse(responseCode = "403", description = "로그인 상태 진입"),
     @ApiResponse(responseCode = "409", description = "이메일 중복")
   })
   public TokenResponse signupSeller(
-      @Valid @RequestBody SellerSignupRequest request, HttpServletResponse response) {
-    return issue(authService.signupSeller(request), true, response);
+      Authentication authentication,
+      @RequestPart("request") @Valid SellerSignupRequest request,
+      @RequestPart("image") MultipartFile image,
+      HttpServletResponse response) {
+    rejectIfAuthenticated(authentication);
+    return issue(authService.signupSeller(request, image), true, response);
   }
 
   @PostMapping("/seller/login")

@@ -28,14 +28,21 @@ import com.magampick.auth.repository.SocialAuthStore;
 import com.magampick.customer.domain.Customer;
 import com.magampick.customer.exception.CustomerErrorCode;
 import com.magampick.customer.repository.CustomerRepository;
+import com.magampick.global.common.GeometryUtil;
 import com.magampick.global.exception.BusinessException;
 import com.magampick.global.security.Role;
 import com.magampick.phone.exception.PhoneVerificationErrorCode;
 import com.magampick.phone.service.PhoneVerificationService;
 import com.magampick.seller.domain.Seller;
+import com.magampick.seller.exception.SellerErrorCode;
 import com.magampick.seller.repository.SellerRepository;
+import com.magampick.store.dto.StoreCreateRequest;
+import com.magampick.store.exception.StoreErrorCode;
+import com.magampick.store.service.PreparedStoreRegistration;
+import com.magampick.store.service.StoreService;
 import com.magampick.terms.exception.TermErrorCode;
 import com.magampick.terms.service.TermService;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -45,8 +52,11 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @ExtendWith(MockitoExtension.class)
 class AuthServiceTest {
@@ -62,6 +72,8 @@ class AuthServiceTest {
   @Mock TermService termService;
   @Mock AddressService addressService;
   @Mock SocialAuthStore socialAuthStore;
+  @Mock StoreService storeService;
+  @Mock TransactionTemplate transactionTemplate;
 
   @InjectMocks AuthService authService;
 
@@ -82,6 +94,50 @@ class AuthServiceTest {
         "vtoken",
         List.of(1L, 2L, 3L, 4L),
         validAddress());
+  }
+
+  private StoreCreateRequest validStoreRequest() {
+    return new StoreCreateRequest(
+        "123-45-67890",
+        "홍길동",
+        LocalDate.of(2024, 3, 15),
+        "동네빵집",
+        "서울 강남구 테헤란로 427",
+        null,
+        "1층",
+        "06158",
+        "0212345678",
+        "신선한 빵");
+  }
+
+  private SellerSignupRequest validSellerSignupRequest() {
+    return new SellerSignupRequest(
+        "seller@test.com",
+        "Abcd1234!",
+        "홍길동",
+        RAW_PHONE,
+        "vtoken",
+        List.of(1L, 2L, 3L, 4L),
+        validStoreRequest());
+  }
+
+  private MockMultipartFile validImage() {
+    return new MockMultipartFile("image", "store.jpg", "image/jpeg", new byte[1024]);
+  }
+
+  private PreparedStoreRegistration preparedStoreRegistration(SellerSignupRequest request) {
+    return new PreparedStoreRegistration(
+        "1234567890",
+        request.store(),
+        GeometryUtil.toPoint(37.5, 127.0),
+        "/uploads/2026/6/store.jpg");
+  }
+
+  @SuppressWarnings("unchecked")
+  private void stubTransactionTemplate() {
+    given(transactionTemplate.execute(any()))
+        .willAnswer(
+            inv -> ((TransactionCallback<IssuedTokens>) inv.getArgument(0)).doInTransaction(null));
   }
 
   @Test
@@ -199,29 +255,103 @@ class AuthServiceTest {
   }
 
   @Test
-  void 사장_회원가입_사업자번호_중복도_허용() {
-    SellerSignupRequest request =
-        new SellerSignupRequest("seller@test.com", "Abcd1234!", "owner", "1234567890");
+  void 사장_회원가입_첫_매장까지_통합_성공() {
+    SellerSignupRequest request = validSellerSignupRequest();
+    PreparedStoreRegistration prepared = preparedStoreRegistration(request);
     Seller savedSeller =
         Seller.builder()
             .email(request.email())
             .passwordHash("encoded")
             .ownerName(request.ownerName())
-            .businessNumber(request.businessNumber())
+            .businessNumber(prepared.businessNumber())
+            .phone(VERIFIED_PHONE)
+            .phoneVerifiedAt(LocalDateTime.now())
             .build();
     ReflectionTestUtils.setField(savedSeller, "id", 11L);
 
     given(sellerRepository.existsByEmail(request.email())).willReturn(false);
+    given(storeService.prepareStoreRegistration(eq(request.store()), any())).willReturn(prepared);
+    given(phoneVerificationService.consumeVerificationToken("vtoken", RAW_PHONE))
+        .willReturn(VERIFIED_PHONE);
     given(passwordEncoder.encode(request.password())).willReturn("encoded");
     given(sellerRepository.save(any(Seller.class))).willReturn(savedSeller);
     given(refreshTokenService.issueTokens(11L, Role.SELLER))
         .willReturn(new IssuedTokens("access", "refresh", 1800L));
+    stubTransactionTemplate();
 
-    IssuedTokens response = authService.signupSeller(request);
+    IssuedTokens response = authService.signupSeller(request, validImage());
 
     assertThat(response.accessToken()).isEqualTo("access");
-    verify(sellerRepository).save(any(Seller.class));
+    ArgumentCaptor<Seller> captor = ArgumentCaptor.forClass(Seller.class);
+    verify(sellerRepository).save(captor.capture());
+    assertThat(captor.getValue().getBusinessNumber()).isEqualTo("1234567890");
+    assertThat(captor.getValue().getPhone()).isEqualTo(VERIFIED_PHONE);
+    verify(termService).recordSellerAgreements(savedSeller, request.agreedTermIds());
+    verify(storeService).createStore(savedSeller, prepared);
     verify(refreshTokenService).issueTokens(11L, Role.SELLER);
+  }
+
+  @Test
+  void 사장_회원가입_실명_길이_위반시_예외() {
+    SellerSignupRequest request =
+        new SellerSignupRequest(
+            "seller@test.com",
+            "Abcd1234!",
+            "홍",
+            RAW_PHONE,
+            "vtoken",
+            List.of(1L),
+            validStoreRequest());
+    given(sellerRepository.existsByEmail(request.email())).willReturn(false);
+
+    assertThatThrownBy(() -> authService.signupSeller(request, validImage()))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", SellerErrorCode.SELLER_NAME_INVALID);
+    verify(storeService, never()).prepareStoreRegistration(any(), any());
+  }
+
+  @Test
+  void 사장_회원가입_매장_준비_실패시_seller_저장_없음() {
+    SellerSignupRequest request = validSellerSignupRequest();
+    given(sellerRepository.existsByEmail(request.email())).willReturn(false);
+    willThrow(new BusinessException(StoreErrorCode.BUSINESS_INFO_MISMATCH))
+        .given(storeService)
+        .prepareStoreRegistration(eq(request.store()), any());
+
+    assertThatThrownBy(() -> authService.signupSeller(request, validImage()))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.BUSINESS_INFO_MISMATCH);
+    verify(phoneVerificationService, never()).consumeVerificationToken(any(), any());
+    verify(sellerRepository, never()).save(any());
+  }
+
+  @Test
+  void 사장_회원가입_트랜잭션_실패시_업로드된_이미지_best_effort_삭제() {
+    SellerSignupRequest request = validSellerSignupRequest();
+    PreparedStoreRegistration prepared = preparedStoreRegistration(request);
+    Seller savedSeller =
+        Seller.builder()
+            .email(request.email())
+            .passwordHash("encoded")
+            .ownerName(request.ownerName())
+            .businessNumber(prepared.businessNumber())
+            .build();
+
+    given(sellerRepository.existsByEmail(request.email())).willReturn(false);
+    given(storeService.prepareStoreRegistration(eq(request.store()), any())).willReturn(prepared);
+    given(phoneVerificationService.consumeVerificationToken("vtoken", RAW_PHONE))
+        .willReturn(VERIFIED_PHONE);
+    given(passwordEncoder.encode(request.password())).willReturn("encoded");
+    given(sellerRepository.save(any(Seller.class))).willReturn(savedSeller);
+    willThrow(new BusinessException(TermErrorCode.REQUIRED_TERMS_NOT_AGREED))
+        .given(termService)
+        .recordSellerAgreements(savedSeller, request.agreedTermIds());
+    stubTransactionTemplate();
+
+    assertThatThrownBy(() -> authService.signupSeller(request, validImage()))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", TermErrorCode.REQUIRED_TERMS_NOT_AGREED);
+    verify(storeService).deletePreparedImageBestEffort(prepared);
   }
 
   @Test
