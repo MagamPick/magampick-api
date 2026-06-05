@@ -9,9 +9,9 @@ import org.springframework.validation.annotation.Validated;
  * NTS_BUSINESS_API_KEY}) — 비어 있으면 호출 시 국세청이 거부해 {@code BUSINESS_NUMBER_VERIFICATION_FAILED}(부팅은
  * 가능).
  *
- * <p>{@code verification-mode} 로 검증 방식을 고른다 — {@code validate}(기본, 진위확인: 번호+대표자명+개업일자 3요소) / {@code
- * status}(상태조회: 번호만; 개업일자·대표자명 없이 데모용). 입력 시그니처는 동일하고 status 모드에선 번호만 국세청에 보낸다. {@code !test}
- * 프로필({@link NtsBusinessConfig})에서만 등록된다.
+ * <p>{@code verification-mode} 로 검증 방식을 고른다 — {@code status}(기본, 상태조회: 번호만; 개업일자·대표자명 없이 출시 전 데모
+ * 단계) / {@code validate}(진위확인: 번호+대표자명+개업일자 3요소). 입력 시그니처는 동일하고 status 모드에선 번호만 국세청에 보낸다. {@code
+ * !test} 프로필({@link NtsBusinessConfig})에서만 등록된다.
  */
 @Validated
 @ConfigurationProperties(prefix = "nts")

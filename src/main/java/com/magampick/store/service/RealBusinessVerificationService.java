@@ -19,8 +19,8 @@ import org.springframework.web.client.RestClientException;
  * 국세청 사업자등록 검증 실연동 (test 제외 전 환경). {@code nts.verification-mode} 에 따라 두 방식으로 동작한다.
  *
  * <ul>
- *   <li>{@code validate}(기본·운영): 진위확인 API 한 번 호출로 (번호·대표자명·개업일자) 일치(valid) + 영업상태(b_stt_cd)를 함께 판정.
- *   <li>{@code status}(데모): 상태조회 API 로 번호만 보내 영업상태(b_stt_cd)만 판정 — 대표자명·개업일자는 무시.
+ *   <li>{@code validate}(진위확인): 진위확인 API 한 번 호출로 (번호·대표자명·개업일자) 일치(valid) + 영업상태(b_stt_cd)를 함께 판정.
+ *   <li>{@code status}(기본·데모, 출시 전): 상태조회 API 로 번호만 보내 영업상태(b_stt_cd)만 판정 — 대표자명·개업일자는 무시.
  * </ul>
  *
  * <p>공통: 호출/응답 실패 → {@code VERIFICATION_FAILED}, 미등록·휴·폐업({@code b_stt_cd != "01"}) → {@code

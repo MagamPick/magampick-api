@@ -53,10 +53,10 @@ solapi:
   api-url: ${SOLAPI_API_URL:https://api.solapi.com}
 
 # 국세청 사업자등록 검증 (공공데이터포털). service-key 는 환경변수(미설정 시 호출 거부 → VERIFICATION_FAILED). test 프로파일은 Mock 사용.
-# verification-mode: validate(기본, 진위확인 번호+대표자명+개업일자 3요소) | status(상태조회 번호만, 데모용). 데모 시 NTS_VERIFICATION_MODE=status
+# verification-mode: status(기본, 상태조회 번호만 — 출시 전 데모 단계) | validate(진위확인 번호+대표자명+개업일자 3요소). validate 전환 시 NTS_VERIFICATION_MODE=validate
 nts:
   service-key: ${NTS_BUSINESS_API_KEY:}
-  verification-mode: ${NTS_VERIFICATION_MODE:validate}
+  verification-mode: ${NTS_VERIFICATION_MODE:status}
   validate-url: https://api.odcloud.kr/api/nts-businessman/v1/validate
   status-url: https://api.odcloud.kr/api/nts-businessman/v1/status
 
