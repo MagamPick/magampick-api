@@ -27,4 +27,13 @@ public record StoreCreateRequest(
         String zonecode,
     @Schema(description = "매장 전화번호", example = "0212345678") @NotBlank @Size(max = 20) String phone,
     @Schema(description = "매장 소개 (선택)", example = "매일 아침 직접 굽는 신선한 빵") @Size(max = 500)
-        String description) {}
+        String description,
+    // 다음 우편번호 위젯 반환값 — 정방향 지오코딩 자연키 조립용 (도로명코드 = sigunguCode + roadnameCode)
+    @Schema(description = "시군구코드 (다음 위젯 sigunguCode, 5자리)", example = "11680")
+        @NotBlank
+        @Pattern(regexp = "\\d{5}")
+        String sigunguCode,
+    @Schema(description = "도로명번호 (다음 위젯 roadnameCode, 최대 7자리)", example = "3179999")
+        @NotBlank
+        @Pattern(regexp = "\\d{1,7}")
+        String roadnameCode) {}

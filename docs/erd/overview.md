@@ -5,7 +5,8 @@
 ## 설계 결정 사항 (전역)
 
 - **식별자**: `BIGINT` (Spring `Long` + `GENERATED ALWAYS AS IDENTITY`)
-- **위치 정보**: **PostGIS** 사용 — `stores.location`, `addresses.location` 는 `GEOGRAPHY(POINT, 4326)` + GIST 인덱스
+- **위치 정보**: **PostGIS** 사용 — `stores.location`, `addresses.location`, `geocode_buildings.location` 은 `GEOGRAPHY(POINT, 4326)` + GIST 인덱스
+- **지오코딩**: 자체 DB(`geocode_buildings`, 위치정보요약DB 적재) — 정방향(도로명 자연키 정확 매칭) / 역방향(PostGIS 최근접). 외부 API 미연동 (ADR-002). 좌표는 적재 시 `ST_Transform(5179→4326)`.
 - **Enum**: PostgreSQL native ENUM 대신 `VARCHAR + CHECK` 제약 (Hibernate `@Enumerated(EnumType.STRING)` 표준)
 - **Soft Delete (`deleted_at`)**: customers, sellers, stores, orders 등 주요 엔티티만. 종속 데이터(order_items 등)는 hard delete. clearance_items 는 CLOSED 상태로 종료 — soft delete 미도입
 - **휴대폰 번호 UNIQUE 영구 미적용**: 별개 계정 모델 + 사장 다중 사업자 운영. 본인인증 = 번호 소유자 검증이지 1번호 1계정 강제가 아님 (한국 이커머스 표준). 자세한 사유는 [auth.md §8](../auth.md)
@@ -360,6 +361,9 @@ erDiagram
 - `inquiries` — 고객센터 문의
 - `inquiry_replies` — 문의 답변
 - `settlements` — 사장별 주간 정산
+
+### Reference (참조 데이터)
+- `geocode_buildings` — 자체 지오코딩 참조 (위치정보요약DB, 서울+경기 1회 적재). FK 무관계 standalone. 정방향 자연키 조회 + 역방향 PostGIS 최근접
 
 ---
 

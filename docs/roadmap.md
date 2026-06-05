@@ -50,9 +50,10 @@
 | 알림 설정 — 종류별 On/Off, 반경 (`notification_settings`) | users | 미착수 | - |
 | 회원 탈퇴 — 30일 유예, 진행 중 주문 시 제한 | users | 미착수 | - |
 | 사장 프로필 관리 — 사장 이름·연락처·사업자 정보 | stores | 완료 | #35 |
-| 매장 등록 신청 — 국세청 진위확인 3요소(**실연동**) + 서버 지오코딩(**stub**) + 이미지(Local) + 자동 승인 (경로 B) + 등록 직후 `operation_status=CLOSED_TODAY` + 별도 진위확인 endpoint | stores | 완료 | #48 → #76 (재설계) |
+| 매장 등록 신청 — 국세청 진위확인 3요소(**실연동**) + 서버 지오코딩(**stub** → 자체 DB 실연동은 아래 행) + 이미지(Local) + 자동 승인 (경로 B) + 등록 직후 `operation_status=CLOSED_TODAY` + 별도 진위확인 endpoint | stores | 완료 | #48 → #76 (재설계) |
 | ~~매장 등록 승인/반려 — 관리자~~ (자동 승인 재설계로 제거) | stores | 완료 | #48 → #76 제거 |
 | 매장 정보 수정 — 5필드 부분 수정 (`PATCH` multipart), 변경 필드만 지오코딩/이미지 재호출, 기존 사진 best effort 삭제 | stores | 완료 | #81 |
+| 자체 지오코딩 구축 — 위치정보요약DB(서울+경기) 1회 적재(`geocode_buildings`), 정방향 도로명 자연키 매칭 + 역방향 PostGIS 최근접, `MockGeocodingService` prod 실연동 교체 (ADR-002 B안) | stores | 개발중 | (이번 PR) |
 | 매장 삭제 (사장 요청) — 진행 중 주문 시 제한 | stores | 미착수 | - |
 | 매장 삭제 승인/반려 — 관리자, 미정산 확인 후 | stores | 미착수 | - |
 | 매장 영업 상태 관리 — 3상태(`OPEN`/`BREAK`/`CLOSED_TODAY`) 사장 수동 토글 + `store_business_hours` 테이블 도입 (Repository 만) | stores | 완료 | #79 |

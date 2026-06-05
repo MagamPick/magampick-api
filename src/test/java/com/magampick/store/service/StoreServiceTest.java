@@ -110,7 +110,9 @@ class StoreServiceTest {
         null,
         "06158",
         "0212345678",
-        "신선한 빵");
+        "신선한 빵",
+        "11680",
+        "3179999");
   }
 
   private MockMultipartFile validImage() {
@@ -188,7 +190,9 @@ class StoreServiceTest {
     assertThat(response.storeId()).isEqualTo(STORE_ID);
     assertThat(response.operationStatus()).isEqualTo(OperationStatus.CLOSED_TODAY);
     then(businessVerificationService).should().verify("1234567890", OWNER_NAME, OPEN_DATE);
-    then(geocodingService).should().geocode("서울 강남구 테헤란로 427");
+    then(geocodingService)
+        .should()
+        .geocode(new GeocodeQuery("11680", "3179999", "서울 강남구 테헤란로 427"));
     then(storageService).should().upload(any());
 
     ArgumentCaptor<Store> captor = ArgumentCaptor.forClass(Store.class);
@@ -893,11 +897,11 @@ class StoreServiceTest {
       String phone,
       String description) {
     return new StoreUpdateRequest(
-        name, roadAddress, jibunAddress, detailAddress, zonecode, phone, description);
+        name, roadAddress, jibunAddress, detailAddress, zonecode, phone, description, null, null);
   }
 
   private StoreUpdateRequest emptyUpdate() {
-    return new StoreUpdateRequest(null, null, null, null, null, null, null);
+    return new StoreUpdateRequest(null, null, null, null, null, null, null, null, null);
   }
 
   private StoreDetailResponse stubDetail() {
@@ -943,11 +947,13 @@ class StoreServiceTest {
     // given
     Store s = store(STORE_ID, seller());
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(s));
-    given(geocodingService.geocode("새 주소")).willReturn(GeometryUtil.toPoint(37.6, 127.1));
+    given(geocodingService.geocode(new GeocodeQuery("11680", "3179999", "새 주소")))
+        .willReturn(GeometryUtil.toPoint(37.6, 127.1));
     given(storeRepository.save(any(Store.class))).willReturn(s);
     given(storeMapper.toDetailResponse(any(Store.class))).willReturn(stubDetail());
 
-    StoreUpdateRequest req = updateOf(null, "새 주소", "지번 새", null, "12345", null, null);
+    StoreUpdateRequest req =
+        new StoreUpdateRequest(null, "새 주소", "지번 새", null, "12345", null, null, "11680", "3179999");
 
     // when
     storeService.updateStore(SELLER_ID, STORE_ID, req, null);
@@ -956,7 +962,7 @@ class StoreServiceTest {
     assertThat(s.getRoadAddress()).isEqualTo("새 주소");
     assertThat(s.getJibunAddress()).isEqualTo("지번 새");
     assertThat(s.getZonecode()).isEqualTo("12345");
-    then(geocodingService).should().geocode("새 주소");
+    then(geocodingService).should().geocode(new GeocodeQuery("11680", "3179999", "새 주소"));
     then(storageService).should(never()).upload(any());
   }
 

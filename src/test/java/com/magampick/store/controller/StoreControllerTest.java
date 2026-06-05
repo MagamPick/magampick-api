@@ -83,7 +83,9 @@ class StoreControllerTest {
             null,
             "06158",
             "0212345678",
-            "신선한 빵"));
+            "신선한 빵",
+            "11680",
+            "3179999"));
   }
 
   private String invalidRequestJson() throws Exception {
@@ -98,7 +100,9 @@ class StoreControllerTest {
             null,
             "06158",
             "0212345678",
-            null));
+            null,
+            "11680",
+            "3179999"));
   }
 
   private String verifyRequestJson() throws Exception {
@@ -561,13 +565,25 @@ class StoreControllerTest {
 
   private String updateRequestJson(String name) throws Exception {
     return objectMapper.writeValueAsString(
-        new StoreUpdateRequest(name, null, null, null, null, null, null));
+        new StoreUpdateRequest(name, null, null, null, null, null, null, null, null));
   }
 
   private String invalidUpdateRequestJson() throws Exception {
     // zonecode 형식 오류 (5자리 숫자 아님)
     return objectMapper.writeValueAsString(
-        new StoreUpdateRequest(null, null, null, null, "abc", null, null));
+        new StoreUpdateRequest(null, null, null, null, "abc", null, null, null, null));
+  }
+
+  private String addressChangeWithoutCodesJson() throws Exception {
+    // 주소 변경인데 시군구코드/도로명번호 누락 → cross-field 검증 위반
+    return objectMapper.writeValueAsString(
+        new StoreUpdateRequest(null, "서울 강남구 테헤란로 427", null, null, null, null, null, null, null));
+  }
+
+  private String addressChangeWithCodesJson() throws Exception {
+    return objectMapper.writeValueAsString(
+        new StoreUpdateRequest(
+            null, "서울 강남구 테헤란로 427", null, null, null, null, null, "11680", "3179999"));
   }
 
   private StoreDetailResponse stubUpdatedDetail() {
@@ -639,6 +655,40 @@ class StoreControllerTest {
                 .with(user(SELLER_USER)))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
+  }
+
+  @Test
+  void PATCH_stores_id_400_주소변경_코드누락() throws Exception {
+    mockMvc
+        .perform(
+            multipart("/api/v1/seller/stores/1")
+                .file(requestPart(addressChangeWithoutCodesJson()))
+                .with(
+                    request -> {
+                      request.setMethod("PATCH");
+                      return request;
+                    })
+                .with(user(SELLER_USER)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
+  }
+
+  @Test
+  void PATCH_stores_id_200_주소_코드_함께() throws Exception {
+    given(storeService.updateStore(eq(1L), eq(1L), any(), eq(null)))
+        .willReturn(stubUpdatedDetail());
+
+    mockMvc
+        .perform(
+            multipart("/api/v1/seller/stores/1")
+                .file(requestPart(addressChangeWithCodesJson()))
+                .with(
+                    request -> {
+                      request.setMethod("PATCH");
+                      return request;
+                    })
+                .with(user(SELLER_USER)))
+        .andExpect(status().isOk());
   }
 
   @Test

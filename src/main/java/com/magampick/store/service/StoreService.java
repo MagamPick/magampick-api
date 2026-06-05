@@ -96,7 +96,9 @@ public class StoreService {
 
     businessVerificationService.verify(
         businessNumber, request.representativeName(), request.openDate());
-    Point location = geocodingService.geocode(request.roadAddress());
+    Point location =
+        geocodingService.geocode(
+            new GeocodeQuery(request.sigunguCode(), request.roadnameCode(), request.roadAddress()));
     String imageUrl = uploadStoreImage(image);
     return new PreparedStoreRegistration(businessNumber, request, location, imageUrl);
   }
@@ -144,9 +146,9 @@ public class StoreService {
   }
 
   /**
-   * 매장 정보 수정 (부분 수정 — null = 변경 X). 변경된 주소는 카카오 지오코딩 재호출, 변경된 사진은 OCI 재업로드 + 기존 사진 best effort 삭제.
-   * 사업자번호·영업상태·영업시간은 비범위 (요청에서 무시). 외부 호출(지오코딩·업로드)은 트랜잭션 시작 전, 결과만 단일 UPDATE(save)에 반영 — PR-A 등록과
-   * 동일 패턴. 기존 사진 삭제는 성공 후 best effort (실패해도 흐름 정상 진행).
+   * 매장 정보 수정 (부분 수정 — null = 변경 X). 변경된 주소는 자체 DB 지오코딩 재호출, 변경된 사진은 OCI 재업로드 + 기존 사진 best effort
+   * 삭제. 사업자번호·영업상태·영업시간은 비범위 (요청에서 무시). 외부 호출(지오코딩·업로드)은 트랜잭션 시작 전, 결과만 단일 UPDATE(save)에 반영 — PR-A
+   * 등록과 동일 패턴. 기존 사진 삭제는 성공 후 best effort (실패해도 흐름 정상 진행).
    */
   public StoreDetailResponse updateStore(
       Long sellerId, Long storeId, StoreUpdateRequest request, MultipartFile image) {
@@ -159,7 +161,12 @@ public class StoreService {
       validateImage(image);
     }
 
-    Point newLocation = addressChanged ? geocodingService.geocode(request.roadAddress()) : null;
+    Point newLocation =
+        addressChanged
+            ? geocodingService.geocode(
+                new GeocodeQuery(
+                    request.sigunguCode(), request.roadnameCode(), request.roadAddress()))
+            : null;
     String newImageUrl = photoChanged ? uploadStoreImage(image) : null;
     String oldImageUrl = photoChanged ? store.getImageUrl() : null;
 
