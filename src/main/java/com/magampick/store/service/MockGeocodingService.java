@@ -7,8 +7,13 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
 /**
- * 지오코딩 Mock. 카카오 로컬 API 실연동 전까지 사용한다. 도로명 주소 문자열의 해시로 서울 bounding box 내 결정적 좌표를 생성해 시연 시 매장이 한 점에
- * 몰리지 않게 한다. 실연동(주소 검증·정확 좌표·서비스 영역 외 거부)은 후속 작업.
+ * 지오코딩 Mock (dev/test). ADR-002 자체 DB(geocode_buildings) 실연동은 prod 프로파일의 {@link DbGeocodingService}
+ * 가 담당하며, 본 Mock 은 1.5M행 적재 없이 dev/test 가 돌도록 대체한다.
+ *
+ * <ul>
+ *   <li>정방향: 도로명 주소 문자열 해시로 서울 bounding box 내 결정적 좌표 — 시연 시 매장이 한 점에 몰리지 않게 한다.
+ *   <li>역방향: 결정적 stub 라벨 (실 최근접 매칭 아님).
+ * </ul>
  */
 @Slf4j
 @Service
@@ -22,7 +27,8 @@ public class MockGeocodingService implements GeocodingService {
   private static final double LNG_SPAN = 0.38;
 
   @Override
-  public Point geocode(String roadAddress) {
+  public Point geocode(GeocodeQuery query) {
+    String roadAddress = query == null ? null : query.roadAddress();
     long hash = Integer.toUnsignedLong(roadAddress == null ? 0 : roadAddress.hashCode());
     double latitude = LAT_MIN + (hash % 1000) / 1000.0 * LAT_SPAN;
     double longitude = LNG_MIN + (hash / 1000 % 1000) / 1000.0 * LNG_SPAN;
@@ -32,5 +38,11 @@ public class MockGeocodingService implements GeocodingService {
         latitude,
         longitude);
     return GeometryUtil.toPoint(latitude, longitude);
+  }
+
+  @Override
+  public String reverseGeocode(Point point) {
+    log.info("역지오코딩 mock. point={}", point);
+    return "서울특별시 중구 세종대로 110";
   }
 }

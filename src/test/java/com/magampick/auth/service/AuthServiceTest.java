@@ -107,7 +107,9 @@ class AuthServiceTest {
         "1층",
         "06158",
         "0212345678",
-        "신선한 빵");
+        "신선한 빵",
+        "11680",
+        "3179999");
   }
 
   private SellerSignupRequest validSellerSignupRequest() {
