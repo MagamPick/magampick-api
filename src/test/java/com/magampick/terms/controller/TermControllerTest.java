@@ -44,4 +44,23 @@ class TermControllerTest {
         .andExpect(jsonPath("$.data[1].type").value("MARKETING"))
         .andExpect(jsonPath("$.data[1].required").value(false));
   }
+
+  @Test
+  void 사장_약관_목록_조회_200() throws Exception {
+    // given
+    given(termService.getTermsForSellerSignup())
+        .willReturn(
+            List.of(
+                new TermResponse(6L, TermType.AGE_19, 1, "만 19세 이상입니다", "본문", true),
+                new TermResponse(1L, TermType.TERMS_OF_SERVICE, 1, "서비스 이용약관", "본문", true),
+                new TermResponse(5L, TermType.MARKETING, 1, "마케팅 정보 수신 동의", "본문", false)));
+
+    // when & then
+    mockMvc
+        .perform(get("/api/v1/terms").param("role", "SELLER"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.length()").value(3))
+        .andExpect(jsonPath("$.data[0].type").value("AGE_19"));
+  }
 }

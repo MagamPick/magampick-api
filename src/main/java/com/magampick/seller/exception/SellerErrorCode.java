@@ -10,6 +10,7 @@ import org.springframework.http.HttpStatus;
 @RequiredArgsConstructor
 public enum SellerErrorCode implements BaseErrorCode {
   SELLER_NOT_FOUND(HttpStatus.NOT_FOUND, "SELLER_NOT_FOUND", "사장 계정을 찾을 수 없습니다"),
+  SELLER_NAME_INVALID(HttpStatus.BAD_REQUEST, "SELLER_NAME_INVALID", "사장 실명은 2~20자여야 합니다"),
   ;
 
   private final HttpStatus status;

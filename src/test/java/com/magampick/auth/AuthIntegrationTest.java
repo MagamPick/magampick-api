@@ -1,6 +1,7 @@
 package com.magampick.auth;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -17,10 +18,14 @@ import com.magampick.customer.domain.Customer;
 import com.magampick.customer.repository.CustomerRepository;
 import com.magampick.global.support.CrossCuttingTestController;
 import com.magampick.phone.repository.PhoneVerificationStore;
+import com.magampick.store.dto.StoreCreateRequest;
 import com.magampick.terms.domain.Term;
+import com.magampick.terms.domain.TermType;
 import com.magampick.terms.repository.TermRepository;
 import jakarta.servlet.http.Cookie;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -28,6 +33,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -47,9 +54,9 @@ class AuthIntegrationTest {
   @Autowired PhoneVerificationStore phoneVerificationStore;
   @Autowired TermRepository termRepository;
   @Autowired CustomerRepository customerRepository;
+  @Autowired JdbcTemplate jdbcTemplate;
 
-  /** 본인인증(실 Redis) → 약관 seed → 좌표 주소까지 갖춘 실제 소비자 가입을 수행하고 signup 응답을 반환한다. */
-  private MvcResult signupCustomer(String email, String phone) throws Exception {
+  private String verificationToken(String phone) throws Exception {
     mockMvc
         .perform(
             post("/api/v1/auth/phone-verifications")
@@ -74,9 +81,16 @@ class AuthIntegrationTest {
             .path("data")
             .path("verificationToken")
             .asText();
+    return verificationToken;
+  }
 
+  /** 본인인증(실 Redis) → 약관 seed → 좌표 주소까지 갖춘 실제 소비자 가입을 수행하고 signup 응답을 반환한다. */
+  private MvcResult signupCustomer(String email, String phone) throws Exception {
+    String verificationToken = verificationToken(phone);
     List<Long> requiredTermIds =
-        termRepository.findByRequiredTrue().stream().map(Term::getId).toList();
+        termRepository.findByRequiredTrueAndTypeIn(customerTermTypes()).stream()
+            .map(Term::getId)
+            .toList();
 
     CustomerSignupRequest request =
         new CustomerSignupRequest(
@@ -100,7 +114,7 @@ class AuthIntegrationTest {
   @Test
   void 소비자_회원가입_후_발급받은_토큰으로_인증필요_API_접근_성공() throws Exception {
     String uniqueEmail = "customer_" + System.nanoTime() + "@test.com";
-    MvcResult signupResult = signupCustomer(uniqueEmail, "010-1111-2222");
+    MvcResult signupResult = signupCustomer(uniqueEmail, uniquePhone());
 
     org.junit.jupiter.api.Assertions.assertEquals(201, signupResult.getResponse().getStatus());
     JsonNode root = objectMapper.readTree(signupResult.getResponse().getContentAsString());
@@ -116,15 +130,28 @@ class AuthIntegrationTest {
   @Test
   void 사장_회원가입_후_발급받은_토큰으로_seller_API_접근_성공() throws Exception {
     String uniqueEmail = "seller_" + System.nanoTime() + "@test.com";
+    String phone = uniquePhone();
+    String verificationToken = verificationToken(phone);
+    List<Long> requiredTermIds =
+        termRepository.findByRequiredTrueAndTypeIn(sellerTermTypes()).stream()
+            .map(Term::getId)
+            .toList();
     SellerSignupRequest request =
-        new SellerSignupRequest(uniqueEmail, "Abcd1234!", "owner", "1234567890");
+        new SellerSignupRequest(
+            uniqueEmail,
+            "Abcd1234!",
+            "홍길동",
+            phone,
+            verificationToken,
+            requiredTermIds,
+            storeRequest("동네빵집"));
 
     MvcResult signupResult =
         mockMvc
             .perform(
-                post("/api/v1/auth/seller/signup")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content(objectMapper.writeValueAsString(request)))
+                multipart("/api/v1/auth/seller/signup")
+                    .file(requestPart(request))
+                    .file(imagePart()))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.success").value(true))
             .andReturn();
@@ -142,9 +169,106 @@ class AuthIntegrationTest {
   }
 
   @Test
+  void 사장_회원가입_약관_실패시_seller_terms_store_전체_롤백() throws Exception {
+    String uniqueEmail = "seller_rollback_" + System.nanoTime() + "@test.com";
+    String storeName = "롤백빵집_" + System.nanoTime();
+    String phone = uniquePhone();
+    String verificationToken = verificationToken(phone);
+    List<Long> requiredTermIds =
+        termRepository.findByRequiredTrueAndTypeIn(sellerTermTypes()).stream()
+            .map(Term::getId)
+            .toList();
+    SellerSignupRequest request =
+        new SellerSignupRequest(
+            uniqueEmail,
+            "Abcd1234!",
+            "홍길동",
+            phone,
+            verificationToken,
+            List.of(requiredTermIds.get(0)),
+            storeRequest(storeName));
+
+    mockMvc
+        .perform(
+            multipart("/api/v1/auth/seller/signup").file(requestPart(request)).file(imagePart()))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("REQUIRED_TERMS_NOT_AGREED"));
+
+    org.assertj.core.api.Assertions.assertThat(rowCount("sellers", "email", uniqueEmail)).isZero();
+    org.assertj.core.api.Assertions.assertThat(rowCount("stores", "name", storeName)).isZero();
+    org.assertj.core.api.Assertions.assertThat(sellerAgreementCount(uniqueEmail)).isZero();
+  }
+
+  private MockMultipartFile requestPart(Object request) throws Exception {
+    return new MockMultipartFile(
+        "request",
+        "request",
+        MediaType.APPLICATION_JSON_VALUE,
+        objectMapper.writeValueAsBytes(request));
+  }
+
+  private MockMultipartFile imagePart() {
+    return new MockMultipartFile("image", "store.jpg", MediaType.IMAGE_JPEG_VALUE, new byte[1024]);
+  }
+
+  private String uniquePhone() {
+    long suffix = Math.floorMod(System.nanoTime(), 100_000_000L);
+    return "010" + String.format("%08d", suffix);
+  }
+
+  private StoreCreateRequest storeRequest(String name) {
+    return new StoreCreateRequest(
+        "123-45-67890",
+        "홍길동",
+        LocalDate.of(2024, 3, 15),
+        name,
+        "서울 강남구 테헤란로 427",
+        null,
+        "1층",
+        "06158",
+        "0212345678",
+        "신선한 빵");
+  }
+
+  private int rowCount(String table, String column, String value) {
+    return jdbcTemplate.queryForObject(
+        "SELECT COUNT(*) FROM " + table + " WHERE " + column + " = ?", Integer.class, value);
+  }
+
+  private int sellerAgreementCount(String email) {
+    return jdbcTemplate.queryForObject(
+        """
+        SELECT COUNT(*)
+        FROM seller_terms_agreements sta
+        JOIN sellers s ON s.id = sta.seller_id
+        WHERE s.email = ?
+        """,
+        Integer.class,
+        email);
+  }
+
+  private Set<TermType> customerTermTypes() {
+    return Set.of(
+        TermType.TERMS_OF_SERVICE,
+        TermType.PRIVACY,
+        TermType.LOCATION,
+        TermType.AGE_14,
+        TermType.MARKETING);
+  }
+
+  private Set<TermType> sellerTermTypes() {
+    return Set.of(
+        TermType.TERMS_OF_SERVICE,
+        TermType.PRIVACY,
+        TermType.LOCATION,
+        TermType.AGE_19,
+        TermType.MARKETING);
+  }
+
+  @Test
   void refresh_쿠키로_갱신_가능하고_로그아웃후_차단() throws Exception {
     String uniqueEmail = "refresh_" + System.nanoTime() + "@test.com";
-    MvcResult signupResult = signupCustomer(uniqueEmail, "010-3333-4444");
+    MvcResult signupResult = signupCustomer(uniqueEmail, uniquePhone());
     org.junit.jupiter.api.Assertions.assertEquals(201, signupResult.getResponse().getStatus());
 
     Cookie refreshCookie = refreshCookieOf(signupResult);
@@ -187,7 +311,7 @@ class AuthIntegrationTest {
     String kakaoEmail = data.path("email").asText();
 
     // 2. 본인인증 (실 Redis)
-    String phone = "010-7777-8888";
+    String phone = uniquePhone();
     mockMvc
         .perform(
             post("/api/v1/auth/phone-verifications")
