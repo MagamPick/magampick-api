@@ -124,7 +124,7 @@ public class Store extends BaseEntity {
     this.detailAddress = detailAddress;
   }
 
-  /** 주소 변경 — 카카오 지오코딩 결과까지 한 묶음. 4필드 atomic update. */
+  /** 주소 변경 — 자체 DB 지오코딩 결과까지 한 묶음. 4필드 atomic update. */
   public void changeAddress(
       String roadAddress, String jibunAddress, String zonecode, Point location) {
     this.roadAddress = roadAddress;

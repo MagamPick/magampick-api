@@ -53,8 +53,8 @@ public class StoreService {
   private final StoreMapper storeMapper;
 
   /**
-   * 사업자 진위확인 — 등록 폼의 [조회하기] 버튼 대응. 사업자번호·대표자명·개업일자 세 값 일치 여부만 검증, 매장은 생성하지 않는다. 본 등록 호출({@link
-   * #registerStore})에서도 동일하게 다시 검증하므로 idempotent.
+   * 사업자 검증 — 등록 폼의 [조회하기] 버튼 대응. {@code nts.verification-mode} 에 따라 상태조회(status) 또는 진위확인(validate)을
+   * 수행하며, 매장은 생성하지 않는다. 본 등록 호출({@link #registerStore})에서도 동일하게 다시 검증하므로 idempotent.
    */
   public void verifyBusiness(BusinessVerificationRequest request) {
     String businessNumber = normalizeBusinessNumber(request.businessNumber());
@@ -63,7 +63,7 @@ public class StoreService {
   }
 
   /**
-   * 매장 등록 (경로 B — 로그인 사장의 독립 등록). 사업자 진위확인(번호·대표자명·개업일자) + 지오코딩 + 이미지 업로드를 통과하면 자동 승인으로 즉시 생성된다.
+   * 매장 등록 (경로 B — 로그인 사장의 독립 등록). 사업자 검증 + 자체 DB 지오코딩 + 선택 이미지 업로드를 통과하면 자동 승인으로 즉시 생성된다.
    * operation_status 는 {@link OperationStatus#CLOSED_TODAY} 로 초기화 — 사장이 영업시간 입력 후 [영업 시작]으로 운영 개시.
    *
    * <p>외부 호출(검증·지오코딩·업로드)은 트랜잭션 시작 전에 처리하고 결과만 단일 INSERT(save)의 트랜잭션으로 반영한다 — 느린 외부 호출 동안 DB 트랜잭션을
@@ -71,7 +71,6 @@ public class StoreService {
    */
   public StoreRegisterResponse registerStore(
       Long sellerId, StoreCreateRequest request, MultipartFile image) {
-    validateImage(image);
     PreparedStoreRegistration prepared = prepareStoreRegistration(request, image);
 
     try {
@@ -93,13 +92,14 @@ public class StoreService {
   public PreparedStoreRegistration prepareStoreRegistration(
       StoreCreateRequest request, MultipartFile image) {
     String businessNumber = normalizeBusinessNumber(request.businessNumber());
+    validateOptionalImage(image);
 
     businessVerificationService.verify(
         businessNumber, request.representativeName(), request.openDate());
     Point location =
         geocodingService.geocode(
             new GeocodeQuery(request.sigunguCode(), request.roadnameCode(), request.roadAddress()));
-    String imageUrl = prepareOptionalStoreImage(image);
+    String imageUrl = uploadOptionalStoreImage(image);
     return new PreparedStoreRegistration(businessNumber, request, location, imageUrl);
   }
 
@@ -156,7 +156,7 @@ public class StoreService {
 
     boolean addressChanged =
         request.roadAddress() != null && !request.roadAddress().equals(store.getRoadAddress());
-    boolean photoChanged = image != null && !image.isEmpty();
+    boolean photoChanged = hasImage(image);
     if (photoChanged) {
       validateImage(image);
     }
@@ -405,11 +405,16 @@ public class StoreService {
     }
   }
 
-  private String prepareOptionalStoreImage(MultipartFile image) {
-    if (image == null || image.isEmpty()) {
+  private void validateOptionalImage(MultipartFile image) {
+    if (hasImage(image)) {
+      validateImage(image);
+    }
+  }
+
+  private String uploadOptionalStoreImage(MultipartFile image) {
+    if (!hasImage(image)) {
       return null;
     }
-    validateImage(image);
     return uploadStoreImage(image);
   }
 
@@ -424,5 +429,9 @@ public class StoreService {
     if (contentType == null || !ALLOWED_CONTENT_TYPES.contains(contentType)) {
       throw new BusinessException(StoreErrorCode.STORE_IMAGE_INVALID_TYPE);
     }
+  }
+
+  private boolean hasImage(MultipartFile image) {
+    return image != null && !image.isEmpty();
   }
 }

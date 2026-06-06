@@ -45,9 +45,10 @@ public class StoreController {
   @PostMapping("/business-verification")
   @Operation(
       summary = "사업자 진위확인",
-      description = "사업자 번호·대표자명·개업일자 세 값의 일치 여부를 국세청 API(stub)로 확인한다. 매장 등록 폼의 [조회하기] 버튼 대응.")
+      description =
+          "국세청 사업자등록 API로 사업자 정보를 검증한다. 기본 status 모드는 사업자번호의 정상 영업 여부를 확인하고, validate 모드에서는 사업자번호·대표자명·개업일자 세 값의 일치 여부까지 확인한다. 매장 등록 폼의 [조회하기] 버튼 대응.")
   @ApiResponses({
-    @ApiResponse(responseCode = "204", description = "진위확인 통과"),
+    @ApiResponse(responseCode = "204", description = "검증 통과"),
     @ApiResponse(
         responseCode = "400",
         description = "입력 검증 실패 / 사업자 번호 형식 오류 / 진위확인 불일치 / 정상 영업 아님"),
@@ -65,7 +66,7 @@ public class StoreController {
   @Operation(
       summary = "매장 등록",
       description =
-          "사업자 진위확인(번호·대표자명·개업일자) + 주소 지오코딩 + 대표 사진 업로드 후 자동 승인으로 매장을 즉시 생성한다. operation_status 초기값은 CLOSED_TODAY.")
+          "사업자 검증 + 자체 DB 주소 지오코딩 + 선택 대표 사진 OCI 업로드 후 자동 승인으로 매장을 즉시 생성한다. operation_status 초기값은 CLOSED_TODAY.")
   @ApiResponses({
     @ApiResponse(responseCode = "201", description = "등록 성공"),
     @ApiResponse(
@@ -78,7 +79,7 @@ public class StoreController {
   public ResponseEntity<StoreRegisterResponse> register(
       @AuthenticationPrincipal CustomUserDetails userDetails,
       @RequestPart("request") @Valid StoreCreateRequest request,
-      @RequestPart("image") MultipartFile image) {
+      @RequestPart(value = "image", required = false) MultipartFile image) {
     StoreRegisterResponse response =
         storeService.registerStore(userDetails.getUserId(), request, image);
     return ResponseEntity.created(URI.create("/api/v1/seller/stores/" + response.storeId()))
@@ -113,7 +114,7 @@ public class StoreController {
   @Operation(
       summary = "매장 정보 수정",
       description =
-          "본인 매장의 매장명·주소·상세 주소·우편번호·전화·소개·대표 사진을 부분 수정한다 (null = 변경 X). 주소 변경 시 카카오 지오코딩 재호출, 사진 변경 시 OCI 재업로드 + 기존 사진 best effort 삭제. 사업자번호·영업상태·영업시간은 수정 불가 — 요청에 포함돼도 무시.")
+          "본인 매장의 매장명·주소·상세 주소·우편번호·전화·소개·대표 사진을 부분 수정한다 (null = 변경 X). 주소 변경 시 자체 DB 지오코딩을 재수행하고, 사진 변경 시 OCI 재업로드 + 기존 사진 best effort 삭제를 수행한다. 사업자번호·영업상태·영업시간은 수정 불가 — 요청에 포함돼도 무시.")
   @ApiResponses({
     @ApiResponse(responseCode = "200", description = "수정 성공"),
     @ApiResponse(responseCode = "400", description = "입력 검증 실패 / 지오코딩 실패 / 이미지 규격 위반"),

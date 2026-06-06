@@ -6,7 +6,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 
-@Schema(description = "사업자 진위확인 요청 (등록 폼 [조회하기] 버튼)")
+@Schema(description = "사업자 검증 요청 (등록 폼 [조회하기] 버튼)")
 public record BusinessVerificationRequest(
     @Schema(description = "사업자 번호 (숫자 10자리, 하이픈 허용)", example = "123-45-67890")
         @NotBlank
