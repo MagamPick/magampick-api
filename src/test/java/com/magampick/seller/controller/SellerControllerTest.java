@@ -47,12 +47,7 @@ class SellerControllerTest {
 
   private SellerProfileResponse stubProfile() {
     return new SellerProfileResponse(
-        1L,
-        "seller@test.com",
-        "홍길동",
-        "01012345678",
-        OffsetDateTime.now(),
-        OffsetDateTime.now());
+        1L, "seller@test.com", "홍길동", "01012345678", OffsetDateTime.now(), OffsetDateTime.now());
   }
 
   // ── GET /api/v1/seller/me ──────────────────────────────────────────────────
