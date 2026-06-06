@@ -47,17 +47,28 @@ public class Product extends BaseEntity {
   @Column(name = "status", nullable = false, length = 10)
   private ProductStatus status;
 
+  @Enumerated(EnumType.STRING)
+  @Column(name = "category", nullable = false, length = 20)
+  private ProductCategory category;
+
   @Column(name = "deleted_at")
   private LocalDateTime deletedAt;
 
   @Builder
   private Product(
-      Store store, String name, BigDecimal regularPrice, String imageUrl, ProductStatus status) {
+      Store store,
+      String name,
+      BigDecimal regularPrice,
+      String imageUrl,
+      ProductStatus status,
+      ProductCategory category) {
     this.store = store;
     this.name = name;
     this.regularPrice = regularPrice;
     this.imageUrl = imageUrl;
     this.status = status;
+    // 기존 등록 경로(category 미전달)는 ETC 기본값 적용
+    this.category = category != null ? category : ProductCategory.ETC;
   }
 
   public void updateInfo(String name, BigDecimal regularPrice, String imageUrl) {

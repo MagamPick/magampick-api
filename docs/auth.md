@@ -297,7 +297,9 @@ Cookie: refresh_token={JWT}
 | `GET /api/v1/auth/email-availability`, `POST /api/v1/auth/**` (signup, login, refresh, kakao, password reset) | ✅ | | | |
 | `PATCH /api/v1/auth/me/password` | | ✅ | ✅ | |
 | `GET /api/v1/stores` **전체 매장 목록** | | ✅ | | |
-| `GET /api/v1/stores/**` (상세 등 서브경로), `/clearance-items` 검색·상세 | ✅ | ✅ | ✅ | ✅ |
+| `GET /api/v1/stores/{id}` **매장 상세** (단일 세그먼트) | | ✅ | | |
+| `GET /api/v1/stores/{id}/clearance-items`, `GET /api/v1/stores/{id}/menu` (서브경로) | ✅ | ✅ | ✅ | ✅ |
+| `GET /api/v1/stores/**` (그 외 서브경로), `/clearance-items` 검색·상세 | ✅ | ✅ | ✅ | ✅ |
 | `GET /api/v1/terms` 약관 목록 (가입 화면, 사장=`role=SELLER`) | ✅ | ✅ | ✅ | ✅ |
 | `GET /api/v1/customers/me/**` | | ✅ | | |
 | `POST /api/v1/orders`, `POST /api/v1/reviews` | | ✅ | | |

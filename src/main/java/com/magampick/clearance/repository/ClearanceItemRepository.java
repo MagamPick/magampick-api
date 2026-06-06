@@ -21,6 +21,16 @@ public interface ClearanceItemRepository extends JpaRepository<ClearanceItem, Lo
   @EntityGraph(attributePaths = "product")
   Page<ClearanceItem> findByStoreId(Long storeId, Pageable pageable);
 
+  /**
+   * 소비자 마감할인 탭 — 활성(OPEN) 떨이 목록. N+1 방지용 product fetch 포함.
+   *
+   * @param storeId 매장 ID
+   * @param status {@link ClearanceItemStatus#OPEN}
+   * @return 활성 떨이 목록 (product 초기화 포함)
+   */
+  @EntityGraph(attributePaths = "product")
+  List<ClearanceItem> findByStoreIdAndStatus(Long storeId, ClearanceItemStatus status);
+
   Optional<ClearanceItem> findByIdAndStoreId(Long id, Long storeId);
 
   @Modifying

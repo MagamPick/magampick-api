@@ -12,7 +12,26 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
   /** 사장 보유 매장 목록 — 등록순(`created_at` asc). 노션 "보유 매장 목록 조회" 정렬 명세 정합. */
   List<Store> findBySellerIdOrderByCreatedAtAsc(Long sellerId);
 
+  /** 소비자 매장 단건 조회 (소프트 삭제 제외). */
+  Optional<Store> findByIdAndDeletedAtIsNull(Long storeId);
+
   Optional<Store> findByIdAndSellerId(Long storeId, Long sellerId);
+
+  /**
+   * 매장 단건 거리 조회 (미터). 기본 주소지 origin → 매장 location 간 ST_Distance (geography).
+   *
+   * @param storeId 매장 ID
+   * @param lat origin 위도
+   * @param lng origin 경도
+   * @return 거리(미터), 매장 없으면 null
+   */
+  @Query(
+      value =
+          "SELECT ST_Distance(s.location, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography)"
+              + " FROM stores s WHERE s.id = :storeId",
+      nativeQuery = true)
+  Double findDistanceMeters(
+      @Param("storeId") Long storeId, @Param("lat") double lat, @Param("lng") double lng);
 
   /**
    * 소비자 매장 목록용 PostGIS 후보 쿼리. 조건: deleted_at IS NULL, operation_status=OPEN, 5km 이내 (ST_DWithin

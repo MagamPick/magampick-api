@@ -12,6 +12,7 @@
 | regular_price | NUMERIC(12, 0) | N | CHECK > 0 | 정상가 (원, 정수) |
 | image_url | VARCHAR(500) | Y |  | 대표 사진 URL (선택, 최대 1장) |
 | status | VARCHAR(10) | N | CHECK | `ON_SALE`, `SOLD_OUT`. 등록 시 ON_SALE |
+| category | VARCHAR(20) | N | CHECK, DEFAULT 'ETC' | `BAKERY`, `BEVERAGE`, `DESSERT`, `ETC`. 등록 시 ETC |
 | created_at | TIMESTAMP | N |  | 생성 시각 |
 | updated_at | TIMESTAMP | N |  | 수정 시각 |
 | deleted_at | TIMESTAMP | Y |  | 소프트 삭제 시각. NULL = 삭제되지 않음 |
@@ -26,6 +27,7 @@
 
 - `fk_products_store` FK `store_id → stores.id`
 - `chk_products_status` CHECK `status IN ('ON_SALE', 'SOLD_OUT')`
+- `chk_products_category` CHECK `category IN ('BAKERY','BEVERAGE','DESSERT','ETC')`
 - `chk_products_regular_price_positive` CHECK `regular_price > 0`
 
 ## 관계
