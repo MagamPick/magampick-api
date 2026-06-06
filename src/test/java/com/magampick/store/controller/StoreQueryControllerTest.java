@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.magampick.address.exception.AddressErrorCode;
+import com.magampick.clearance.service.StoreDealQueryService;
 import com.magampick.global.exception.BusinessException;
 import com.magampick.global.security.CustomUserDetails;
 import com.magampick.global.security.JwtAccessDeniedHandler;
@@ -20,6 +21,8 @@ import com.magampick.global.security.SecurityConfig;
 import com.magampick.store.dto.StoreListItemResponse;
 import com.magampick.store.dto.StoreListResponse;
 import com.magampick.store.dto.StoreSort;
+import com.magampick.store.service.StoreDetailQueryService;
+import com.magampick.store.service.StoreMenuQueryService;
 import com.magampick.store.service.StoreQueryService;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -35,6 +38,9 @@ class StoreQueryControllerTest {
 
   @Autowired MockMvc mockMvc;
   @MockitoBean StoreQueryService storeQueryService;
+  @MockitoBean StoreDetailQueryService storeDetailQueryService;
+  @MockitoBean StoreDealQueryService storeDealQueryService;
+  @MockitoBean StoreMenuQueryService storeMenuQueryService;
   @MockitoBean JwtProvider jwtProvider;
 
   private static final CustomUserDetails CUSTOMER = new CustomUserDetails(1L, Role.CUSTOMER);

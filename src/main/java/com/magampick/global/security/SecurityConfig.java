@@ -34,10 +34,19 @@ public class SecurityConfig {
   };
 
   /**
-   * GET /api/v1/stores (목록) 만 ROLE_CUSTOMER 인증. 목록보다 먼저 매처 선언해야 첫 매치 우선이 적용됨. /stores/{id} 등 서브경로는
-   * 아래 PUBLIC_GET_PATHS 의 /stores/** 로 계속 public.
+   * GET /api/v1/stores (목록) ROLE_CUSTOMER 인증. 목록보다 먼저 매처 선언해야 첫 매치 우선 적용됨.
+   *
+   * <p>매처 순서:
+   *
+   * <ol>
+   *   <li>{@code /api/v1/stores} — 전체 목록, ROLE_CUSTOMER
+   *   <li>{@code /api/v1/stores/*} — 단건 상세(단일 세그먼트), ROLE_CUSTOMER
+   *   <li>{@code /api/v1/stores/**} — 서브경로(clearance-items·menu·reviews 등), public
+   * </ol>
    */
   private static final String CUSTOMER_STORE_LIST_PATH = "/api/v1/stores";
+
+  private static final String CUSTOMER_STORE_DETAIL_PATH = "/api/v1/stores/*";
 
   private static final String[] PUBLIC_GET_PATHS = {
     "/api/v1/stores/**", "/api/v1/clearance-items/**", "/api/v1/terms/**"
@@ -62,9 +71,12 @@ public class SecurityConfig {
                     .permitAll()
                     .requestMatchers("/api/v1/auth/**")
                     .permitAll()
-                    // GET /api/v1/stores (목록) — ROLE_CUSTOMER 인증 필요.
-                    // PUBLIC_GET_PATHS 의 /stores/** 보다 먼저 선언해야 첫 매치 우선이 적용됨.
+                    // GET /api/v1/stores (목록) — ROLE_CUSTOMER.
+                    // GET /api/v1/stores/* (단건 상세) — ROLE_CUSTOMER.
+                    // 두 매처 모두 PUBLIC_GET_PATHS(/stores/**) 보다 먼저 선언해야 첫 매치 우선 적용.
                     .requestMatchers(HttpMethod.GET, CUSTOMER_STORE_LIST_PATH)
+                    .hasRole("CUSTOMER")
+                    .requestMatchers(HttpMethod.GET, CUSTOMER_STORE_DETAIL_PATH)
                     .hasRole("CUSTOMER")
                     .requestMatchers(HttpMethod.GET, PUBLIC_GET_PATHS)
                     .permitAll()
