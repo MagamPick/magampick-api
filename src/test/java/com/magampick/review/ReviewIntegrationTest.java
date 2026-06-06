@@ -78,7 +78,6 @@ class ReviewIntegrationTest {
             Seller.builder()
                 .email("seller_integ_" + ts + "@test.com")
                 .passwordHash("hash")
-                .businessNumber(String.valueOf(ts).substring(0, 10))
                 .ownerName("사장님")
                 .phone("01099998888")
                 .build());
@@ -183,7 +182,6 @@ class ReviewIntegrationTest {
             Seller.builder()
                 .email("seller_empty_" + ts + "@test.com")
                 .passwordHash("hash")
-                .businessNumber(String.valueOf(ts).substring(0, 10))
                 .ownerName("사장님2")
                 .phone("01088887777")
                 .build());

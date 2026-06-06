@@ -74,7 +74,6 @@ class ReviewRepositoryTest {
             Seller.builder()
                 .email("seller_" + System.nanoTime() + "@test.com")
                 .passwordHash("hash")
-                .businessNumber(String.valueOf(System.nanoTime()).substring(0, 10))
                 .ownerName("사장님")
                 .phone("01012345678")
                 .build());
