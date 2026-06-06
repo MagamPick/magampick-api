@@ -41,12 +41,21 @@ public class SecurityConfig {
    * <ol>
    *   <li>{@code /api/v1/stores} — 전체 목록, ROLE_CUSTOMER
    *   <li>{@code /api/v1/stores/*} — 단건 상세(단일 세그먼트), ROLE_CUSTOMER
+   *   <li>{@code /api/v1/clearance-items/*} — 떨이 상세(단일 세그먼트), ROLE_CUSTOMER
+   *   <li>{@code /api/v1/products/*} — 일반 상품 상세(단일 세그먼트), ROLE_CUSTOMER
    *   <li>{@code /api/v1/stores/**} — 서브경로(clearance-items·menu·reviews 등), public
+   *   <li>{@code /api/v1/clearance-items/**} — 루트 외 서브경로, public
    * </ol>
    */
   private static final String CUSTOMER_STORE_LIST_PATH = "/api/v1/stores";
 
   private static final String CUSTOMER_STORE_DETAIL_PATH = "/api/v1/stores/*";
+
+  /** GET /api/v1/clearance-items/{id} — 단일 세그먼트, ROLE_CUSTOMER (인가 auth.md §9). */
+  private static final String CUSTOMER_DEAL_DETAIL_PATH = "/api/v1/clearance-items/*";
+
+  /** GET /api/v1/products/{id} — 단일 세그먼트, ROLE_CUSTOMER (인가 auth.md §9). */
+  private static final String CUSTOMER_PRODUCT_DETAIL_PATH = "/api/v1/products/*";
 
   private static final String[] PUBLIC_GET_PATHS = {
     "/api/v1/stores/**", "/api/v1/clearance-items/**", "/api/v1/terms/**"
@@ -73,10 +82,17 @@ public class SecurityConfig {
                     .permitAll()
                     // GET /api/v1/stores (목록) — ROLE_CUSTOMER.
                     // GET /api/v1/stores/* (단건 상세) — ROLE_CUSTOMER.
-                    // 두 매처 모두 PUBLIC_GET_PATHS(/stores/**) 보다 먼저 선언해야 첫 매치 우선 적용.
+                    // GET /api/v1/clearance-items/* (떨이 상세, 단일 세그먼트) — ROLE_CUSTOMER.
+                    // GET /api/v1/products/* (일반 상품 상세, 단일 세그먼트) — ROLE_CUSTOMER.
+                    // 네 매처 모두 PUBLIC_GET_PATHS(/stores/**, /clearance-items/**) 보다 먼저 선언해야 첫 매치 우선
+                    // 적용.
                     .requestMatchers(HttpMethod.GET, CUSTOMER_STORE_LIST_PATH)
                     .hasRole("CUSTOMER")
                     .requestMatchers(HttpMethod.GET, CUSTOMER_STORE_DETAIL_PATH)
+                    .hasRole("CUSTOMER")
+                    .requestMatchers(HttpMethod.GET, CUSTOMER_DEAL_DETAIL_PATH)
+                    .hasRole("CUSTOMER")
+                    .requestMatchers(HttpMethod.GET, CUSTOMER_PRODUCT_DETAIL_PATH)
                     .hasRole("CUSTOMER")
                     .requestMatchers(HttpMethod.GET, PUBLIC_GET_PATHS)
                     .permitAll()
