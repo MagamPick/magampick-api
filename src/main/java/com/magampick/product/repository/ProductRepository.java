@@ -6,9 +6,19 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ProductRepository extends JpaRepository<Product, Long> {
+
+  /**
+   * 소비자 상세 조회용 — store 함께 fetch, 소프트 삭제 제외. N+1 방지.
+   *
+   * @param id 상품 ID
+   * @return store 초기화된 Product
+   */
+  @EntityGraph(attributePaths = "store")
+  Optional<Product> findByIdAndDeletedAtIsNull(Long id);
 
   boolean existsByStoreIdAndNameAndDeletedAtIsNull(Long storeId, String name);
 

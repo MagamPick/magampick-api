@@ -16,6 +16,16 @@ import org.springframework.data.repository.query.Param;
 
 public interface ClearanceItemRepository extends JpaRepository<ClearanceItem, Long> {
 
+  /**
+   * 소비자 상세 조회용 — store + product 함께 fetch. N+1 방지.
+   *
+   * @param id 떨이 상품 ID
+   * @return store·product 초기화된 ClearanceItem
+   */
+  @EntityGraph(attributePaths = {"store", "product"})
+  @Query("SELECT c FROM ClearanceItem c WHERE c.id = :id")
+  Optional<ClearanceItem> findByIdWithStoreAndProduct(@Param("id") Long id);
+
   boolean existsByProductIdAndStatus(Long productId, ClearanceItemStatus status);
 
   @EntityGraph(attributePaths = "product")
