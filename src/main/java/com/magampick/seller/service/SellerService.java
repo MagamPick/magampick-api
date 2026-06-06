@@ -20,6 +20,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class SellerService {
 
+  private static final int SELLER_NAME_MIN = 2;
+  private static final int SELLER_NAME_MAX = 20;
+
   private final SellerRepository sellerRepository;
   private final SellerMapper sellerMapper;
 
@@ -31,7 +34,8 @@ public class SellerService {
   @Transactional
   public SellerProfileResponse updateProfile(Long sellerId, SellerProfileUpdateRequest request) {
     Seller seller = findActiveSeller(sellerId);
-    seller.changeOwnerName(request.ownerName());
+    validateSellerName(request.name());
+    seller.changeOwnerName(request.name());
     log.info("사장 이름 변경됨. sellerId={}", sellerId);
     return sellerMapper.toProfileResponse(seller);
   }
@@ -53,5 +57,12 @@ public class SellerService {
       throw new BusinessException(SellerErrorCode.SELLER_NOT_FOUND);
     }
     return seller;
+  }
+
+  private void validateSellerName(String name) {
+    int length = name == null ? 0 : name.trim().length();
+    if (length < SELLER_NAME_MIN || length > SELLER_NAME_MAX) {
+      throw new BusinessException(SellerErrorCode.SELLER_NAME_INVALID);
+    }
   }
 }

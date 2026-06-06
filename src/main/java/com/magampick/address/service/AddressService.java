@@ -12,10 +12,13 @@ import com.magampick.customer.repository.CustomerRepository;
 import com.magampick.global.common.GeometryUtil;
 import com.magampick.global.exception.BusinessException;
 import com.magampick.global.exception.CommonErrorCode;
+import com.magampick.store.service.GeocodeQuery;
+import com.magampick.store.service.GeocodingService;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.locationtech.jts.geom.Point;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +34,7 @@ public class AddressService {
   private final AddressRepository addressRepository;
   private final CustomerRepository customerRepository;
   private final AddressMapper addressMapper;
+  private final GeocodingService geocodingService;
 
   @Transactional
   public AddressResponse create(Long customerId, AddressCreateRequest request) {
@@ -38,7 +42,9 @@ public class AddressService {
     if (currentCount >= MAX_ADDRESSES_PER_CUSTOMER) {
       throw new BusinessException(AddressErrorCode.ADDRESS_LIMIT_EXCEEDED);
     }
+    validateLabel(request.label());
     boolean isDefault = (currentCount == 0);
+    Point location = geocode(request.sigunguCode(), request.roadnameCode(), request.roadAddress());
 
     // 가벼운 reference — 실제 SELECT 없이 FK 매핑. JWT 통과 customer_id 신뢰.
     Customer customerRef = customerRepository.getReferenceById(customerId);
@@ -50,7 +56,7 @@ public class AddressService {
             .jibunAddress(request.jibunAddress())
             .detailAddress(request.detailAddress())
             .zonecode(request.zonecode())
-            .location(GeometryUtil.toPoint(request.latitude(), request.longitude()))
+            .location(location)
             .isDefault(isDefault)
             .build();
     Address saved = addressRepository.save(address);
@@ -71,10 +77,13 @@ public class AddressService {
   public AddressResponse update(Long customerId, Long addressId, AddressUpdateRequest request) {
     Address address = findOwnedAddress(customerId, addressId);
     if (request.label() != null) {
+      validateLabel(request.label());
       address.changeLabel(request.label());
     }
     if (request.roadAddress() != null) {
       address.changeRoadAddress(request.roadAddress());
+      address.changeLocation(
+          geocode(request.sigunguCode(), request.roadnameCode(), request.roadAddress()));
     }
     if (request.jibunAddress() != null) {
       address.changeJibunAddress(request.jibunAddress());
@@ -84,9 +93,6 @@ public class AddressService {
     }
     if (request.zonecode() != null) {
       address.changeZonecode(request.zonecode());
-    }
-    if (request.latitude() != null && request.longitude() != null) {
-      address.changeLocation(request.latitude(), request.longitude());
     }
     log.info("주소지 수정됨. addressId={}, customerId={}", addressId, customerId);
     return addressMapper.toResponse(address);
@@ -113,22 +119,23 @@ public class AddressService {
   @Transactional
   public void delete(Long customerId, Long addressId) {
     Address target = findOwnedAddress(customerId, addressId);
-    boolean wasDefault = target.isDefault();
-    addressRepository.delete(target);
-    if (wasDefault) {
-      // DELETE 가 먼저 반영되어야 부분 UNIQUE 인덱스 위반 없이 새 default 지정 가능.
-      addressRepository.flush();
-      addressRepository
-          .findFirstByCustomerIdAndIdNotOrderByCreatedAtAscIdAsc(customerId, addressId)
-          .ifPresent(
-              successor -> {
-                successor.markAsDefault();
-                log.info(
-                    "기본 주소지 자동 승계됨. successorId={}, customerId={}", successor.getId(), customerId);
-              });
+    long currentCount = addressRepository.countByCustomerId(customerId);
+    if (currentCount <= 1) {
+      throw new BusinessException(AddressErrorCode.LAST_ADDRESS_DELETE_BLOCKED);
     }
-    log.info(
-        "주소지 삭제됨. addressId={}, customerId={}, wasDefault={}", addressId, customerId, wasDefault);
+    if (target.isDefault()) {
+      throw new BusinessException(AddressErrorCode.DEFAULT_ADDRESS_DELETE_BLOCKED);
+    }
+    addressRepository.delete(target);
+    log.info("주소지 삭제됨. addressId={}, customerId={}", addressId, customerId);
+  }
+
+  public String reverseGeocode(double latitude, double longitude) {
+    String roadAddress = geocodingService.reverseGeocode(GeometryUtil.toPoint(latitude, longitude));
+    if (roadAddress == null) {
+      throw new BusinessException(AddressErrorCode.GEOCODING_FAILED);
+    }
+    return roadAddress;
   }
 
   private Address findOwnedAddress(Long customerId, Long addressId) {
@@ -140,5 +147,20 @@ public class AddressService {
       throw new BusinessException(CommonErrorCode.FORBIDDEN);
     }
     return address;
+  }
+
+  private Point geocode(String sigunguCode, String roadnameCode, String roadAddress) {
+    try {
+      return geocodingService.geocode(new GeocodeQuery(sigunguCode, roadnameCode, roadAddress));
+    } catch (BusinessException e) {
+      throw new BusinessException(AddressErrorCode.GEOCODING_FAILED, e);
+    }
+  }
+
+  private void validateLabel(String label) {
+    int length = label == null ? 0 : label.trim().length();
+    if (length < 1 || length > 20) {
+      throw new BusinessException(AddressErrorCode.ALIAS_LENGTH);
+    }
   }
 }

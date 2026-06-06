@@ -2,6 +2,8 @@ package com.magampick.address.controller;
 
 import com.magampick.address.dto.AddressCreateRequest;
 import com.magampick.address.dto.AddressResponse;
+import com.magampick.address.dto.AddressReverseGeocodeRequest;
+import com.magampick.address.dto.AddressReverseGeocodeResponse;
 import com.magampick.address.dto.AddressUpdateRequest;
 import com.magampick.address.service.AddressService;
 import com.magampick.global.security.CustomUserDetails;
@@ -36,10 +38,10 @@ public class AddressController {
   @PostMapping
   @Operation(
       summary = "주소지 등록",
-      description = "본인 주소지를 등록한다. 최대 3개까지 보유 가능. 첫 등록 시 자동으로 기본 주소지로 지정된다.")
+      description = "다음 우편번호 위젯 결과로 본인 주소지를 등록한다. 최대 3개까지 보유 가능. 첫 등록 시 자동으로 기본 주소지로 지정된다.")
   @ApiResponses({
     @ApiResponse(responseCode = "201", description = "등록 성공"),
-    @ApiResponse(responseCode = "400", description = "검증 실패 또는 보유 한도 초과"),
+    @ApiResponse(responseCode = "400", description = "검증 실패 또는 지오코딩 실패"),
     @ApiResponse(responseCode = "401", description = "미인증"),
     @ApiResponse(responseCode = "403", description = "권한 없음 (ROLE_CUSTOMER 아님)")
   })
@@ -65,7 +67,7 @@ public class AddressController {
   @PatchMapping("/{addressId}")
   @Operation(
       summary = "주소지 수정",
-      description = "본인 주소지의 라벨/주소/좌표를 부분 수정한다. 기본 주소지 변경은 별도 endpoint 사용.")
+      description = "본인 주소지의 라벨/주소를 부분 수정한다. 주소 변경 시 다음 우편번호 위젯 결과를 함께 보낸다.")
   @ApiResponses({
     @ApiResponse(responseCode = "200", description = "수정 성공"),
     @ApiResponse(responseCode = "400", description = "검증 실패"),
@@ -78,6 +80,21 @@ public class AddressController {
       @Parameter(description = "주소지 ID", example = "1") @PathVariable Long addressId,
       @Valid @RequestBody AddressUpdateRequest request) {
     return addressService.update(userDetails.getUserId(), addressId, request);
+  }
+
+  @PostMapping("/reverse-geocode")
+  @Operation(summary = "현재 위치 역지오코딩", description = "GPS 좌표에서 가장 가까운 도로명 주소 라벨을 조회한다.")
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "조회 성공"),
+    @ApiResponse(responseCode = "400", description = "검증 실패 또는 매칭 실패"),
+    @ApiResponse(responseCode = "401", description = "미인증"),
+    @ApiResponse(responseCode = "403", description = "권한 없음 (ROLE_CUSTOMER 아님)")
+  })
+  public AddressReverseGeocodeResponse reverseGeocode(
+      @AuthenticationPrincipal CustomUserDetails userDetails,
+      @Valid @RequestBody AddressReverseGeocodeRequest request) {
+    return new AddressReverseGeocodeResponse(
+        addressService.reverseGeocode(request.latitude(), request.longitude()));
   }
 
   @PostMapping("/{addressId}/default")
@@ -97,9 +114,7 @@ public class AddressController {
   }
 
   @DeleteMapping("/{addressId}")
-  @Operation(
-      summary = "주소지 삭제",
-      description = "본인 주소지를 삭제한다. 기본 주소지를 삭제한 경우, 남은 주소 중 가장 오래된 것이 자동으로 기본 주소지로 승계된다.")
+  @Operation(summary = "주소지 삭제", description = "본인 주소지를 삭제한다. 기본 주소지와 마지막 주소지는 삭제할 수 없다.")
   @ApiResponses({
     @ApiResponse(responseCode = "204", description = "삭제 성공"),
     @ApiResponse(responseCode = "401", description = "미인증"),

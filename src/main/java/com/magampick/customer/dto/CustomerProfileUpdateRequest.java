@@ -5,5 +5,5 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 public record CustomerProfileUpdateRequest(
-    @NotBlank @Size(min = 1, max = 20) @Schema(description = "닉네임", example = "마감픽유저")
+    @NotBlank @Size(min = 2, max = 12) @Schema(description = "닉네임", example = "마감픽유저")
         String nickname) {}

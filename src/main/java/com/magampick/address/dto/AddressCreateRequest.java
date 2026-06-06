@@ -1,10 +1,7 @@
 package com.magampick.address.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.DecimalMax;
-import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
@@ -22,10 +19,11 @@ public record AddressCreateRequest(
         String detailAddress,
     @Schema(description = "우편번호 5자리", example = "06158") @Pattern(regexp = "^[0-9]{5}$")
         String zonecode,
-    @Schema(description = "위도", example = "37.5066") @NotNull @DecimalMin("-90") @DecimalMax("90")
-        Double latitude,
-    @Schema(description = "경도", example = "127.0535")
-        @NotNull
-        @DecimalMin("-180")
-        @DecimalMax("180")
-        Double longitude) {}
+    @Schema(description = "시군구코드 (다음 위젯 sigunguCode, 5자리)", example = "11680")
+        @NotBlank
+        @Pattern(regexp = "\\d{5}")
+        String sigunguCode,
+    @Schema(description = "도로명번호 (다음 위젯 roadnameCode, 최대 7자리)", example = "3179999")
+        @NotBlank
+        @Pattern(regexp = "\\d{1,7}")
+        String roadnameCode) {}

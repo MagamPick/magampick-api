@@ -71,6 +71,7 @@ public class StoreService {
    */
   public StoreRegisterResponse registerStore(
       Long sellerId, StoreCreateRequest request, MultipartFile image) {
+    validateImage(image);
     PreparedStoreRegistration prepared = prepareStoreRegistration(request, image);
 
     try {
@@ -92,14 +93,13 @@ public class StoreService {
   public PreparedStoreRegistration prepareStoreRegistration(
       StoreCreateRequest request, MultipartFile image) {
     String businessNumber = normalizeBusinessNumber(request.businessNumber());
-    validateImage(image);
 
     businessVerificationService.verify(
         businessNumber, request.representativeName(), request.openDate());
     Point location =
         geocodingService.geocode(
             new GeocodeQuery(request.sigunguCode(), request.roadnameCode(), request.roadAddress()));
-    String imageUrl = uploadStoreImage(image);
+    String imageUrl = prepareOptionalStoreImage(image);
     return new PreparedStoreRegistration(businessNumber, request, location, imageUrl);
   }
 
@@ -405,8 +405,16 @@ public class StoreService {
     }
   }
 
+  private String prepareOptionalStoreImage(MultipartFile image) {
+    if (image == null || image.isEmpty()) {
+      return null;
+    }
+    validateImage(image);
+    return uploadStoreImage(image);
+  }
+
   private void validateImage(MultipartFile image) {
-    if (image.isEmpty()) {
+    if (image == null || image.isEmpty()) {
       throw new BusinessException(StoreErrorCode.STORE_IMAGE_INVALID_TYPE);
     }
     if (image.getSize() > MAX_IMAGE_BYTES) {

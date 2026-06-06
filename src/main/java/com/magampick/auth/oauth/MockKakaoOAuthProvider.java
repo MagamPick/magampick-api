@@ -9,9 +9,9 @@ import java.security.NoSuchAlgorithmException;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
-/** 실제 카카오 API 연동(dev/prod) 전까지 local/test 에서 쓰는 mock provider. 인가 코드 해시로 결정적 사용자 정보를 만든다. */
+/** 실제 카카오 API 호출 없이 test 에서 쓰는 mock provider. 인가 코드 해시로 결정적 사용자 정보를 만든다. */
 @Component
-@Profile("!dev & !prod")
+@Profile("test")
 public class MockKakaoOAuthProvider implements OAuthProvider {
 
   @Override

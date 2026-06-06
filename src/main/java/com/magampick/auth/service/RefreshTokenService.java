@@ -54,6 +54,17 @@ public class RefreshTokenService {
     }
   }
 
+  /** 비밀번호 재설정 후 해당 사용자의 모든 refresh 세션을 폐기한다. */
+  public void revokeAll(Role role, Long userId) {
+    store.deleteAll(role, userId);
+  }
+
+  /** 비밀번호 변경 후 현재 refresh 세션만 유지하고 같은 사용자의 다른 세션을 폐기한다. */
+  public void revokeOtherSessions(String rawRefreshToken) {
+    JwtProvider.TokenPayload payload = validate(rawRefreshToken);
+    store.deleteAllExcept(payload.role(), payload.userId(), payload.tokenId());
+  }
+
   private JwtProvider.TokenPayload validate(String rawRefreshToken) {
     JwtProvider.TokenPayload payload;
     try {

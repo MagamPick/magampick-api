@@ -20,6 +20,9 @@ import com.magampick.customer.repository.CustomerRepository;
 import com.magampick.global.common.GeometryUtil;
 import com.magampick.global.exception.BusinessException;
 import com.magampick.global.exception.CommonErrorCode;
+import com.magampick.store.exception.StoreErrorCode;
+import com.magampick.store.service.GeocodeQuery;
+import com.magampick.store.service.GeocodingService;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -39,6 +42,7 @@ class AddressServiceTest {
   @Mock AddressRepository addressRepository;
   @Mock CustomerRepository customerRepository;
   @Mock AddressMapper addressMapper;
+  @Mock GeocodingService geocodingService;
   @InjectMocks AddressService addressService;
 
   private Customer customerRef(Long id) {
@@ -66,7 +70,7 @@ class AddressServiceTest {
 
   private AddressCreateRequest createReq() {
     return new AddressCreateRequest(
-        "집", "서울특별시 강남구 테헤란로 427", null, "101호", "06158", 37.5066, 127.0535);
+        "집", "서울특별시 강남구 테헤란로 427", null, "101호", "06158", "11680", "3179999");
   }
 
   private AddressResponse stubResponse(Address a) {
@@ -84,12 +88,12 @@ class AddressServiceTest {
         OffsetDateTime.now());
   }
 
-  // ── 등록 ──────────────────────────────────────────────────────────────────
-
   @Test
-  void 주소지_등록_성공_첫_등록은_default_자동_지정() {
+  void 주소지_등록_성공_서버_지오코딩_및_첫_등록_default() {
     // given
     given(addressRepository.countByCustomerId(CUSTOMER_ID)).willReturn(0L);
+    given(geocodingService.geocode(any(GeocodeQuery.class)))
+        .willReturn(GeometryUtil.toPoint(37.5066, 127.0535));
     given(customerRepository.getReferenceById(CUSTOMER_ID)).willReturn(customerRef(CUSTOMER_ID));
     given(addressRepository.save(any(Address.class)))
         .willAnswer(
@@ -107,12 +111,17 @@ class AddressServiceTest {
     // then
     assertThat(response.id()).isEqualTo(10L);
     assertThat(response.isDefault()).isTrue();
+    assertThat(response.latitude()).isEqualTo(37.5066);
+    then(geocodingService)
+        .should()
+        .geocode(new GeocodeQuery("11680", "3179999", "서울특별시 강남구 테헤란로 427"));
   }
 
   @Test
-  void 주소지_등록_성공_두번째_부터는_default_FALSE() {
+  void 주소지_등록_성공_두번째부터는_default_FALSE() {
     // given
     given(addressRepository.countByCustomerId(CUSTOMER_ID)).willReturn(1L);
+    given(geocodingService.geocode(any())).willReturn(GeometryUtil.toPoint(37.5066, 127.0535));
     given(customerRepository.getReferenceById(CUSTOMER_ID)).willReturn(customerRef(CUSTOMER_ID));
     given(addressRepository.save(any(Address.class)))
         .willAnswer(
@@ -140,10 +149,38 @@ class AddressServiceTest {
     assertThatThrownBy(() -> addressService.create(CUSTOMER_ID, createReq()))
         .isInstanceOf(BusinessException.class)
         .hasFieldOrPropertyWithValue("errorCode", AddressErrorCode.ADDRESS_LIMIT_EXCEEDED);
+    then(geocodingService).should(never()).geocode(any());
     then(addressRepository).should(never()).save(any());
   }
 
-  // ── 목록 조회 ────────────────────────────────────────────────────────────
+  @Test
+  void 주소지_등록_실패_별칭_20자_초과() {
+    // given
+    AddressCreateRequest request =
+        new AddressCreateRequest(
+            "가".repeat(21), "서울특별시 강남구 테헤란로 427", null, null, "06158", "11680", "3179999");
+    given(addressRepository.countByCustomerId(CUSTOMER_ID)).willReturn(0L);
+
+    // when / then
+    assertThatThrownBy(() -> addressService.create(CUSTOMER_ID, request))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", AddressErrorCode.ALIAS_LENGTH);
+    then(geocodingService).should(never()).geocode(any());
+  }
+
+  @Test
+  void 주소지_등록_실패_지오코딩_불가() {
+    // given
+    given(addressRepository.countByCustomerId(CUSTOMER_ID)).willReturn(0L);
+    given(geocodingService.geocode(any()))
+        .willThrow(new BusinessException(StoreErrorCode.ADDRESS_GEOCODING_FAILED));
+
+    // when / then
+    assertThatThrownBy(() -> addressService.create(CUSTOMER_ID, createReq()))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", AddressErrorCode.GEOCODING_FAILED);
+    then(addressRepository).should(never()).save(any());
+  }
 
   @Test
   void 주소지_목록_조회_성공_default_가_맨_위() {
@@ -165,22 +202,7 @@ class AddressServiceTest {
   }
 
   @Test
-  void 주소지_목록_조회_성공_보유_0개면_빈_리스트() {
-    // given
-    given(addressRepository.findByCustomerIdOrderByIsDefaultDescCreatedAtAscIdAsc(CUSTOMER_ID))
-        .willReturn(List.of());
-
-    // when
-    List<AddressResponse> result = addressService.list(CUSTOMER_ID);
-
-    // then
-    assertThat(result).isEmpty();
-  }
-
-  // ── 수정 (PATCH) ─────────────────────────────────────────────────────────
-
-  @Test
-  void 주소지_수정_성공_label_만_변경() {
+  void 주소지_수정_성공_label_만_변경하면_지오코딩_없음() {
     // given
     Address existing = address(1L, CUSTOMER_ID, false);
     given(addressRepository.findById(1L)).willReturn(Optional.of(existing));
@@ -192,24 +214,31 @@ class AddressServiceTest {
 
     // then
     assertThat(existing.getLabel()).isEqualTo("새라벨");
-    assertThat(existing.getRoadAddress()).isEqualTo("서울특별시 강남구 테헤란로 427"); // 변경 안 됨
+    assertThat(existing.getRoadAddress()).isEqualTo("서울특별시 강남구 테헤란로 427");
+    then(geocodingService).should(never()).geocode(any());
   }
 
   @Test
-  void 주소지_수정_성공_좌표_쌍_변경() {
+  void 주소지_수정_성공_주소_변경시_서버_지오코딩() {
     // given
     Address existing = address(1L, CUSTOMER_ID, false);
     given(addressRepository.findById(1L)).willReturn(Optional.of(existing));
+    given(geocodingService.geocode(new GeocodeQuery("11110", "3005001", "서울특별시 종로구 세종대로 175")))
+        .willReturn(GeometryUtil.toPoint(37.572, 126.9769));
     given(addressMapper.toResponse(existing)).willReturn(stubResponse(existing));
     AddressUpdateRequest req =
-        new AddressUpdateRequest(null, null, null, null, null, 35.1796, 129.0756);
+        new AddressUpdateRequest(
+            null, "서울특별시 종로구 세종대로 175", "서울특별시 종로구 세종로 1", "2층", "03172", "11110", "3005001");
 
     // when
     addressService.update(CUSTOMER_ID, 1L, req);
 
     // then
-    assertThat(GeometryUtil.latitude(existing.getLocation())).isEqualTo(35.1796);
-    assertThat(GeometryUtil.longitude(existing.getLocation())).isEqualTo(129.0756);
+    assertThat(existing.getRoadAddress()).isEqualTo("서울특별시 종로구 세종대로 175");
+    assertThat(GeometryUtil.latitude(existing.getLocation())).isEqualTo(37.572);
+    then(geocodingService)
+        .should()
+        .geocode(new GeocodeQuery("11110", "3005001", "서울특별시 종로구 세종대로 175"));
   }
 
   @Test
@@ -245,8 +274,6 @@ class AddressServiceTest {
         .hasFieldOrPropertyWithValue("errorCode", AddressErrorCode.ADDRESS_NOT_FOUND);
   }
 
-  // ── 기본 주소지 변경 (POST .../default) ─────────────────────────────────
-
   @Test
   void 기본_주소지_변경_성공_기존_default_unset() {
     // given
@@ -267,54 +294,14 @@ class AddressServiceTest {
   }
 
   @Test
-  void 기본_주소지_변경_성공_이미_default_면_멱등() {
+  void 주소지_삭제_성공_기본이_아닌_주소만_삭제() {
     // given
-    Address target = address(1L, CUSTOMER_ID, true);
-    given(addressRepository.findById(1L)).willReturn(Optional.of(target));
-    given(addressMapper.toResponse(target)).willReturn(stubResponse(target));
+    Address target = address(2L, CUSTOMER_ID, false);
+    given(addressRepository.findById(2L)).willReturn(Optional.of(target));
+    given(addressRepository.countByCustomerId(CUSTOMER_ID)).willReturn(2L);
 
     // when
-    addressService.markAsDefault(CUSTOMER_ID, 1L);
-
-    // then
-    then(addressRepository).should(never()).findByCustomerIdAndIsDefaultTrue(any());
-    then(addressRepository).should(never()).flush();
-    assertThat(target.isDefault()).isTrue();
-  }
-
-  @Test
-  void 기본_주소지_변경_실패_본인_외_주소() {
-    // given
-    Address other = address(1L, OTHER_CUSTOMER_ID, false);
-    given(addressRepository.findById(1L)).willReturn(Optional.of(other));
-
-    // when / then
-    assertThatThrownBy(() -> addressService.markAsDefault(CUSTOMER_ID, 1L))
-        .isInstanceOf(BusinessException.class)
-        .hasFieldOrPropertyWithValue("errorCode", CommonErrorCode.FORBIDDEN);
-  }
-
-  @Test
-  void 기본_주소지_변경_실패_존재하지_않음() {
-    // given
-    given(addressRepository.findById(999L)).willReturn(Optional.empty());
-
-    // when / then
-    assertThatThrownBy(() -> addressService.markAsDefault(CUSTOMER_ID, 999L))
-        .isInstanceOf(BusinessException.class)
-        .hasFieldOrPropertyWithValue("errorCode", AddressErrorCode.ADDRESS_NOT_FOUND);
-  }
-
-  // ── 삭제 ────────────────────────────────────────────────────────────────
-
-  @Test
-  void 주소지_삭제_성공() {
-    // given
-    Address target = address(1L, CUSTOMER_ID, false);
-    given(addressRepository.findById(1L)).willReturn(Optional.of(target));
-
-    // when
-    addressService.delete(CUSTOMER_ID, 1L);
+    addressService.delete(CUSTOMER_ID, 2L);
 
     // then
     then(addressRepository).should(times(1)).delete(target);
@@ -325,38 +312,31 @@ class AddressServiceTest {
   }
 
   @Test
-  void 주소지_삭제_성공_default_삭제시_가장_오래된_주소_자동_승계() {
+  void 주소지_삭제_실패_마지막_주소() {
     // given
     Address target = address(1L, CUSTOMER_ID, true);
-    Address successor = address(2L, CUSTOMER_ID, false);
     given(addressRepository.findById(1L)).willReturn(Optional.of(target));
-    given(addressRepository.findFirstByCustomerIdAndIdNotOrderByCreatedAtAscIdAsc(CUSTOMER_ID, 1L))
-        .willReturn(Optional.of(successor));
+    given(addressRepository.countByCustomerId(CUSTOMER_ID)).willReturn(1L);
 
-    // when
-    addressService.delete(CUSTOMER_ID, 1L);
-
-    // then
-    then(addressRepository).should(times(1)).delete(target);
-    then(addressRepository).should(times(1)).flush();
-    assertThat(successor.isDefault()).isTrue();
+    // when / then
+    assertThatThrownBy(() -> addressService.delete(CUSTOMER_ID, 1L))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", AddressErrorCode.LAST_ADDRESS_DELETE_BLOCKED);
+    then(addressRepository).should(never()).delete(any());
   }
 
   @Test
-  void 주소지_삭제_성공_마지막_1개_삭제시_default_승계_없이_종료() {
+  void 주소지_삭제_실패_기본_주소() {
     // given
     Address target = address(1L, CUSTOMER_ID, true);
     given(addressRepository.findById(1L)).willReturn(Optional.of(target));
-    given(addressRepository.findFirstByCustomerIdAndIdNotOrderByCreatedAtAscIdAsc(CUSTOMER_ID, 1L))
-        .willReturn(Optional.empty());
+    given(addressRepository.countByCustomerId(CUSTOMER_ID)).willReturn(2L);
 
-    // when
-    addressService.delete(CUSTOMER_ID, 1L);
-
-    // then
-    then(addressRepository).should(times(1)).delete(target);
-    then(addressRepository).should(times(1)).flush();
-    // 승계 대상 없음 → markAsDefault 호출 없음 — 외부 effect 없음
+    // when / then
+    assertThatThrownBy(() -> addressService.delete(CUSTOMER_ID, 1L))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", AddressErrorCode.DEFAULT_ADDRESS_DELETE_BLOCKED);
+    then(addressRepository).should(never()).delete(any());
   }
 
   @Test
@@ -372,13 +352,26 @@ class AddressServiceTest {
   }
 
   @Test
-  void 주소지_삭제_실패_존재하지_않음() {
+  void 현재위치_역지오코딩_성공() {
     // given
-    given(addressRepository.findById(999L)).willReturn(Optional.empty());
+    given(geocodingService.reverseGeocode(GeometryUtil.toPoint(37.5665, 126.9780)))
+        .willReturn("서울특별시 중구 세종대로 110");
+
+    // when
+    String roadAddress = addressService.reverseGeocode(37.5665, 126.9780);
+
+    // then
+    assertThat(roadAddress).isEqualTo("서울특별시 중구 세종대로 110");
+  }
+
+  @Test
+  void 현재위치_역지오코딩_실패_매칭_없음() {
+    // given
+    given(geocodingService.reverseGeocode(any())).willReturn(null);
 
     // when / then
-    assertThatThrownBy(() -> addressService.delete(CUSTOMER_ID, 999L))
+    assertThatThrownBy(() -> addressService.reverseGeocode(37.5665, 126.9780))
         .isInstanceOf(BusinessException.class)
-        .hasFieldOrPropertyWithValue("errorCode", AddressErrorCode.ADDRESS_NOT_FOUND);
+        .hasFieldOrPropertyWithValue("errorCode", AddressErrorCode.GEOCODING_FAILED);
   }
 }

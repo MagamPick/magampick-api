@@ -110,6 +110,20 @@ class CustomerServiceTest {
   }
 
   @Test
+  void 닉네임_수정_실패_길이_위반() {
+    // given
+    Customer customer = activeCustomer();
+    given(customerRepository.findById(1L)).willReturn(Optional.of(customer));
+
+    // when / then
+    assertThatThrownBy(
+            () ->
+                customerService.updateProfile(1L, new CustomerProfileUpdateRequest("가".repeat(13))))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", CustomerErrorCode.NICKNAME_LENGTH);
+  }
+
+  @Test
   void 닉네임_수정_실패_customerId_미존재() {
     // given
     given(customerRepository.findById(999L)).willReturn(Optional.empty());

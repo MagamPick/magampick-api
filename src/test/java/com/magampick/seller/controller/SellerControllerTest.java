@@ -68,7 +68,7 @@ class SellerControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.id").value(1))
-        .andExpect(jsonPath("$.data.ownerName").value("홍길동"));
+        .andExpect(jsonPath("$.data.name").value("홍길동"));
   }
 
   @Test
@@ -129,11 +129,11 @@ class SellerControllerTest {
                 .content(objectMapper.writeValueAsString(new SellerProfileUpdateRequest("김철수"))))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
-        .andExpect(jsonPath("$.data.ownerName").value("김철수"));
+        .andExpect(jsonPath("$.data.name").value("김철수"));
   }
 
   @Test
-  void PATCH_seller_me_400_ownerName_누락() throws Exception {
+  void PATCH_seller_me_400_name_누락() throws Exception {
     mockMvc
         .perform(
             patch("/api/v1/seller/me")
@@ -146,7 +146,7 @@ class SellerControllerTest {
   }
 
   @Test
-  void PATCH_seller_me_400_ownerName_길이_초과() throws Exception {
+  void PATCH_seller_me_400_name_길이_초과() throws Exception {
     // given
     String longName = "a".repeat(21);
 
