@@ -85,17 +85,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build and push postgres image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: Dockerfile.postgres
-          push: true
-          tags: kasto6329/magampick-postgres:16
-          platforms: linux/amd64,linux/arm64
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
       - name: Copy compose and nginx files to server
         uses: appleboy/scp-action@v0.1.7
         with:
