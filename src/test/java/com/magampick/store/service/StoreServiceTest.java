@@ -202,6 +202,32 @@ class StoreServiceTest {
   }
 
   @Test
+  void 매장_등록_대표사진_없이_성공_imageUrl_null() {
+    // given
+    given(geocodingService.geocode(any())).willReturn(GeometryUtil.toPoint(37.5, 127.0));
+    given(sellerRepository.findById(SELLER_ID)).willReturn(Optional.of(seller()));
+    given(storeRepository.save(any(Store.class)))
+        .willAnswer(
+            inv -> {
+              Store s = inv.getArgument(0);
+              ReflectionTestUtils.setField(s, "id", STORE_ID);
+              return s;
+            });
+
+    // when
+    StoreRegisterResponse response = storeService.registerStore(SELLER_ID, createRequest(), null);
+
+    // then
+    assertThat(response.storeId()).isEqualTo(STORE_ID);
+    then(storageService).should(never()).upload(any());
+
+    ArgumentCaptor<Store> captor = ArgumentCaptor.forClass(Store.class);
+    then(storeRepository).should().save(captor.capture());
+    assertThat(captor.getValue().getImageUrl()).isNull();
+    assertThat(captor.getValue().getOperationStatus()).isEqualTo(OperationStatus.CLOSED_TODAY);
+  }
+
+  @Test
   void 매장_등록_준비_이미지_없으면_업로드_없이_imageUrl_null() {
     // given
     StoreCreateRequest request = createRequest();
@@ -314,6 +340,10 @@ class StoreServiceTest {
     assertThatThrownBy(() -> storeService.registerStore(SELLER_ID, createRequest(), bigFile))
         .isInstanceOf(BusinessException.class)
         .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.STORE_IMAGE_TOO_LARGE);
+    then(businessVerificationService).should(never()).verify(any(), any(), any());
+    then(geocodingService).should(never()).geocode(any());
+    then(storageService).should(never()).upload(any());
+    then(storeRepository).should(never()).save(any());
   }
 
   @Test
@@ -326,6 +356,10 @@ class StoreServiceTest {
     assertThatThrownBy(() -> storeService.registerStore(SELLER_ID, createRequest(), gifFile))
         .isInstanceOf(BusinessException.class)
         .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.STORE_IMAGE_INVALID_TYPE);
+    then(businessVerificationService).should(never()).verify(any(), any(), any());
+    then(geocodingService).should(never()).geocode(any());
+    then(storageService).should(never()).upload(any());
+    then(storeRepository).should(never()).save(any());
   }
 
   @Test

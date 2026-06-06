@@ -201,6 +201,21 @@ class StoreControllerTest {
   }
 
   @Test
+  void POST_stores_201_대표사진_없이_성공() throws Exception {
+    given(storeService.registerStore(eq(1L), any(), eq(null)))
+        .willReturn(new StoreRegisterResponse(1L, OperationStatus.CLOSED_TODAY));
+
+    mockMvc
+        .perform(
+            multipart("/api/v1/seller/stores")
+                .file(requestPart(validRequestJson()))
+                .with(user(SELLER_USER)))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.data.storeId").value(1))
+        .andExpect(jsonPath("$.data.operationStatus").value("CLOSED_TODAY"));
+  }
+
+  @Test
   void POST_stores_400_검증_실패() throws Exception {
     mockMvc
         .perform(

@@ -47,7 +47,7 @@ public class RealBusinessVerificationService implements BusinessVerificationServ
     }
   }
 
-  // ── validate: 진위확인 3요소 + 영업상태 (운영 기본) ──────────────────────────────
+  // ── validate: 진위확인 3요소 + 영업상태 ───────────────────────────────────────
 
   private void verifyByValidate(
       String businessNumber, String representativeName, LocalDate openDate) {

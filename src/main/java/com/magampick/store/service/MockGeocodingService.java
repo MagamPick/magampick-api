@@ -12,7 +12,7 @@ import org.springframework.stereotype.Service;
  *
  * <ul>
  *   <li>정방향: 도로명 주소 문자열 해시로 서울 bounding box 내 결정적 좌표 — 시연 시 매장이 한 점에 몰리지 않게 한다.
- *   <li>역방향: 결정적 stub 라벨 (실 최근접 매칭 아님).
+ *   <li>역방향: 결정적 고정 라벨 (실 최근접 매칭 아님).
  * </ul>
  */
 @Slf4j

@@ -7,7 +7,7 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 
-@Schema(description = "매장 등록 신청 요청 — 사업자 진위확인 3요소 + 매장 정보")
+@Schema(description = "매장 등록 신청 요청 — 사업자 검증 정보 + 매장 정보")
 public record StoreCreateRequest(
     @Schema(description = "사업자 번호 (숫자 10자리, 하이픈 허용)", example = "123-45-67890")
         @NotBlank
