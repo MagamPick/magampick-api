@@ -14,6 +14,7 @@ public interface SellerMapper {
 
   @Mapping(target = "phoneVerifiedAt", source = "phoneVerifiedAt", qualifiedByName = "toKst")
   @Mapping(target = "createdAt", source = "createdAt", qualifiedByName = "toKst")
+  @Mapping(target = "name", source = "ownerName")
   SellerProfileResponse toProfileResponse(Seller seller);
 
   @Named("toKst")

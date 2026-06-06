@@ -4,9 +4,14 @@ import com.magampick.address.service.AddressService;
 import com.magampick.auth.domain.CustomerOAuthAccount;
 import com.magampick.auth.domain.OAuthProviderType;
 import com.magampick.auth.dto.CustomerSignupRequest;
+import com.magampick.auth.dto.EmailAvailabilityResponse;
 import com.magampick.auth.dto.IssuedTokens;
 import com.magampick.auth.dto.KakaoLoginRequest;
 import com.magampick.auth.dto.LoginRequest;
+import com.magampick.auth.dto.PasswordChangeRequest;
+import com.magampick.auth.dto.PasswordResetConfirmRequest;
+import com.magampick.auth.dto.PasswordResetVerifyRequest;
+import com.magampick.auth.dto.PasswordResetVerifyResponse;
 import com.magampick.auth.dto.SellerSignupRequest;
 import com.magampick.auth.dto.SocialSignupRequest;
 import com.magampick.auth.dto.TokenResponse;
@@ -14,11 +19,13 @@ import com.magampick.auth.exception.AuthErrorCode;
 import com.magampick.auth.oauth.OAuthProvider;
 import com.magampick.auth.oauth.OAuthUserInfo;
 import com.magampick.auth.repository.CustomerOAuthAccountRepository;
+import com.magampick.auth.repository.PasswordResetStore;
 import com.magampick.auth.repository.SocialAuthStore;
 import com.magampick.customer.domain.Customer;
 import com.magampick.customer.exception.CustomerErrorCode;
 import com.magampick.customer.repository.CustomerRepository;
 import com.magampick.global.exception.BusinessException;
+import com.magampick.global.exception.CommonErrorCode;
 import com.magampick.global.security.Role;
 import com.magampick.phone.service.PhoneVerificationService;
 import com.magampick.seller.domain.Seller;
@@ -57,8 +64,22 @@ public class AuthService {
   private final TermService termService;
   private final AddressService addressService;
   private final SocialAuthStore socialAuthStore;
+  private final PasswordResetStore passwordResetStore;
   private final StoreService storeService;
   private final TransactionTemplate transactionTemplate;
+
+  public EmailAvailabilityResponse checkEmailAvailability(Role role, String email) {
+    boolean exists =
+        switch (role) {
+          case CUSTOMER -> customerRepository.existsByEmail(email);
+          case SELLER -> sellerRepository.existsByEmail(email);
+          case ADMIN -> throw new BusinessException(CommonErrorCode.INVALID_INPUT);
+        };
+    if (exists) {
+      throw new BusinessException(AuthErrorCode.EMAIL_ALREADY_EXISTS);
+    }
+    return new EmailAvailabilityResponse(true);
+  }
 
   /**
    * 소비자 회원가입 오케스트레이션 (5단계 통합). 한 트랜잭션으로 본인인증 토큰 소비 → customers 생성 → 약관 동의 기록 → 기본 주소 생성 → 토큰 발급.
@@ -217,6 +238,75 @@ public class AuthService {
     refreshTokenService.revoke(rawRefreshToken);
   }
 
+  @Transactional
+  public PasswordResetVerifyResponse verifyCustomerPasswordResetIdentity(
+      PasswordResetVerifyRequest request) {
+    Customer customer =
+        customerRepository
+            .findByEmail(request.email())
+            .filter(c -> !c.isDeleted())
+            .orElseThrow(() -> new BusinessException(AuthErrorCode.RESET_VERIFICATION_FAILED));
+    if (customer.getPasswordHash() == null) {
+      throw new BusinessException(AuthErrorCode.SOCIAL_ONLY_ACCOUNT);
+    }
+    String verifiedPhone = consumePasswordResetVerification(request);
+    if (!verifiedPhone.equals(customer.getPhone())) {
+      throw new BusinessException(AuthErrorCode.RESET_VERIFICATION_FAILED);
+    }
+    return new PasswordResetVerifyResponse(
+        passwordResetStore.issueToken(Role.CUSTOMER, customer.getId()));
+  }
+
+  @Transactional
+  public PasswordResetVerifyResponse verifySellerPasswordResetIdentity(
+      PasswordResetVerifyRequest request) {
+    Seller seller =
+        sellerRepository
+            .findByEmail(request.email())
+            .filter(s -> !s.isDeleted())
+            .orElseThrow(() -> new BusinessException(AuthErrorCode.RESET_VERIFICATION_FAILED));
+    String verifiedPhone = consumePasswordResetVerification(request);
+    if (!verifiedPhone.equals(seller.getPhone())) {
+      throw new BusinessException(AuthErrorCode.RESET_VERIFICATION_FAILED);
+    }
+    return new PasswordResetVerifyResponse(
+        passwordResetStore.issueToken(Role.SELLER, seller.getId()));
+  }
+
+  @Transactional
+  public void resetPassword(PasswordResetConfirmRequest request) {
+    passwordValidator.validate(request.newPassword());
+    PasswordResetStore.Subject subject = passwordResetStore.consume(request.resetToken());
+    if (subject.role() == Role.SELLER) {
+      Seller seller = findActiveSeller(subject.userId());
+      seller.changePasswordHash(passwordEncoder.encode(request.newPassword()));
+    } else {
+      Customer customer = findActiveCustomer(subject.userId());
+      if (customer.getPasswordHash() == null) {
+        throw new BusinessException(AuthErrorCode.SOCIAL_ONLY_ACCOUNT);
+      }
+      customer.changePasswordHash(passwordEncoder.encode(request.newPassword()));
+    }
+    refreshTokenService.revokeAll(subject.role(), subject.userId());
+  }
+
+  @Transactional
+  public void changePassword(
+      Role role, Long userId, String currentRefreshToken, PasswordChangeRequest request) {
+    passwordValidator.validate(request.newPassword());
+    if (role == Role.SELLER) {
+      Seller seller = findActiveSeller(userId);
+      changePasswordHash(seller.getPasswordHash(), request, seller::changePasswordHash);
+    } else {
+      Customer customer = findActiveCustomer(userId);
+      if (customer.getPasswordHash() == null) {
+        throw new BusinessException(AuthErrorCode.SOCIAL_ONLY_ACCOUNT);
+      }
+      changePasswordHash(customer.getPasswordHash(), request, customer::changePasswordHash);
+    }
+    refreshTokenService.revokeOtherSessions(currentRefreshToken);
+  }
+
   private KakaoLoginResult existingLogin(Customer customer) {
     log.info("소비자 카카오 로그인 성공(기존 회원). customerId={}", customer.getId());
     return new KakaoLoginResult.Existing(
@@ -262,7 +352,40 @@ public class AuthService {
     }
   }
 
+  private String consumePasswordResetVerification(PasswordResetVerifyRequest request) {
+    try {
+      return phoneVerificationService.consumeVerificationToken(
+          request.verificationToken(), request.phone());
+    } catch (BusinessException e) {
+      throw new BusinessException(AuthErrorCode.RESET_VERIFICATION_FAILED);
+    }
+  }
+
+  private Customer findActiveCustomer(Long customerId) {
+    return customerRepository
+        .findById(customerId)
+        .filter(c -> !c.isDeleted())
+        .orElseThrow(() -> new BusinessException(AuthErrorCode.RESET_VERIFICATION_FAILED));
+  }
+
+  private Seller findActiveSeller(Long sellerId) {
+    return sellerRepository
+        .findById(sellerId)
+        .filter(s -> !s.isDeleted())
+        .orElseThrow(() -> new BusinessException(AuthErrorCode.RESET_VERIFICATION_FAILED));
+  }
+
+  private void changePasswordHash(
+      String currentPasswordHash,
+      PasswordChangeRequest request,
+      java.util.function.Consumer<String> passwordChanger) {
+    if (!passwordEncoder.matches(request.currentPassword(), currentPasswordHash)) {
+      throw new BusinessException(AuthErrorCode.CURRENT_PASSWORD_MISMATCH);
+    }
+    passwordChanger.accept(passwordEncoder.encode(request.newPassword()));
+  }
+
   private BusinessException invalidCredentials() {
-    return new BusinessException(AuthErrorCode.INVALID_CREDENTIALS);
+    return new BusinessException(AuthErrorCode.LOGIN_FAILED);
   }
 }

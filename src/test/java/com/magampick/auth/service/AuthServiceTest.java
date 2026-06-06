@@ -14,9 +14,14 @@ import com.magampick.address.service.AddressService;
 import com.magampick.auth.domain.CustomerOAuthAccount;
 import com.magampick.auth.domain.OAuthProviderType;
 import com.magampick.auth.dto.CustomerSignupRequest;
+import com.magampick.auth.dto.EmailAvailabilityResponse;
 import com.magampick.auth.dto.IssuedTokens;
 import com.magampick.auth.dto.KakaoLoginRequest;
 import com.magampick.auth.dto.LoginRequest;
+import com.magampick.auth.dto.PasswordChangeRequest;
+import com.magampick.auth.dto.PasswordResetConfirmRequest;
+import com.magampick.auth.dto.PasswordResetVerifyRequest;
+import com.magampick.auth.dto.PasswordResetVerifyResponse;
 import com.magampick.auth.dto.SellerSignupRequest;
 import com.magampick.auth.dto.SocialSignupRequest;
 import com.magampick.auth.dto.TokenResponse;
@@ -24,6 +29,7 @@ import com.magampick.auth.exception.AuthErrorCode;
 import com.magampick.auth.oauth.OAuthProvider;
 import com.magampick.auth.oauth.OAuthUserInfo;
 import com.magampick.auth.repository.CustomerOAuthAccountRepository;
+import com.magampick.auth.repository.PasswordResetStore;
 import com.magampick.auth.repository.SocialAuthStore;
 import com.magampick.customer.domain.Customer;
 import com.magampick.customer.exception.CustomerErrorCode;
@@ -72,6 +78,7 @@ class AuthServiceTest {
   @Mock TermService termService;
   @Mock AddressService addressService;
   @Mock SocialAuthStore socialAuthStore;
+  @Mock PasswordResetStore passwordResetStore;
   @Mock StoreService storeService;
   @Mock TransactionTemplate transactionTemplate;
 
@@ -82,7 +89,7 @@ class AuthServiceTest {
 
   private AddressCreateRequest validAddress() {
     return new AddressCreateRequest(
-        "집", "서울특별시 강남구 테헤란로 427", null, "101동 1502호", "06158", 37.5066, 127.0535);
+        "집", "서울특별시 강남구 테헤란로 427", null, "101동 1502호", "06158", "11680", "3179999");
   }
 
   private CustomerSignupRequest validRequest() {
@@ -133,6 +140,39 @@ class AuthServiceTest {
         request.store(),
         GeometryUtil.toPoint(37.5, 127.0),
         "/uploads/2026/6/store.jpg");
+  }
+
+  @Test
+  void 이메일_가용성_조회_소비자_가능하면_available_TRUE() {
+    // given
+    given(customerRepository.existsByEmail("new@test.com")).willReturn(false);
+
+    // when
+    EmailAvailabilityResponse response =
+        authService.checkEmailAvailability(Role.CUSTOMER, "new@test.com");
+
+    // then
+    assertThat(response.available()).isTrue();
+  }
+
+  @Test
+  void 이메일_가용성_조회_사장_중복이면_예외() {
+    // given
+    given(sellerRepository.existsByEmail("seller@test.com")).willReturn(true);
+
+    // when / then
+    assertThatThrownBy(() -> authService.checkEmailAvailability(Role.SELLER, "seller@test.com"))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", AuthErrorCode.EMAIL_ALREADY_EXISTS);
+  }
+
+  @Test
+  void 이메일_가용성_조회_ADMIN_role_이면_INVALID_INPUT() {
+    // when / then
+    assertThatThrownBy(() -> authService.checkEmailAvailability(Role.ADMIN, "admin@test.com"))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue(
+            "errorCode", com.magampick.global.exception.CommonErrorCode.INVALID_INPUT);
   }
 
   @SuppressWarnings("unchecked")
@@ -367,7 +407,7 @@ class AuthServiceTest {
 
     assertThatThrownBy(() -> authService.loginCustomer(request))
         .isInstanceOf(BusinessException.class)
-        .hasFieldOrPropertyWithValue("errorCode", AuthErrorCode.INVALID_CREDENTIALS);
+        .hasFieldOrPropertyWithValue("errorCode", AuthErrorCode.LOGIN_FAILED);
   }
 
   @Test
@@ -560,5 +600,186 @@ class AuthServiceTest {
 
     // then
     verify(refreshTokenService).revoke("rawR");
+  }
+
+  @Test
+  void 소비자_비밀번호_재설정_본인확인_성공시_resetToken_발급() {
+    // given
+    PasswordResetVerifyRequest request =
+        new PasswordResetVerifyRequest("customer@test.com", RAW_PHONE, "vtoken");
+    Customer customer =
+        Customer.builder()
+            .email(request.email())
+            .passwordHash("encoded")
+            .nickname("소비자")
+            .phone(VERIFIED_PHONE)
+            .build();
+    ReflectionTestUtils.setField(customer, "id", 10L);
+    given(customerRepository.findByEmail(request.email())).willReturn(Optional.of(customer));
+    given(phoneVerificationService.consumeVerificationToken("vtoken", RAW_PHONE))
+        .willReturn(VERIFIED_PHONE);
+    given(passwordResetStore.issueToken(Role.CUSTOMER, 10L)).willReturn("reset-token");
+
+    // when
+    PasswordResetVerifyResponse response = authService.verifyCustomerPasswordResetIdentity(request);
+
+    // then
+    assertThat(response.resetToken()).isEqualTo("reset-token");
+  }
+
+  @Test
+  void 사장_비밀번호_재설정_본인확인_성공시_resetToken_발급() {
+    // given
+    PasswordResetVerifyRequest request =
+        new PasswordResetVerifyRequest("seller@test.com", RAW_PHONE, "vtoken");
+    Seller seller =
+        Seller.builder()
+            .email(request.email())
+            .passwordHash("encoded")
+            .ownerName("홍길동")
+            .businessNumber("1234567890")
+            .phone(VERIFIED_PHONE)
+            .build();
+    ReflectionTestUtils.setField(seller, "id", 11L);
+    given(sellerRepository.findByEmail(request.email())).willReturn(Optional.of(seller));
+    given(phoneVerificationService.consumeVerificationToken("vtoken", RAW_PHONE))
+        .willReturn(VERIFIED_PHONE);
+    given(passwordResetStore.issueToken(Role.SELLER, 11L)).willReturn("seller-reset-token");
+
+    // when
+    PasswordResetVerifyResponse response = authService.verifySellerPasswordResetIdentity(request);
+
+    // then
+    assertThat(response.resetToken()).isEqualTo("seller-reset-token");
+  }
+
+  @Test
+  void 비밀번호_재설정_본인확인_소셜전용_소비자면_예외() {
+    // given
+    PasswordResetVerifyRequest request =
+        new PasswordResetVerifyRequest("social@test.com", RAW_PHONE, "vtoken");
+    Customer customer =
+        Customer.builder().email(request.email()).nickname("소셜").phone(VERIFIED_PHONE).build();
+    given(customerRepository.findByEmail(request.email())).willReturn(Optional.of(customer));
+
+    // when / then
+    assertThatThrownBy(() -> authService.verifyCustomerPasswordResetIdentity(request))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", AuthErrorCode.SOCIAL_ONLY_ACCOUNT);
+    verify(phoneVerificationService, never()).consumeVerificationToken(any(), any());
+  }
+
+  @Test
+  void 비밀번호_재설정_완료시_비밀번호_변경하고_모든_refresh_세션_폐기() {
+    // given
+    PasswordResetConfirmRequest request =
+        new PasswordResetConfirmRequest("reset-token", "Newpass123!");
+    Customer customer =
+        Customer.builder().email("customer@test.com").passwordHash("old").nickname("소비자").build();
+    ReflectionTestUtils.setField(customer, "id", 10L);
+    given(passwordResetStore.consume("reset-token"))
+        .willReturn(new PasswordResetStore.Subject(Role.CUSTOMER, 10L));
+    given(customerRepository.findById(10L)).willReturn(Optional.of(customer));
+    given(passwordEncoder.encode("Newpass123!")).willReturn("new-encoded");
+
+    // when
+    authService.resetPassword(request);
+
+    // then
+    assertThat(customer.getPasswordHash()).isEqualTo("new-encoded");
+    verify(refreshTokenService).revokeAll(Role.CUSTOMER, 10L);
+  }
+
+  @Test
+  void 사장_비밀번호_재설정_완료시_비밀번호_변경하고_모든_refresh_세션_폐기() {
+    // given
+    PasswordResetConfirmRequest request =
+        new PasswordResetConfirmRequest("seller-reset-token", "Newpass123!");
+    Seller seller =
+        Seller.builder()
+            .email("seller@test.com")
+            .passwordHash("old")
+            .ownerName("홍길동")
+            .businessNumber("1234567890")
+            .build();
+    ReflectionTestUtils.setField(seller, "id", 11L);
+    given(passwordResetStore.consume("seller-reset-token"))
+        .willReturn(new PasswordResetStore.Subject(Role.SELLER, 11L));
+    given(sellerRepository.findById(11L)).willReturn(Optional.of(seller));
+    given(passwordEncoder.encode("Newpass123!")).willReturn("new-encoded");
+
+    // when
+    authService.resetPassword(request);
+
+    // then
+    assertThat(seller.getPasswordHash()).isEqualTo("new-encoded");
+    verify(refreshTokenService).revokeAll(Role.SELLER, 11L);
+  }
+
+  @Test
+  void 비밀번호_변경_성공시_현재_세션만_유지하고_나머지_refresh_폐기() {
+    // given
+    Customer customer =
+        Customer.builder()
+            .email("customer@test.com")
+            .passwordHash("old-encoded")
+            .nickname("소비자")
+            .build();
+    ReflectionTestUtils.setField(customer, "id", 10L);
+    PasswordChangeRequest request = new PasswordChangeRequest("Oldpass123!", "Newpass123!");
+    given(customerRepository.findById(10L)).willReturn(Optional.of(customer));
+    given(passwordEncoder.matches("Oldpass123!", "old-encoded")).willReturn(true);
+    given(passwordEncoder.encode("Newpass123!")).willReturn("new-encoded");
+
+    // when
+    authService.changePassword(Role.CUSTOMER, 10L, "rawR", request);
+
+    // then
+    assertThat(customer.getPasswordHash()).isEqualTo("new-encoded");
+    verify(refreshTokenService).revokeOtherSessions("rawR");
+  }
+
+  @Test
+  void 사장_비밀번호_변경_성공시_현재_세션만_유지하고_나머지_refresh_폐기() {
+    // given
+    Seller seller =
+        Seller.builder()
+            .email("seller@test.com")
+            .passwordHash("old-encoded")
+            .ownerName("홍길동")
+            .businessNumber("1234567890")
+            .build();
+    ReflectionTestUtils.setField(seller, "id", 11L);
+    PasswordChangeRequest request = new PasswordChangeRequest("Oldpass123!", "Newpass123!");
+    given(sellerRepository.findById(11L)).willReturn(Optional.of(seller));
+    given(passwordEncoder.matches("Oldpass123!", "old-encoded")).willReturn(true);
+    given(passwordEncoder.encode("Newpass123!")).willReturn("new-encoded");
+
+    // when
+    authService.changePassword(Role.SELLER, 11L, "rawSellerR", request);
+
+    // then
+    assertThat(seller.getPasswordHash()).isEqualTo("new-encoded");
+    verify(refreshTokenService).revokeOtherSessions("rawSellerR");
+  }
+
+  @Test
+  void 비밀번호_변경_현재_비밀번호_불일치시_예외() {
+    // given
+    Customer customer =
+        Customer.builder()
+            .email("customer@test.com")
+            .passwordHash("old-encoded")
+            .nickname("소비자")
+            .build();
+    PasswordChangeRequest request = new PasswordChangeRequest("Wrongpass123!", "Newpass123!");
+    given(customerRepository.findById(10L)).willReturn(Optional.of(customer));
+    given(passwordEncoder.matches("Wrongpass123!", "old-encoded")).willReturn(false);
+
+    // when / then
+    assertThatThrownBy(() -> authService.changePassword(Role.CUSTOMER, 10L, "rawR", request))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", AuthErrorCode.CURRENT_PASSWORD_MISMATCH);
+    verify(refreshTokenService, never()).revokeOtherSessions(any());
   }
 }

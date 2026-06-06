@@ -65,7 +65,7 @@ class SellerServiceTest {
 
     // then
     assertThat(response.id()).isEqualTo(1L);
-    assertThat(response.ownerName()).isEqualTo("홍길동");
+    assertThat(response.name()).isEqualTo("홍길동");
     verify(sellerMapper).toProfileResponse(seller);
   }
 
@@ -107,8 +107,20 @@ class SellerServiceTest {
 
     // then
     assertThat(seller.getOwnerName()).isEqualTo("김철수");
-    assertThat(response.ownerName()).isEqualTo("김철수");
+    assertThat(response.name()).isEqualTo("김철수");
     verify(sellerMapper).toProfileResponse(seller);
+  }
+
+  @Test
+  void 이름_수정_실패_길이_위반() {
+    // given
+    Seller seller = activeSeller();
+    given(sellerRepository.findById(1L)).willReturn(Optional.of(seller));
+
+    // when / then
+    assertThatThrownBy(() -> sellerService.updateProfile(1L, new SellerProfileUpdateRequest("홍")))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", SellerErrorCode.SELLER_NAME_INVALID);
   }
 
   @Test

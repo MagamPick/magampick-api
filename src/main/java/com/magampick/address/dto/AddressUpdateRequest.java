@@ -2,8 +2,6 @@ package com.magampick.address.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.AssertTrue;
-import jakarta.validation.constraints.DecimalMax;
-import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
@@ -20,14 +18,17 @@ public record AddressUpdateRequest(
     @Schema(description = "지번 주소") @Size(max = 200) String jibunAddress,
     @Schema(description = "상세 주소") @Size(max = 100) String detailAddress,
     @Schema(description = "우편번호 5자리") @Pattern(regexp = "^[0-9]{5}$") String zonecode,
-    @Schema(description = "위도. longitude 와 쌍으로 함께 전송") @DecimalMin("-90") @DecimalMax("90")
-        Double latitude,
-    @Schema(description = "경도. latitude 와 쌍으로 함께 전송") @DecimalMin("-180") @DecimalMax("180")
-        Double longitude) {
+    @Schema(description = "시군구코드 (주소 변경 시 roadnameCode 와 함께 필수)") @Pattern(regexp = "\\d{5}")
+        String sigunguCode,
+    @Schema(description = "도로명번호 (주소 변경 시 sigunguCode 와 함께 필수)") @Pattern(regexp = "\\d{1,7}")
+        String roadnameCode) {
 
-  /** 좌표는 lat/lng 쌍으로 함께 전송하거나 둘 다 미전송. 한쪽만 보내면 검증 실패. */
-  @AssertTrue(message = "latitude 와 longitude 는 함께 전송해야 합니다")
-  public boolean isCoordinatePairValid() {
-    return (latitude == null) == (longitude == null);
+  /** 도로명 주소를 변경할 때는 서버 지오코딩에 필요한 자연키를 함께 전송해야 한다. */
+  @AssertTrue(message = "주소 변경 시 sigunguCode 와 roadnameCode 는 함께 전송해야 합니다")
+  public boolean isGeocodeKeyValid() {
+    if (roadAddress == null) {
+      return sigunguCode == null && roadnameCode == null;
+    }
+    return sigunguCode != null && roadnameCode != null;
   }
 }

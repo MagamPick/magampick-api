@@ -35,7 +35,7 @@
 | 회원가입/로그인 — 이메일·비밀번호, 소비자/사장 유형 분리 (`customers`/`sellers`/`admins` 엔티티 + JWT), 사장 가입+첫 매장 통합 | users | 완료 | #15 / [회원가입 (사장)](https://app.notion.com/p/3696e59c28e6816faee0fb181c95f05f) (PR 예정) |
 | 본인인증 — 휴대폰 SMS OTP (**SOLAPI 실연동**) + Redis (OTP·본인인증 토큰·발송/시도 제한) + verificationToken (15분·1회용) | users | 완료 | #83 |
 
-- **카카오 소셜 로그인**: `OAuthProvider` 인터페이스 + Mock(stub) 로 회원가입/로그인에 포함. 실 연동은 별도 노션 기능(소셜 로그인)으로 단계 구현 — Step 1 이메일 충돌 자동연결 거부(`EMAIL_ALREADY_REGISTERED`), Step 2 신규 추가정보 플로우(`/signup/social`)·기존/신규 분기·`KAKAO_EMAIL_REQUIRED`·`SOCIAL_AUTH_FAILED`. 실 카카오 OAuth 는 후속.
+- **카카오 소셜 로그인**: `OAuthProvider` 인터페이스 기반. test 프로파일만 Mock, local/dev/prod 는 실 카카오 OAuth 연동. Step 1 이메일 충돌 자동연결 거부(`EMAIL_ALREADY_REGISTERED`), Step 2 신규 추가정보 플로우(`/signup/social`)·기존/신규 분기·`KAKAO_EMAIL_REQUIRED`·`SOCIAL_AUTH_FAILED`.
 - **본인인증 → SMS OTP (SOLAPI)**: `SmsSender` + `MockSmsSender`(`@Profile("test")`) / `RealSolapiSmsSender`(`@Profile("!test")`, SOLAPI `net.nurigo:sdk`) + Redis 기반 OTP/토큰/발송·시도 제한. (#83)
 
 ## 계층 1 — users 완성 + stores
@@ -44,16 +44,16 @@
 
 | 기능 | 도메인 | 상태 | 이슈 |
 |---|---|---|---|
-| 비밀번호 재설정 — 이메일 링크 발송 (이메일 발송 **stub**) | users | 미착수 | - |
+| 비밀번호 재설정 — 휴대폰 본인확인 + resetToken 기반 새 비밀번호 저장, 모든 refresh 세션 폐기 | users | 완료 | (이번 PR) |
 | 소비자 프로필 관리 — 닉네임·사진·전화번호 | users | 완료 | #40 |
-| 주소지 관리 — 최대 3개, 카카오 주소 API (`addresses`) | users | 완료 | #36 |
+| 주소지 관리 — 최대 3개, 다음 우편번호 위젯 결과 + 서버 지오코딩, 현재 위치 역지오코딩 (`addresses`) | users | 완료 | #36 / (이번 PR) |
 | 알림 설정 — 종류별 On/Off, 반경 (`notification_settings`) | users | 미착수 | - |
 | 회원 탈퇴 — 30일 유예, 진행 중 주문 시 제한 | users | 미착수 | - |
 | 사장 프로필 관리 — 사장 이름·연락처·사업자 정보 | stores | 완료 | #35 |
-| 매장 등록 신청 — 국세청 진위확인 3요소(**실연동**) + 서버 지오코딩(**stub** → 자체 DB 실연동은 아래 행) + 이미지(Local) + 자동 승인 (경로 B) + 등록 직후 `operation_status=CLOSED_TODAY` + 별도 진위확인 endpoint | stores | 완료 | #48 → #76 (재설계) |
+| 매장 등록 신청 — 국세청 진위확인 3요소(**실연동**) + 자체 DB 서버 지오코딩 + 이미지(Local/선택 범위 분리) + 자동 승인 (경로 A/B) + 등록 직후 `operation_status=CLOSED_TODAY` + 별도 진위확인 endpoint | stores | 완료 | #48 → #76 (재설계) / (이번 PR) |
 | ~~매장 등록 승인/반려 — 관리자~~ (자동 승인 재설계로 제거) | stores | 완료 | #48 → #76 제거 |
 | 매장 정보 수정 — 5필드 부분 수정 (`PATCH` multipart), 변경 필드만 지오코딩/이미지 재호출, 기존 사진 best effort 삭제 | stores | 완료 | #81 |
-| 자체 지오코딩 구축 — 위치정보요약DB(서울+경기) 1회 적재(`geocode_buildings`), 정방향 도로명 자연키 매칭 + 역방향 PostGIS 최근접, `MockGeocodingService` prod 실연동 교체 (ADR-002 B안) | stores | 개발중 | (이번 PR) |
+| 자체 지오코딩 구축 — 위치정보요약DB(서울+경기) 1회 적재(`geocode_buildings`), 정방향 도로명 자연키 매칭 + 역방향 PostGIS 최근접, `MockGeocodingService` test 전용화 (ADR-002 B안) | stores | 완료 | (이번 PR) |
 | 매장 삭제 (사장 요청) — 진행 중 주문 시 제한 | stores | 미착수 | - |
 | 매장 삭제 승인/반려 — 관리자, 미정산 확인 후 | stores | 미착수 | - |
 | 매장 영업 상태 관리 — 3상태(`OPEN`/`BREAK`/`CLOSED_TODAY`) 사장 수동 토글 + `store_business_hours` 테이블 도입 (Repository 만) | stores | 완료 | #79 |
@@ -197,7 +197,7 @@
 
 | 항목 | 처리 | 실제 구현 시점 |
 |---|---|---|
-| 카카오 소셜 로그인 | `OAuthProvider` 인터페이스 + Mock | 별도 이슈, 출시 전 |
+| 카카오 소셜 로그인 | test 전용 Mock, local/dev/prod 실연동 | 완료 |
 | 이메일 발송 | stub | 출시 시점 인프라 도입 |
 | 국세청 사업자 인증 | stub 권장 | API 연동 시점 |
 | 토스페이 결제 | 연동 or stub (판단 필요) | — |

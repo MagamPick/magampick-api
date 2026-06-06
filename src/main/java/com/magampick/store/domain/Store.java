@@ -61,7 +61,7 @@ public class Store extends BaseEntity {
   @Column(name = "description", length = 500)
   private String description;
 
-  @Column(name = "image_url", nullable = false, length = 500)
+  @Column(name = "image_url", length = 500)
   private String imageUrl;
 
   @Enumerated(EnumType.STRING)

@@ -2,6 +2,8 @@ package com.magampick.auth.repository;
 
 import com.magampick.global.security.Role;
 import java.time.Duration;
+import java.util.HashSet;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Repository;
@@ -30,7 +32,30 @@ public class RefreshTokenStore {
     redis.delete(key(role, userId, tokenId));
   }
 
+  public void deleteAll(Role role, Long userId) {
+    Set<String> keys = redis.keys(prefix(role, userId) + "*");
+    if (keys != null && !keys.isEmpty()) {
+      redis.delete(keys);
+    }
+  }
+
+  public void deleteAllExcept(Role role, Long userId, String exceptTokenId) {
+    Set<String> keys = redis.keys(prefix(role, userId) + "*");
+    if (keys == null || keys.isEmpty()) {
+      return;
+    }
+    Set<String> targets = new HashSet<>(keys);
+    targets.remove(key(role, userId, exceptTokenId));
+    if (!targets.isEmpty()) {
+      redis.delete(targets);
+    }
+  }
+
   private String key(Role role, Long userId, String tokenId) {
-    return "refresh:" + role.name().toLowerCase() + ":" + userId + ":" + tokenId;
+    return prefix(role, userId) + tokenId;
+  }
+
+  private String prefix(Role role, Long userId) {
+    return "refresh:" + role.name().toLowerCase() + ":" + userId + ":";
   }
 }

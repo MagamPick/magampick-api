@@ -1,10 +1,15 @@
 package com.magampick.auth.controller;
 
 import com.magampick.auth.dto.CustomerSignupRequest;
+import com.magampick.auth.dto.EmailAvailabilityResponse;
 import com.magampick.auth.dto.IssuedTokens;
 import com.magampick.auth.dto.KakaoAuthResponse;
 import com.magampick.auth.dto.KakaoLoginRequest;
 import com.magampick.auth.dto.LoginRequest;
+import com.magampick.auth.dto.PasswordChangeRequest;
+import com.magampick.auth.dto.PasswordResetConfirmRequest;
+import com.magampick.auth.dto.PasswordResetVerifyRequest;
+import com.magampick.auth.dto.PasswordResetVerifyResponse;
 import com.magampick.auth.dto.SellerSignupRequest;
 import com.magampick.auth.dto.SocialSignupRequest;
 import com.magampick.auth.dto.TokenResponse;
@@ -14,6 +19,7 @@ import com.magampick.global.exception.BusinessException;
 import com.magampick.global.exception.CommonErrorCode;
 import com.magampick.global.security.CustomUserDetails;
 import com.magampick.global.security.RefreshTokenCookie;
+import com.magampick.global.security.Role;
 import com.magampick.global.security.exception.AuthErrorCode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -28,9 +34,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -44,6 +53,18 @@ public class AuthController {
 
   private final AuthService authService;
   private final RefreshTokenCookie refreshTokenCookie;
+
+  @GetMapping("/email-availability")
+  @Operation(summary = "이메일 사용 가능 여부 조회", description = "역할별 회원가입 이메일 중복 여부를 확인한다.")
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "사용 가능"),
+    @ApiResponse(responseCode = "400", description = "입력 검증 실패"),
+    @ApiResponse(responseCode = "409", description = "이메일 중복")
+  })
+  public EmailAvailabilityResponse checkEmailAvailability(
+      @RequestParam(defaultValue = "CUSTOMER") Role role, @RequestParam String email) {
+    return authService.checkEmailAvailability(role, email);
+  }
 
   @PostMapping("/signup")
   @ResponseStatus(HttpStatus.CREATED)
@@ -90,7 +111,7 @@ public class AuthController {
   public TokenResponse signupSeller(
       Authentication authentication,
       @RequestPart("request") @Valid SellerSignupRequest request,
-      @RequestPart("image") MultipartFile image,
+      @RequestPart(value = "image", required = false) MultipartFile image,
       HttpServletResponse response) {
     rejectIfAuthenticated(authentication);
     return issue(authService.signupSeller(request, image), true, response);
@@ -173,6 +194,67 @@ public class AuthController {
   public ResponseEntity<Void> logout(HttpServletRequest request, HttpServletResponse response) {
     refreshTokenCookie.read(request).ifPresent(authService::logout);
     response.addHeader(HttpHeaders.SET_COOKIE, refreshTokenCookie.clear().toString());
+    return ResponseEntity.noContent().build();
+  }
+
+  @PostMapping("/password-resets/verify-identity")
+  @Operation(summary = "소비자 비밀번호 재설정 본인확인", description = "이메일과 휴대폰 본인인증 토큰으로 재설정 토큰을 발급한다.")
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "본인확인 성공"),
+    @ApiResponse(responseCode = "400", description = "입력 검증 실패 또는 본인확인 실패"),
+    @ApiResponse(responseCode = "409", description = "소셜 전용 계정")
+  })
+  public PasswordResetVerifyResponse verifyCustomerPasswordResetIdentity(
+      @Valid @RequestBody PasswordResetVerifyRequest request) {
+    return authService.verifyCustomerPasswordResetIdentity(request);
+  }
+
+  @PostMapping("/seller/password-resets/verify-identity")
+  @Operation(summary = "사장 비밀번호 재설정 본인확인", description = "이메일과 휴대폰 본인인증 토큰으로 재설정 토큰을 발급한다.")
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "본인확인 성공"),
+    @ApiResponse(responseCode = "400", description = "입력 검증 실패 또는 본인확인 실패")
+  })
+  public PasswordResetVerifyResponse verifySellerPasswordResetIdentity(
+      @Valid @RequestBody PasswordResetVerifyRequest request) {
+    return authService.verifySellerPasswordResetIdentity(request);
+  }
+
+  @PostMapping("/password-resets/confirm")
+  @Operation(summary = "비밀번호 재설정 완료", description = "재설정 토큰으로 새 비밀번호를 저장하고 모든 refresh 세션을 폐기한다.")
+  @ApiResponses({
+    @ApiResponse(responseCode = "204", description = "변경 성공"),
+    @ApiResponse(responseCode = "400", description = "입력 검증 실패 또는 재설정 토큰 만료")
+  })
+  public ResponseEntity<Void> resetPassword(
+      @Valid @RequestBody PasswordResetConfirmRequest request) {
+    authService.resetPassword(request);
+    return ResponseEntity.noContent().build();
+  }
+
+  @PatchMapping("/me/password")
+  @Operation(
+      summary = "비밀번호 변경",
+      description = "현재 비밀번호 확인 후 새 비밀번호를 저장하고 현재 기기 외 refresh 세션을 폐기한다.")
+  @ApiResponses({
+    @ApiResponse(responseCode = "204", description = "변경 성공"),
+    @ApiResponse(responseCode = "400", description = "입력 검증 실패 또는 현재 비밀번호 불일치"),
+    @ApiResponse(responseCode = "401", description = "미인증 또는 refresh 쿠키 없음")
+  })
+  public ResponseEntity<Void> changePassword(
+      Authentication authentication,
+      HttpServletRequest servletRequest,
+      @Valid @RequestBody PasswordChangeRequest request) {
+    if (authentication == null
+        || !(authentication.getPrincipal() instanceof CustomUserDetails userDetails)) {
+      throw new BusinessException(CommonErrorCode.UNAUTHORIZED);
+    }
+    String refreshToken =
+        refreshTokenCookie
+            .read(servletRequest)
+            .orElseThrow(() -> new BusinessException(AuthErrorCode.REFRESH_INVALID));
+    authService.changePassword(
+        userDetails.getRole(), userDetails.getUserId(), refreshToken, request);
     return ResponseEntity.noContent().build();
   }
 

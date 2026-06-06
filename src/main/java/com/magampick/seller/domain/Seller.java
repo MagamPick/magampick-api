@@ -72,4 +72,8 @@ public class Seller extends BaseEntity {
     this.phone = newPhone;
     this.phoneVerifiedAt = verifiedAt;
   }
+
+  public void changePasswordHash(String newPasswordHash) {
+    this.passwordHash = newPasswordHash;
+  }
 }

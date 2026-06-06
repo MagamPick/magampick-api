@@ -98,6 +98,10 @@ public class Address extends BaseEntity {
     this.location = GeometryUtil.toPoint(latitude, longitude);
   }
 
+  public void changeLocation(Point point) {
+    this.location = point;
+  }
+
   public void markAsDefault() {
     this.isDefault = true;
   }

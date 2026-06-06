@@ -202,6 +202,21 @@ class StoreServiceTest {
   }
 
   @Test
+  void 매장_등록_준비_이미지_없으면_업로드_없이_imageUrl_null() {
+    // given
+    StoreCreateRequest request = createRequest();
+    given(geocodingService.geocode(any())).willReturn(GeometryUtil.toPoint(37.5, 127.0));
+
+    // when
+    PreparedStoreRegistration prepared = storeService.prepareStoreRegistration(request, null);
+
+    // then
+    assertThat(prepared.imageUrl()).isNull();
+    then(storageService).should(never()).upload(any());
+    then(businessVerificationService).should().verify("1234567890", OWNER_NAME, OPEN_DATE);
+  }
+
+  @Test
   void 매장_등록_사업자번호_형식_오류_예외() {
     // given - 하이픈 제거 후 10자리 숫자 아님
     StoreCreateRequest request = createRequest("12345");

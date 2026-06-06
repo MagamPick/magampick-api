@@ -22,7 +22,7 @@ import org.springframework.stereotype.Service;
  */
 @Slf4j
 @Service
-@Profile("prod")
+@Profile("!test")
 @RequiredArgsConstructor
 public class DbGeocodingService implements GeocodingService {
 

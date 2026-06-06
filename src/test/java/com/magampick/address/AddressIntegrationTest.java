@@ -49,9 +49,10 @@ class AddressIntegrationTest {
     return jwtProvider.issueAccessToken(customer.getId(), Role.CUSTOMER);
   }
 
-  private long createAddress(String token, String label, double lat, double lng) throws Exception {
+  private long createAddress(String token, String label) throws Exception {
     AddressCreateRequest request =
-        new AddressCreateRequest(label, "서울특별시 강남구 테헤란로 427", null, null, "06158", lat, lng);
+        new AddressCreateRequest(
+            label, "서울특별시 강남구 테헤란로 427", null, null, "06158", "11680", "3179999");
 
     MvcResult result =
         mockMvc
@@ -73,7 +74,7 @@ class AddressIntegrationTest {
     String token = newCustomerToken();
 
     // when — 주소지 1개 등록
-    long addressId = createAddress(token, "집", 37.5066, 127.0535);
+    long addressId = createAddress(token, "집");
 
     // then — 목록 조회 시 default = true
     mockMvc
@@ -84,16 +85,16 @@ class AddressIntegrationTest {
         .andExpect(jsonPath("$.data.length()").value(1))
         .andExpect(jsonPath("$.data[0].id").value(addressId))
         .andExpect(jsonPath("$.data[0].isDefault").value(true))
-        .andExpect(jsonPath("$.data[0].latitude").value(37.5066))
-        .andExpect(jsonPath("$.data[0].longitude").value(127.0535));
+        .andExpect(jsonPath("$.data[0].latitude").isNumber())
+        .andExpect(jsonPath("$.data[0].longitude").isNumber());
   }
 
   @Test
   void 기본_주소지_변경시_기존_default_FALSE_로_unset() throws Exception {
     // given — 소비자 + 주소 2개 등록 (첫 번째가 default)
     String token = newCustomerToken();
-    long firstId = createAddress(token, "집", 37.5066, 127.0535);
-    long secondId = createAddress(token, "회사", 37.4979, 127.0276);
+    long firstId = createAddress(token, "집");
+    long secondId = createAddress(token, "회사");
 
     // when — 두 번째 주소를 default 로 변경
     mockMvc
@@ -124,36 +125,19 @@ class AddressIntegrationTest {
   }
 
   @Test
-  void default_삭제시_가장_오래된_주소_자동_승계() throws Exception {
+  void default_삭제시_409_차단() throws Exception {
     // given — 3개 등록 (1번이 default, 시간순)
     String token = newCustomerToken();
-    long firstId = createAddress(token, "집", 37.5066, 127.0535);
-    long secondId = createAddress(token, "회사", 37.4979, 127.0276);
-    long thirdId = createAddress(token, "엄마집", 37.5172, 127.0473);
+    long firstId = createAddress(token, "집");
+    createAddress(token, "회사");
+    createAddress(token, "엄마집");
 
-    // when — default (firstId) 삭제
+    // when / then — default (firstId) 삭제 차단
     mockMvc
         .perform(
             delete("/api/v1/customers/me/addresses/" + firstId)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
-        .andExpect(status().isNoContent());
-
-    // then — 가장 오래된 (secondId) 가 새 default 로 자동 승계
-    MvcResult listResult =
-        mockMvc
-            .perform(
-                get("/api/v1/customers/me/addresses")
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
-            .andExpect(status().isOk())
-            .andReturn();
-
-    JsonNode data =
-        objectMapper.readTree(listResult.getResponse().getContentAsString()).path("data");
-    assertThat(data).hasSize(2);
-    // 정렬: is_default DESC, created_at ASC → secondId 가 [0]
-    assertThat(data.get(0).path("id").asLong()).isEqualTo(secondId);
-    assertThat(data.get(0).path("isDefault").asBoolean()).isTrue();
-    assertThat(data.get(1).path("id").asLong()).isEqualTo(thirdId);
-    assertThat(data.get(1).path("isDefault").asBoolean()).isFalse();
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.error.code").value("DEFAULT_ADDRESS_DELETE_BLOCKED"));
   }
 }

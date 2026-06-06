@@ -15,12 +15,12 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
 /**
- * 실 카카오 OAuth provider (dev/prod). 인가 코드(B안) → 토큰 교환(kauth) → 사용자 정보 조회(kapi). 외부 호출 실패는 {@code
+ * 실 카카오 OAuth provider (test 외). 인가 코드(B안) → 토큰 교환(kauth) → 사용자 정보 조회(kapi). 외부 호출 실패는 {@code
  * SOCIAL_AUTH_FAILED}, 이메일 미동의는 {@code KAKAO_EMAIL_REQUIRED} 로 매핑한다.
  */
 @Slf4j
 @Component
-@Profile({"dev", "prod"})
+@Profile("!test")
 @RequiredArgsConstructor
 public class RealKakaoOAuthProvider implements OAuthProvider {
 

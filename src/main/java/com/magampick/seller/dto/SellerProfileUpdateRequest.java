@@ -5,5 +5,5 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 public record SellerProfileUpdateRequest(
-    @NotBlank @Size(min = 1, max = 20) @Schema(description = "사장 이름", example = "홍길동")
-        String ownerName) {}
+    @NotBlank @Size(min = 2, max = 20) @Schema(description = "사장 이름", example = "홍길동")
+        String name) {}

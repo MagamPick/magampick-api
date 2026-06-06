@@ -6,7 +6,9 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -18,6 +20,10 @@ import com.magampick.auth.dto.CustomerSignupRequest;
 import com.magampick.auth.dto.IssuedTokens;
 import com.magampick.auth.dto.KakaoLoginRequest;
 import com.magampick.auth.dto.LoginRequest;
+import com.magampick.auth.dto.PasswordChangeRequest;
+import com.magampick.auth.dto.PasswordResetConfirmRequest;
+import com.magampick.auth.dto.PasswordResetVerifyRequest;
+import com.magampick.auth.dto.PasswordResetVerifyResponse;
 import com.magampick.auth.dto.SellerSignupRequest;
 import com.magampick.auth.dto.SocialSignupRequest;
 import com.magampick.auth.dto.TokenResponse;
@@ -67,7 +73,7 @@ class AuthControllerTest {
         "vtoken",
         List.of(1L, 2L, 3L, 4L),
         new AddressCreateRequest(
-            "집", "서울특별시 강남구 테헤란로 427", null, "101동 1502호", "06158", 37.5066, 127.0535));
+            "집", "서울특별시 강남구 테헤란로 427", null, "101동 1502호", "06158", "11680", "3179999"));
   }
 
   private SocialSignupRequest validSocialSignupRequest() {
@@ -78,7 +84,7 @@ class AuthControllerTest {
         "vtoken",
         List.of(1L, 2L, 3L, 4L),
         new AddressCreateRequest(
-            "집", "서울특별시 강남구 테헤란로 427", null, "101동 1502호", "06158", 37.5066, 127.0535));
+            "집", "서울특별시 강남구 테헤란로 427", null, "101동 1502호", "06158", "11680", "3179999"));
   }
 
   private StoreCreateRequest validStoreRequest() {
@@ -118,6 +124,34 @@ class AuthControllerTest {
 
   private MockMultipartFile imagePart() {
     return new MockMultipartFile("image", "store.jpg", MediaType.IMAGE_JPEG_VALUE, new byte[1024]);
+  }
+
+  @Test
+  void 이메일_가용성_조회_가능하면_200_available_TRUE() throws Exception {
+    given(authService.checkEmailAvailability(Role.CUSTOMER, "new@test.com"))
+        .willReturn(new com.magampick.auth.dto.EmailAvailabilityResponse(true));
+
+    mockMvc
+        .perform(
+            get("/api/v1/auth/email-availability")
+                .param("role", "CUSTOMER")
+                .param("email", "new@test.com"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.available").value(true));
+  }
+
+  @Test
+  void 이메일_가용성_조회_중복이면_409() throws Exception {
+    given(authService.checkEmailAvailability(Role.SELLER, "seller@test.com"))
+        .willThrow(new BusinessException(AuthErrorCode.EMAIL_ALREADY_EXISTS));
+
+    mockMvc
+        .perform(
+            get("/api/v1/auth/email-availability")
+                .param("role", "SELLER")
+                .param("email", "seller@test.com"))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.error.code").value("EMAIL_ALREADY_EXISTS"));
   }
 
   @Test
@@ -318,6 +352,85 @@ class AuthControllerTest {
                 .file(imagePart()))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.data.accessToken").value("a"));
+  }
+
+  @Test
+  void 사장_회원가입_이미지_없어도_201() throws Exception {
+    given(authService.signupSeller(any(), eq(null))).willReturn(new IssuedTokens("a", "r", 1800L));
+    given(refreshTokenCookie.create(eq("r"), anyBoolean())).willReturn(REFRESH_COOKIE);
+
+    mockMvc
+        .perform(
+            multipart("/api/v1/auth/seller/signup").file(requestPart(validSellerSignupRequest())))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.data.accessToken").value("a"));
+  }
+
+  @Test
+  void 소비자_비밀번호_재설정_본인확인_성공시_resetToken_반환() throws Exception {
+    given(authService.verifyCustomerPasswordResetIdentity(any()))
+        .willReturn(new PasswordResetVerifyResponse("reset-token"));
+
+    mockMvc
+        .perform(
+            post("/api/v1/auth/password-resets/verify-identity")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        new PasswordResetVerifyRequest("c@test.com", "010-1234-5678", "vtoken"))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.resetToken").value("reset-token"));
+  }
+
+  @Test
+  void 사장_비밀번호_재설정_본인확인_성공시_resetToken_반환() throws Exception {
+    given(authService.verifySellerPasswordResetIdentity(any()))
+        .willReturn(new PasswordResetVerifyResponse("seller-reset-token"));
+
+    mockMvc
+        .perform(
+            post("/api/v1/auth/seller/password-resets/verify-identity")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        new PasswordResetVerifyRequest("s@test.com", "010-1234-5678", "vtoken"))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.resetToken").value("seller-reset-token"));
+  }
+
+  @Test
+  void 비밀번호_재설정_완료시_204() throws Exception {
+    mockMvc
+        .perform(
+            post("/api/v1/auth/password-resets/confirm")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        new PasswordResetConfirmRequest("reset-token", "Newpass123!"))))
+        .andExpect(status().isNoContent());
+    verify(authService).resetPassword(any());
+  }
+
+  @Test
+  void 비밀번호_변경_성공시_204_현재_refresh_쿠키_유지() throws Exception {
+    CustomUserDetails principal = new CustomUserDetails(1L, Role.CUSTOMER);
+    UsernamePasswordAuthenticationToken auth =
+        new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
+    given(refreshTokenCookie.read(any())).willReturn(Optional.of("rawR"));
+
+    mockMvc
+        .perform(
+            patch("/api/v1/auth/me/password")
+                .principal(auth)
+                .cookie(new Cookie("refresh_token", "rawR"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        new PasswordChangeRequest("Oldpass123!", "Newpass123!"))))
+        .andExpect(status().isNoContent());
+    verify(authService)
+        .changePassword(
+            Role.CUSTOMER, 1L, "rawR", new PasswordChangeRequest("Oldpass123!", "Newpass123!"));
   }
 
   @Test

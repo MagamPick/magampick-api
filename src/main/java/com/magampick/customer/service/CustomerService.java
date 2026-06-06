@@ -20,6 +20,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class CustomerService {
 
+  private static final int NICKNAME_MIN = 2;
+  private static final int NICKNAME_MAX = 12;
+
   private final CustomerRepository customerRepository;
   private final CustomerMapper customerMapper;
 
@@ -32,6 +35,7 @@ public class CustomerService {
   public CustomerProfileResponse updateProfile(
       Long customerId, CustomerProfileUpdateRequest request) {
     Customer customer = findActiveCustomer(customerId);
+    validateNickname(request.nickname());
     customer.changeNickname(request.nickname());
     log.info("소비자 닉네임 변경됨. customerId={}", customerId);
     return customerMapper.toProfileResponse(customer);
@@ -54,5 +58,12 @@ public class CustomerService {
       throw new BusinessException(CustomerErrorCode.CUSTOMER_NOT_FOUND);
     }
     return customer;
+  }
+
+  private void validateNickname(String nickname) {
+    int length = nickname == null ? 0 : nickname.trim().length();
+    if (length < NICKNAME_MIN || length > NICKNAME_MAX) {
+      throw new BusinessException(CustomerErrorCode.NICKNAME_LENGTH);
+    }
   }
 }
