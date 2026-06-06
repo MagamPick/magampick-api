@@ -10,6 +10,7 @@ spring:
 cors:
   allowed-origins:
     - https://dev.magampick.com
+    - http://localhost:5173
 
 auth:
   refresh-cookie:
