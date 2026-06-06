@@ -17,6 +17,7 @@ public enum AddressErrorCode implements BaseErrorCode {
       HttpStatus.CONFLICT, "LAST_ADDRESS_DELETE_BLOCKED", "마지막 주소지는 삭제할 수 없습니다"),
   ALIAS_LENGTH(HttpStatus.BAD_REQUEST, "ALIAS_LENGTH", "주소 별칭은 1~20자여야 합니다"),
   GEOCODING_FAILED(HttpStatus.BAD_REQUEST, "GEOCODING_FAILED", "주소 좌표 변환에 실패했습니다"),
+  DEFAULT_ADDRESS_REQUIRED(HttpStatus.BAD_REQUEST, "DEFAULT_ADDRESS_REQUIRED", "기본 주소지가 없습니다"),
   ;
 
   private final HttpStatus status;

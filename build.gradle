@@ -65,6 +65,10 @@ dependencies {
 
 tasks.named('test') {
 	useJUnitPlatform()
+	// 테스트 JVM 시간대 = KST 고정 (prod docker TZ=Asia/Seoul + hibernate.jdbc.time_zone 일치).
+	// 호스트 시간대(CI=UTC)와 무관하게 LocalDate/LocalTime 결정적 — TIME 컬럼 +9 시프트로
+	// store_business_hours chk_sbh_time_range 가 CI 에서만 깨지는 문제 방지. (api-convention §7 KST 통일)
+	systemProperty 'user.timezone', 'Asia/Seoul'
 	// Mockito 를 javaagent 로 명시 로드 — JDK 21+ self-attach deprecation 경고 회피
 	jvmArgs("-javaagent:${configurations.mockitoAgent.asPath}")
 	// Windows: 한글 사용자명 경로의 java.io.tmpdir 회피
