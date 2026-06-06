@@ -18,6 +18,7 @@ import com.magampick.global.security.JwtAuthenticationEntryPoint;
 import com.magampick.global.security.JwtProvider;
 import com.magampick.global.security.Role;
 import com.magampick.global.security.SecurityConfig;
+import com.magampick.phone.exception.PhoneVerificationErrorCode;
 import com.magampick.seller.dto.SellerPhoneUpdateRequest;
 import com.magampick.seller.dto.SellerProfileResponse;
 import com.magampick.seller.dto.SellerProfileUpdateRequest;
@@ -189,7 +190,8 @@ class SellerControllerTest {
                 .with(user(SELLER_USER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
-                    objectMapper.writeValueAsString(new SellerPhoneUpdateRequest("01012345678"))))
+                    objectMapper.writeValueAsString(
+                        new SellerPhoneUpdateRequest("01012345678", "valid-token"))))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.phone").value("01012345678"));
@@ -202,7 +204,20 @@ class SellerControllerTest {
             post("/api/v1/seller/me/phone")
                 .with(user(SELLER_USER))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{}"))
+                .content("{\"verificationToken\":\"some-token\"}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
+  }
+
+  @Test
+  void POST_seller_me_phone_400_verificationToken_누락() throws Exception {
+    mockMvc
+        .perform(
+            post("/api/v1/seller/me/phone")
+                .with(user(SELLER_USER))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"phone\":\"01012345678\"}"))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.success").value(false))
         .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
@@ -216,10 +231,31 @@ class SellerControllerTest {
                 .with(user(SELLER_USER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
-                    objectMapper.writeValueAsString(new SellerPhoneUpdateRequest("010-1234-5678"))))
+                    objectMapper.writeValueAsString(
+                        new SellerPhoneUpdateRequest("010-1234-5678", "some-token"))))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.success").value(false))
         .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
+  }
+
+  @Test
+  void POST_seller_me_phone_400_본인인증_토큰_만료() throws Exception {
+    // given
+    given(sellerService.updatePhone(eq(1L), any(SellerPhoneUpdateRequest.class)))
+        .willThrow(new BusinessException(PhoneVerificationErrorCode.PHONE_VERIFICATION_EXPIRED));
+
+    // when / then
+    mockMvc
+        .perform(
+            post("/api/v1/seller/me/phone")
+                .with(user(SELLER_USER))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        new SellerPhoneUpdateRequest("01012345678", "expired-token"))))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.error.code").value("PHONE_VERIFICATION_EXPIRED"));
   }
 
   @Test
@@ -230,7 +266,8 @@ class SellerControllerTest {
                 .with(user(CUSTOMER_USER))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
-                    objectMapper.writeValueAsString(new SellerPhoneUpdateRequest("01012345678"))))
+                    objectMapper.writeValueAsString(
+                        new SellerPhoneUpdateRequest("01012345678", "some-token"))))
         .andExpect(status().isForbidden())
         .andExpect(jsonPath("$.success").value(false))
         .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));

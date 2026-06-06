@@ -8,6 +8,7 @@ import com.magampick.customer.exception.CustomerErrorCode;
 import com.magampick.customer.mapper.CustomerMapper;
 import com.magampick.customer.repository.CustomerRepository;
 import com.magampick.global.exception.BusinessException;
+import com.magampick.phone.service.PhoneVerificationService;
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +26,7 @@ public class CustomerService {
 
   private final CustomerRepository customerRepository;
   private final CustomerMapper customerMapper;
+  private final PhoneVerificationService phoneVerificationService;
 
   public CustomerProfileResponse getProfile(Long customerId) {
     Customer customer = findActiveCustomer(customerId);
@@ -44,7 +46,10 @@ public class CustomerService {
   @Transactional
   public CustomerProfileResponse updatePhone(Long customerId, CustomerPhoneUpdateRequest request) {
     Customer customer = findActiveCustomer(customerId);
-    customer.changePhone(request.phone(), LocalDateTime.now());
+    String verifiedPhone =
+        phoneVerificationService.consumeVerificationToken(
+            request.verificationToken(), request.phone());
+    customer.changePhone(verifiedPhone, LocalDateTime.now());
     log.info("소비자 휴대폰 변경됨. customerId={}", customerId);
     return customerMapper.toProfileResponse(customer);
   }

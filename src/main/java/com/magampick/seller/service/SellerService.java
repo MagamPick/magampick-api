@@ -1,6 +1,7 @@
 package com.magampick.seller.service;
 
 import com.magampick.global.exception.BusinessException;
+import com.magampick.phone.service.PhoneVerificationService;
 import com.magampick.seller.domain.Seller;
 import com.magampick.seller.dto.SellerPhoneUpdateRequest;
 import com.magampick.seller.dto.SellerProfileResponse;
@@ -25,6 +26,7 @@ public class SellerService {
 
   private final SellerRepository sellerRepository;
   private final SellerMapper sellerMapper;
+  private final PhoneVerificationService phoneVerificationService;
 
   public SellerProfileResponse getProfile(Long sellerId) {
     Seller seller = findActiveSeller(sellerId);
@@ -43,7 +45,10 @@ public class SellerService {
   @Transactional
   public SellerProfileResponse updatePhone(Long sellerId, SellerPhoneUpdateRequest request) {
     Seller seller = findActiveSeller(sellerId);
-    seller.changePhone(request.phone(), LocalDateTime.now());
+    String verifiedPhone =
+        phoneVerificationService.consumeVerificationToken(
+            request.verificationToken(), request.phone());
+    seller.changePhone(verifiedPhone, LocalDateTime.now());
     log.info("사장 휴대폰 변경됨. sellerId={}", sellerId);
     return sellerMapper.toProfileResponse(seller);
   }

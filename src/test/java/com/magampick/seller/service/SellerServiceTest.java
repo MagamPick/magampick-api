@@ -7,6 +7,8 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.verify;
 
 import com.magampick.global.exception.BusinessException;
+import com.magampick.phone.exception.PhoneVerificationErrorCode;
+import com.magampick.phone.service.PhoneVerificationService;
 import com.magampick.seller.domain.Seller;
 import com.magampick.seller.dto.SellerPhoneUpdateRequest;
 import com.magampick.seller.dto.SellerProfileResponse;
@@ -28,7 +30,11 @@ class SellerServiceTest {
 
   @Mock SellerRepository sellerRepository;
   @Mock SellerMapper sellerMapper;
+  @Mock PhoneVerificationService phoneVerificationService;
   @InjectMocks SellerService sellerService;
+
+  private static final String TOKEN = "test-token-uuid";
+  private static final String PHONE = "01099998888";
 
   private Seller activeSeller() {
     Seller seller =
@@ -152,7 +158,8 @@ class SellerServiceTest {
   void 휴대폰_변경_성공_phoneVerifiedAt_도_갱신됨() {
     // given
     Seller seller = activeSeller();
-    SellerPhoneUpdateRequest request = new SellerPhoneUpdateRequest("01099998888");
+    SellerPhoneUpdateRequest request = new SellerPhoneUpdateRequest(PHONE, TOKEN);
+    given(phoneVerificationService.consumeVerificationToken(TOKEN, PHONE)).willReturn(PHONE);
     given(sellerRepository.findById(1L)).willReturn(Optional.of(seller));
     given(sellerMapper.toProfileResponse(any(Seller.class)))
         .willAnswer(inv -> stubResponse(inv.getArgument(0)));
@@ -161,9 +168,26 @@ class SellerServiceTest {
     sellerService.updatePhone(1L, request);
 
     // then
-    assertThat(seller.getPhone()).isEqualTo("01099998888");
+    assertThat(seller.getPhone()).isEqualTo(PHONE);
     assertThat(seller.getPhoneVerifiedAt()).isNotNull();
+    verify(phoneVerificationService).consumeVerificationToken(TOKEN, PHONE);
     verify(sellerMapper).toProfileResponse(seller);
+  }
+
+  @Test
+  void 휴대폰_변경_실패_본인인증_토큰_만료() {
+    // given
+    Seller seller = activeSeller();
+    SellerPhoneUpdateRequest request = new SellerPhoneUpdateRequest(PHONE, "expired-token");
+    given(sellerRepository.findById(1L)).willReturn(Optional.of(seller));
+    given(phoneVerificationService.consumeVerificationToken("expired-token", PHONE))
+        .willThrow(new BusinessException(PhoneVerificationErrorCode.PHONE_VERIFICATION_EXPIRED));
+
+    // when / then
+    assertThatThrownBy(() -> sellerService.updatePhone(1L, request))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue(
+            "errorCode", PhoneVerificationErrorCode.PHONE_VERIFICATION_EXPIRED);
   }
 
   @Test
@@ -173,7 +197,7 @@ class SellerServiceTest {
 
     // when / then
     assertThatThrownBy(
-            () -> sellerService.updatePhone(999L, new SellerPhoneUpdateRequest("01012345678")))
+            () -> sellerService.updatePhone(999L, new SellerPhoneUpdateRequest(PHONE, TOKEN)))
         .isInstanceOf(BusinessException.class)
         .hasFieldOrPropertyWithValue("errorCode", SellerErrorCode.SELLER_NOT_FOUND);
   }
@@ -187,7 +211,7 @@ class SellerServiceTest {
 
     // when / then
     assertThatThrownBy(
-            () -> sellerService.updatePhone(1L, new SellerPhoneUpdateRequest("01012345678")))
+            () -> sellerService.updatePhone(1L, new SellerPhoneUpdateRequest(PHONE, TOKEN)))
         .isInstanceOf(BusinessException.class)
         .hasFieldOrPropertyWithValue("errorCode", SellerErrorCode.SELLER_NOT_FOUND);
   }

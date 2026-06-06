@@ -14,6 +14,8 @@ import com.magampick.customer.exception.CustomerErrorCode;
 import com.magampick.customer.mapper.CustomerMapper;
 import com.magampick.customer.repository.CustomerRepository;
 import com.magampick.global.exception.BusinessException;
+import com.magampick.phone.exception.PhoneVerificationErrorCode;
+import com.magampick.phone.service.PhoneVerificationService;
 import java.time.OffsetDateTime;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -28,7 +30,11 @@ class CustomerServiceTest {
 
   @Mock CustomerRepository customerRepository;
   @Mock CustomerMapper customerMapper;
+  @Mock PhoneVerificationService phoneVerificationService;
   @InjectMocks CustomerService customerService;
+
+  private static final String TOKEN = "test-token-uuid";
+  private static final String PHONE = "01099998888";
 
   private Customer activeCustomer() {
     Customer customer =
@@ -153,7 +159,8 @@ class CustomerServiceTest {
   void 휴대폰_변경_성공_phoneVerifiedAt_도_갱신됨() {
     // given
     Customer customer = activeCustomer();
-    CustomerPhoneUpdateRequest request = new CustomerPhoneUpdateRequest("01099998888");
+    CustomerPhoneUpdateRequest request = new CustomerPhoneUpdateRequest(PHONE, TOKEN);
+    given(phoneVerificationService.consumeVerificationToken(TOKEN, PHONE)).willReturn(PHONE);
     given(customerRepository.findById(1L)).willReturn(Optional.of(customer));
     given(customerMapper.toProfileResponse(any(Customer.class)))
         .willAnswer(inv -> stubResponse(inv.getArgument(0)));
@@ -162,9 +169,26 @@ class CustomerServiceTest {
     customerService.updatePhone(1L, request);
 
     // then
-    assertThat(customer.getPhone()).isEqualTo("01099998888");
+    assertThat(customer.getPhone()).isEqualTo(PHONE);
     assertThat(customer.getPhoneVerifiedAt()).isNotNull();
+    verify(phoneVerificationService).consumeVerificationToken(TOKEN, PHONE);
     verify(customerMapper).toProfileResponse(customer);
+  }
+
+  @Test
+  void 휴대폰_변경_실패_본인인증_토큰_만료() {
+    // given
+    Customer customer = activeCustomer();
+    CustomerPhoneUpdateRequest request = new CustomerPhoneUpdateRequest(PHONE, "expired-token");
+    given(customerRepository.findById(1L)).willReturn(Optional.of(customer));
+    given(phoneVerificationService.consumeVerificationToken("expired-token", PHONE))
+        .willThrow(new BusinessException(PhoneVerificationErrorCode.PHONE_VERIFICATION_EXPIRED));
+
+    // when / then
+    assertThatThrownBy(() -> customerService.updatePhone(1L, request))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue(
+            "errorCode", PhoneVerificationErrorCode.PHONE_VERIFICATION_EXPIRED);
   }
 
   @Test
@@ -174,7 +198,7 @@ class CustomerServiceTest {
 
     // when / then
     assertThatThrownBy(
-            () -> customerService.updatePhone(999L, new CustomerPhoneUpdateRequest("01012345678")))
+            () -> customerService.updatePhone(999L, new CustomerPhoneUpdateRequest(PHONE, TOKEN)))
         .isInstanceOf(BusinessException.class)
         .hasFieldOrPropertyWithValue("errorCode", CustomerErrorCode.CUSTOMER_NOT_FOUND);
   }
@@ -188,7 +212,7 @@ class CustomerServiceTest {
 
     // when / then
     assertThatThrownBy(
-            () -> customerService.updatePhone(1L, new CustomerPhoneUpdateRequest("01012345678")))
+            () -> customerService.updatePhone(1L, new CustomerPhoneUpdateRequest(PHONE, TOKEN)))
         .isInstanceOf(BusinessException.class)
         .hasFieldOrPropertyWithValue("errorCode", CustomerErrorCode.CUSTOMER_NOT_FOUND);
   }
