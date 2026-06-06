@@ -62,12 +62,7 @@ class ClearanceItemServiceTest {
 
   private Seller seller() {
     Seller s =
-        Seller.builder()
-            .email("seller@test.com")
-            .passwordHash("hash")
-            .ownerName("홍길동")
-            .businessNumber("1234567890")
-            .build();
+        Seller.builder().email("seller@test.com").passwordHash("hash").ownerName("홍길동").build();
     ReflectionTestUtils.setField(s, "id", SELLER_ID);
     return s;
   }

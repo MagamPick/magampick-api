@@ -72,7 +72,6 @@ class StoreServiceTest {
             .email("seller@test.com")
             .passwordHash("hash")
             .ownerName(OWNER_NAME)
-            .businessNumber("1234567890")
             .build();
     ReflectionTestUtils.setField(s, "id", SELLER_ID);
     return s;

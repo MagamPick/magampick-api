@@ -305,7 +305,6 @@ class AuthServiceTest {
             .email(request.email())
             .passwordHash("encoded")
             .ownerName(request.ownerName())
-            .businessNumber(prepared.businessNumber())
             .phone(VERIFIED_PHONE)
             .phoneVerifiedAt(LocalDateTime.now())
             .build();
@@ -326,7 +325,6 @@ class AuthServiceTest {
     assertThat(response.accessToken()).isEqualTo("access");
     ArgumentCaptor<Seller> captor = ArgumentCaptor.forClass(Seller.class);
     verify(sellerRepository).save(captor.capture());
-    assertThat(captor.getValue().getBusinessNumber()).isEqualTo("1234567890");
     assertThat(captor.getValue().getPhone()).isEqualTo(VERIFIED_PHONE);
     verify(termService).recordSellerAgreements(savedSeller, request.agreedTermIds());
     verify(storeService).createStore(savedSeller, prepared);
@@ -376,7 +374,6 @@ class AuthServiceTest {
             .email(request.email())
             .passwordHash("encoded")
             .ownerName(request.ownerName())
-            .businessNumber(prepared.businessNumber())
             .build();
 
     given(sellerRepository.existsByEmail(request.email())).willReturn(false);
@@ -637,7 +634,6 @@ class AuthServiceTest {
             .email(request.email())
             .passwordHash("encoded")
             .ownerName("홍길동")
-            .businessNumber("1234567890")
             .phone(VERIFIED_PHONE)
             .build();
     ReflectionTestUtils.setField(seller, "id", 11L);
@@ -696,12 +692,7 @@ class AuthServiceTest {
     PasswordResetConfirmRequest request =
         new PasswordResetConfirmRequest("seller-reset-token", "Newpass123!");
     Seller seller =
-        Seller.builder()
-            .email("seller@test.com")
-            .passwordHash("old")
-            .ownerName("홍길동")
-            .businessNumber("1234567890")
-            .build();
+        Seller.builder().email("seller@test.com").passwordHash("old").ownerName("홍길동").build();
     ReflectionTestUtils.setField(seller, "id", 11L);
     given(passwordResetStore.consume("seller-reset-token"))
         .willReturn(new PasswordResetStore.Subject(Role.SELLER, 11L));
@@ -747,7 +738,6 @@ class AuthServiceTest {
             .email("seller@test.com")
             .passwordHash("old-encoded")
             .ownerName("홍길동")
-            .businessNumber("1234567890")
             .build();
     ReflectionTestUtils.setField(seller, "id", 11L);
     PasswordChangeRequest request = new PasswordChangeRequest("Oldpass123!", "Newpass123!");

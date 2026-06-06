@@ -10,7 +10,6 @@
 | email | VARCHAR(255) | N | UNIQUE | 로그인 이메일 |
 | password_hash | VARCHAR(60) | N |  | BCrypt 해시 |
 | owner_name | VARCHAR(20) | N |  | 사장 이름 |
-| business_number | VARCHAR(10) | N |  | 숫자 10자리. 중복 허용 |
 | phone | VARCHAR(20) | Y |  | 사장 프로필에서 수정 가능. 변경 시 본인인증 stub 통과로 간주. |
 | phone_verified_at | TIMESTAMP | Y |  | 휴대폰 변경 시 함께 갱신되는 본인인증 통과 시각. |
 | deleted_at | TIMESTAMP | Y |  | 소프트 삭제 시각 |

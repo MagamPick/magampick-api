@@ -149,7 +149,6 @@ public class AuthService {
                         .email(request.email())
                         .passwordHash(passwordEncoder.encode(request.password()))
                         .ownerName(request.ownerName())
-                        .businessNumber(prepared.businessNumber())
                         .phone(verifiedPhone)
                         .phoneVerifiedAt(LocalDateTime.now())
                         .build());

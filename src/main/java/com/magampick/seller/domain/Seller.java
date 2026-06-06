@@ -32,9 +32,6 @@ public class Seller extends BaseEntity {
   @Column(name = "owner_name", nullable = false, length = 20)
   private String ownerName;
 
-  @Column(name = "business_number", nullable = false, length = 10)
-  private String businessNumber;
-
   @Column(name = "phone", length = 20)
   private String phone;
 
@@ -49,13 +46,11 @@ public class Seller extends BaseEntity {
       String email,
       String passwordHash,
       String ownerName,
-      String businessNumber,
       String phone,
       LocalDateTime phoneVerifiedAt) {
     this.email = email;
     this.passwordHash = passwordHash;
     this.ownerName = ownerName;
-    this.businessNumber = businessNumber;
     this.phone = phone;
     this.phoneVerifiedAt = phoneVerifiedAt;
   }

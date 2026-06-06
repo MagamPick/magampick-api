@@ -50,7 +50,6 @@ class SellerControllerTest {
         1L,
         "seller@test.com",
         "홍길동",
-        "1234567890",
         "01012345678",
         OffsetDateTime.now(),
         OffsetDateTime.now());
@@ -114,7 +113,6 @@ class SellerControllerTest {
             1L,
             "seller@test.com",
             "김철수",
-            "1234567890",
             "01012345678",
             OffsetDateTime.now(),
             OffsetDateTime.now());

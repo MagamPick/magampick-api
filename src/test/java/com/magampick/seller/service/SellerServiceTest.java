@@ -38,12 +38,7 @@ class SellerServiceTest {
 
   private Seller activeSeller() {
     Seller seller =
-        Seller.builder()
-            .email("seller@test.com")
-            .passwordHash("hash")
-            .ownerName("홍길동")
-            .businessNumber("1234567890")
-            .build();
+        Seller.builder().email("seller@test.com").passwordHash("hash").ownerName("홍길동").build();
     ReflectionTestUtils.setField(seller, "id", 1L);
     return seller;
   }
@@ -53,7 +48,6 @@ class SellerServiceTest {
         seller.getId(),
         seller.getEmail(),
         seller.getOwnerName(),
-        seller.getBusinessNumber(),
         seller.getPhone(),
         null,
         OffsetDateTime.now());

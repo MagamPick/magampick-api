@@ -127,12 +127,7 @@ class TermServiceTest {
   void 사장_약관_동의_기록_성공() {
     // given
     Seller seller =
-        Seller.builder()
-            .email("s@test.com")
-            .passwordHash("hash")
-            .ownerName("홍길동")
-            .businessNumber("1234567890")
-            .build();
+        Seller.builder().email("s@test.com").passwordHash("hash").ownerName("홍길동").build();
     given(termRepository.findByRequiredTrueAndTypeIn(sellerTermTypes()))
         .willReturn(List.of(term(1L, true), term(2L, true), term(6L, TermType.AGE_19, true)));
     given(termRepository.findAllById(anyIterable()))
@@ -154,12 +149,7 @@ class TermServiceTest {
   void 사장_필수약관_미동의_시_REQUIRED_TERMS_NOT_AGREED() {
     // given
     Seller seller =
-        Seller.builder()
-            .email("s@test.com")
-            .passwordHash("hash")
-            .ownerName("홍길동")
-            .businessNumber("1234567890")
-            .build();
+        Seller.builder().email("s@test.com").passwordHash("hash").ownerName("홍길동").build();
     given(termRepository.findByRequiredTrueAndTypeIn(sellerTermTypes()))
         .willReturn(List.of(term(1L, true), term(6L, TermType.AGE_19, true)));
 
