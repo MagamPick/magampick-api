@@ -1,14 +1,24 @@
 package com.magampick.review.service;
 
 import com.magampick.global.response.SliceResponse;
+import com.magampick.order.domain.Order;
+import com.magampick.order.domain.OrderItem;
+import com.magampick.order.domain.OrderStatus;
+import com.magampick.order.repository.OrderRepository;
+import com.magampick.review.domain.Review;
+import com.magampick.review.dto.MyReviewResponse;
 import com.magampick.review.dto.ReviewSummaryResponse;
+import com.magampick.review.dto.ReviewableOrderResponse;
 import com.magampick.review.dto.StoreReviewResponse;
 import com.magampick.review.mapper.ReviewMapper;
 import com.magampick.review.repository.ReviewRepository;
+import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +33,7 @@ public class ReviewQueryService {
 
   private final ReviewRepository reviewRepository;
   private final ReviewMapper reviewMapper;
+  private final OrderRepository orderRepository;
 
   // ── 엔드포인트용 ────────────────────────────────────────────────────────────────
 
@@ -55,6 +66,78 @@ public class ReviewQueryService {
             .toList();
 
     return new ReviewSummaryResponse(count == 0 ? 0.0 : average, count, distribution);
+  }
+
+  // ── 소비자 리뷰 write 관련 조회 ─────────────────────────────────────────────────
+
+  /** 소비자 COMPLETED 주문 목록 (리뷰 작성 가능 화면용). reviewed/reviewId 포함. */
+  public List<ReviewableOrderResponse> getReviewableOrders(Long customerId) {
+    List<Order> orders =
+        orderRepository.findCompletedOrdersWithDetails(customerId, OrderStatus.COMPLETED);
+
+    if (orders.isEmpty()) {
+      return List.of();
+    }
+
+    List<Long> orderIds = orders.stream().map(Order::getId).toList();
+    Map<Long, Review> reviewByOrderId =
+        reviewRepository.findByOrderIdInAndDeletedAtIsNull(orderIds).stream()
+            .collect(Collectors.toMap(r -> r.getOrder().getId(), Function.identity()));
+
+    return orders.stream().map(order -> toReviewableOrderResponse(order, reviewByOrderId)).toList();
+  }
+
+  /** 주문별 리뷰 단건 조회. 리뷰 없으면 empty. */
+  public Optional<MyReviewResponse> getOrderReview(Long customerId, Long orderId) {
+    return reviewRepository
+        .findByOrderIdAndDeletedAtIsNull(orderId)
+        .map(reviewMapper::toMyReviewResponse);
+  }
+
+  /** 소비자 본인 리뷰 목록 (최신순, 삭제 제외). */
+  public List<MyReviewResponse> getMyReviews(Long customerId) {
+    return reviewRepository
+        .findByCustomerIdAndDeletedAtIsNullOrderByCreatedAtDesc(customerId)
+        .stream()
+        .map(reviewMapper::toMyReviewResponse)
+        .toList();
+  }
+
+  private ReviewableOrderResponse toReviewableOrderResponse(
+      Order order, Map<Long, Review> reviewByOrderId) {
+    List<ReviewableOrderResponse.OrderedItem> items =
+        order.getOrderItems().stream().map(this::toOrderedItem).toList();
+
+    Review review = reviewByOrderId.get(order.getId());
+    boolean reviewed = review != null;
+    Long reviewId = reviewed ? review.getId() : null;
+
+    var pickedUpAt =
+        order.getCompletedAt() != null
+            ? order.getCompletedAt().atOffset(ZoneOffset.ofHours(9))
+            : null;
+
+    return new ReviewableOrderResponse(
+        order.getId(),
+        order.getStore().getId(),
+        order.getStore().getName(),
+        items,
+        pickedUpAt,
+        reviewed,
+        reviewId);
+  }
+
+  private ReviewableOrderResponse.OrderedItem toOrderedItem(OrderItem oi) {
+    Long productId;
+    String kind;
+    if (oi.getItemKind() == com.magampick.order.domain.ItemKind.DEAL) {
+      productId = oi.getClearanceItem().getId();
+      kind = "deal";
+    } else {
+      productId = oi.getProduct().getId();
+      kind = "menu";
+    }
+    return new ReviewableOrderResponse.OrderedItem(productId, kind, oi.getName());
   }
 
   // ── Phase 4 탐색 기능 주입용 집계 ───────────────────────────────────────────────
