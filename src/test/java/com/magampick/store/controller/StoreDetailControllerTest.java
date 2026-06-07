@@ -22,6 +22,7 @@ import com.magampick.store.dto.ConsumerStoreDetailResponse;
 import com.magampick.store.dto.OperatingHourResponse;
 import com.magampick.store.exception.StoreErrorCode;
 import com.magampick.store.service.StoreDetailQueryService;
+import com.magampick.store.service.StoreMapQueryService;
 import com.magampick.store.service.StoreMenuQueryService;
 import com.magampick.store.service.StoreQueryService;
 import java.math.BigDecimal;
@@ -43,6 +44,7 @@ class StoreDetailControllerTest {
   @MockitoBean StoreDetailQueryService storeDetailQueryService;
   @MockitoBean StoreDealQueryService storeDealQueryService;
   @MockitoBean StoreMenuQueryService storeMenuQueryService;
+  @MockitoBean StoreMapQueryService storeMapQueryService;
   @MockitoBean JwtProvider jwtProvider;
 
   private static final CustomUserDetails CUSTOMER = new CustomUserDetails(1L, Role.CUSTOMER);

@@ -92,7 +92,7 @@
 | 전체 매장 조회 — 5km 이내 OPEN 매장 목록 (5종 정렬: 추천/거리/할인율/마감/별점), PostGIS 거리, 떨이·평점·단골 배치 집계 | stores | 완료 | [노션](https://app.notion.com/p/36f6e59c28e681f5a625eccb02bd7865) |
 | 매장 상세 조회 — 정보 + 상품/마감 임박 상품 목록 | stores | 완료 | [노션](https://app.notion.com/p/36f6e59c28e6814ab8decb1acb8276dc) |
 | 상품 상세 조회 — 사진/가격/할인율/리뷰 | products | 완료 | [노션](https://app.notion.com/p/3696e59c28e68155bc71c114b70596cc) |
-| 지도 기반 매장 조회 — 카카오맵, 핀 표시 | stores | 미착수 | - |
+| 지도 기반 매장 조회 — 카카오맵, 핀 표시 | stores | 완료 | [노션](https://app.notion.com/p/3696e59c28e6810b8a67e6feabeb59a0) |
 | 필터/정렬 — 거리/할인율/마감 임박 | stores | 미착수 | - |
 | 키워드 검색 — 매장명/상품명/해시태그 | stores | 미착수 | - |
 | 검색 기록 관리 — 최근 10개, 자동완성 | stores | 미착수 | - |
