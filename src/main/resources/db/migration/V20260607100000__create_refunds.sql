@@ -1,0 +1,11 @@
+CREATE TABLE refunds (
+  id BIGSERIAL PRIMARY KEY,
+  order_id BIGINT NOT NULL UNIQUE REFERENCES orders(id),
+  status VARCHAR(20) NOT NULL DEFAULT 'REQUESTED',
+  reason VARCHAR(200) NOT NULL,
+  reject_reason VARCHAR(200),
+  requested_at TIMESTAMP NOT NULL,
+  resolved_at TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
