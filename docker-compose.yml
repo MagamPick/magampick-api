@@ -21,6 +21,8 @@ services:
       SOLAPI_API_SECRET: ${SOLAPI_API_SECRET:-}
       SOLAPI_SENDER_NUMBER: ${SOLAPI_SENDER_NUMBER:-}
       NTS_BUSINESS_API_KEY: ${NTS_BUSINESS_API_KEY:-}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
     restart: unless-stopped
     networks:
       - magampick
