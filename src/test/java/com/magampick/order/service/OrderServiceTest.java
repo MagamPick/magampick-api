@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.lenient;
@@ -15,10 +16,12 @@ import com.magampick.clearance.repository.ClearanceItemRepository;
 import com.magampick.customer.repository.CustomerRepository;
 import com.magampick.global.exception.BusinessException;
 import com.magampick.order.domain.Order;
+import com.magampick.order.domain.OrderStatus;
 import com.magampick.order.domain.PickupType;
 import com.magampick.order.dto.CreateOrderRequest;
 import com.magampick.order.dto.CreateOrderRequest.PickupRequest;
 import com.magampick.order.dto.OrderResponse;
+import com.magampick.order.dto.SellerOrderResponse;
 import com.magampick.order.exception.OrderErrorCode;
 import com.magampick.order.fixture.OrderFixture;
 import com.magampick.order.mapper.OrderMapper;
@@ -44,6 +47,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -557,5 +561,221 @@ class OrderServiceTest {
     // then
     assertThat(response.status()).isEqualTo("PENDING");
     then(paymentRepository).should().save(any());
+  }
+
+  // ── listMyOrders ─────────────────────────────────────────────────────────────
+
+  @Test
+  void 본인_주문_목록_조회_성공() {
+    // given
+    Store store = OrderFixture.aStore();
+    Order order = OrderFixture.anOrder(OrderFixture.aCustomer(), store);
+    given(orderRepository.findByCustomerIdAndStatusInOrderByCreatedAtDesc(eq(CUSTOMER_ID), any()))
+        .willReturn(List.of(order));
+    given(orderMapper.toResponse(order)).willReturn(OrderFixture.anOrderResponse(42L));
+
+    // when
+    List<OrderResponse> result = orderService.listMyOrders(CUSTOMER_ID, "ALL");
+
+    // then
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0).status()).isEqualTo("PENDING");
+  }
+
+  @Test
+  void 소비자_목록_segment_PICKUP_WAITING_필터() {
+    // given
+    given(orderRepository.findByCustomerIdAndStatusInOrderByCreatedAtDesc(eq(CUSTOMER_ID), any()))
+        .willReturn(List.of());
+
+    // when
+    List<OrderResponse> result = orderService.listMyOrders(CUSTOMER_ID, "PICKUP_WAITING");
+
+    // then — PENDING/PREPARING/READY 3개 statuses 로 조회
+    assertThat(result).isEmpty();
+    ArgumentCaptor<List<OrderStatus>> captor = ArgumentCaptor.forClass(List.class);
+    then(orderRepository)
+        .should()
+        .findByCustomerIdAndStatusInOrderByCreatedAtDesc(eq(CUSTOMER_ID), captor.capture());
+    assertThat(captor.getValue())
+        .containsExactlyInAnyOrder(OrderStatus.PENDING, OrderStatus.PREPARING, OrderStatus.READY);
+  }
+
+  @Test
+  void 소비자_목록_segment_DONE_필터() {
+    // given
+    given(orderRepository.findByCustomerIdAndStatusInOrderByCreatedAtDesc(eq(CUSTOMER_ID), any()))
+        .willReturn(List.of());
+
+    // when
+    orderService.listMyOrders(CUSTOMER_ID, "DONE");
+
+    // then — COMPLETED/CANCELLED/REJECTED/NO_SHOW 4개 statuses 로 조회
+    ArgumentCaptor<List<OrderStatus>> captor = ArgumentCaptor.forClass(List.class);
+    then(orderRepository)
+        .should()
+        .findByCustomerIdAndStatusInOrderByCreatedAtDesc(eq(CUSTOMER_ID), captor.capture());
+    assertThat(captor.getValue())
+        .containsExactlyInAnyOrder(
+            OrderStatus.COMPLETED,
+            OrderStatus.CANCELLED,
+            OrderStatus.REJECTED,
+            OrderStatus.NO_SHOW);
+  }
+
+  // ── getMyOrder ────────────────────────────────────────────────────────────────
+
+  @Test
+  void 본인_주문_상세_조회_성공() {
+    // given
+    Store store = OrderFixture.aStore();
+    Order order = OrderFixture.anOrder(OrderFixture.aCustomer(), store);
+    ReflectionTestUtils.setField(order, "id", 42L);
+    given(orderRepository.findById(42L)).willReturn(Optional.of(order));
+    given(orderMapper.toResponse(order)).willReturn(OrderFixture.anOrderResponse(42L));
+
+    // when
+    OrderResponse result = orderService.getMyOrder(CUSTOMER_ID, 42L);
+
+    // then
+    assertThat(result.id()).isEqualTo(42L);
+  }
+
+  @Test
+  void 주문_없음_404() {
+    // given
+    given(orderRepository.findById(99L)).willReturn(Optional.empty());
+
+    // when / then
+    assertThatThrownBy(() -> orderService.getMyOrder(CUSTOMER_ID, 99L))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", OrderErrorCode.ORDER_NOT_FOUND);
+  }
+
+  @Test
+  void 타인_주문_조회시_403() {
+    // given — customerId=999 인 다른 고객 주문
+    Store store = OrderFixture.aStore();
+    Order order = OrderFixture.anOrder(OrderFixture.aCustomer(), store); // customer.id=1
+    ReflectionTestUtils.setField(order, "id", 42L);
+    given(orderRepository.findById(42L)).willReturn(Optional.of(order));
+
+    // when / then — customerId=999 (≠1) 접근 시 403
+    assertThatThrownBy(() -> orderService.getMyOrder(999L, 42L))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", OrderErrorCode.ORDER_FORBIDDEN);
+  }
+
+  // ── listStoreOrders ───────────────────────────────────────────────────────────
+
+  @Test
+  void 사장_매장_주문_목록_조회_성공() {
+    // given
+    Store store = OrderFixture.aStore(); // seller.id=2, store.id=10
+    given(storeRepository.findByIdAndSellerId(STORE_ID, 2L)).willReturn(Optional.of(store));
+    Order order = OrderFixture.anOrder(OrderFixture.aCustomer(), store);
+    given(orderRepository.findByStoreIdAndStatusInOrderByCreatedAtDesc(eq(STORE_ID), any()))
+        .willReturn(List.of(order));
+    given(orderMapper.toSellerResponse(order)).willReturn(OrderFixture.aSellerOrderResponse(42L));
+
+    // when
+    List<SellerOrderResponse> result = orderService.listStoreOrders(2L, STORE_ID, "ALL");
+
+    // then
+    assertThat(result).hasSize(1);
+  }
+
+  @Test
+  void 사장_다른매장_접근시_403() {
+    // given — storeId=10 은 sellerId=2 소유, 접근자=sellerId=999
+    given(storeRepository.findByIdAndSellerId(STORE_ID, 999L)).willReturn(Optional.empty());
+
+    // when / then
+    assertThatThrownBy(() -> orderService.listStoreOrders(999L, STORE_ID, "ALL"))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.STORE_ACCESS_DENIED);
+  }
+
+  @Test
+  void 사장_목록_segment_PENDING_필터() {
+    // given
+    Store store = OrderFixture.aStore();
+    given(storeRepository.findByIdAndSellerId(STORE_ID, 2L)).willReturn(Optional.of(store));
+    given(orderRepository.findByStoreIdAndStatusInOrderByCreatedAtDesc(eq(STORE_ID), any()))
+        .willReturn(List.of());
+
+    // when
+    orderService.listStoreOrders(2L, STORE_ID, "PENDING");
+
+    // then — PENDING 1개만
+    ArgumentCaptor<List<OrderStatus>> captor = ArgumentCaptor.forClass(List.class);
+    then(orderRepository)
+        .should()
+        .findByStoreIdAndStatusInOrderByCreatedAtDesc(eq(STORE_ID), captor.capture());
+    assertThat(captor.getValue()).containsExactly(OrderStatus.PENDING);
+  }
+
+  @Test
+  void 사장_목록_segment_CANCELLED_필터() {
+    // given
+    Store store = OrderFixture.aStore();
+    given(storeRepository.findByIdAndSellerId(STORE_ID, 2L)).willReturn(Optional.of(store));
+    given(orderRepository.findByStoreIdAndStatusInOrderByCreatedAtDesc(eq(STORE_ID), any()))
+        .willReturn(List.of());
+
+    // when
+    orderService.listStoreOrders(2L, STORE_ID, "CANCELLED");
+
+    // then — CANCELLED/REJECTED/NO_SHOW 3개
+    ArgumentCaptor<List<OrderStatus>> captor = ArgumentCaptor.forClass(List.class);
+    then(orderRepository)
+        .should()
+        .findByStoreIdAndStatusInOrderByCreatedAtDesc(eq(STORE_ID), captor.capture());
+    assertThat(captor.getValue())
+        .containsExactlyInAnyOrder(
+            OrderStatus.CANCELLED, OrderStatus.REJECTED, OrderStatus.NO_SHOW);
+  }
+
+  // ── getStoreOrder ─────────────────────────────────────────────────────────────
+
+  @Test
+  void 사장_주문_상세_조회_성공() {
+    // given
+    Store store = OrderFixture.aStore(); // seller.id=2, store.id=10
+    Order order = OrderFixture.anOrder(OrderFixture.aCustomer(), store);
+    ReflectionTestUtils.setField(order, "id", 42L);
+    given(orderRepository.findById(42L)).willReturn(Optional.of(order));
+    given(orderMapper.toSellerResponse(order)).willReturn(OrderFixture.aSellerOrderResponse(42L));
+
+    // when
+    SellerOrderResponse result = orderService.getStoreOrder(2L, 42L);
+
+    // then
+    assertThat(result.id()).isEqualTo(42L);
+  }
+
+  @Test
+  void 사장_본인_매장_아닌_주문_조회시_403() {
+    // given — 주문의 store.seller.id=2, 접근자=sellerId=999
+    Store store = OrderFixture.aStore(); // seller.id=2
+    Order order = OrderFixture.anOrder(OrderFixture.aCustomer(), store);
+    ReflectionTestUtils.setField(order, "id", 42L);
+    given(orderRepository.findById(42L)).willReturn(Optional.of(order));
+
+    // when / then
+    assertThatThrownBy(() -> orderService.getStoreOrder(999L, 42L))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", OrderErrorCode.ORDER_FORBIDDEN);
+  }
+
+  @Test
+  void 사장_주문_없음_404() {
+    // given
+    given(orderRepository.findById(99L)).willReturn(Optional.empty());
+
+    // when / then
+    assertThatThrownBy(() -> orderService.getStoreOrder(2L, 99L))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", OrderErrorCode.ORDER_NOT_FOUND);
   }
 }

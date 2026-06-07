@@ -14,6 +14,7 @@ import com.magampick.order.domain.OrderStatus;
 import com.magampick.order.domain.PickupType;
 import com.magampick.order.dto.CreateOrderRequest;
 import com.magampick.order.dto.OrderResponse;
+import com.magampick.order.dto.SellerOrderResponse;
 import com.magampick.order.exception.OrderErrorCode;
 import com.magampick.order.mapper.OrderMapper;
 import com.magampick.order.repository.OrderRepository;
@@ -315,6 +316,106 @@ public class OrderService {
       throw new BusinessException(OrderErrorCode.INVALID_PICKUP_TIME);
     }
     return today.atTime(slotTime);
+  }
+
+  // ── 소비자 segment → statuses ────────────────────────────────────────────────
+
+  private static final List<OrderStatus> CUSTOMER_ALL =
+      List.of(
+          OrderStatus.PENDING,
+          OrderStatus.PREPARING,
+          OrderStatus.READY,
+          OrderStatus.COMPLETED,
+          OrderStatus.NO_SHOW,
+          OrderStatus.REJECTED,
+          OrderStatus.CANCELLED);
+
+  private static final List<OrderStatus> CUSTOMER_PICKUP_WAITING =
+      List.of(OrderStatus.PENDING, OrderStatus.PREPARING, OrderStatus.READY);
+
+  private static final List<OrderStatus> CUSTOMER_DONE =
+      List.of(
+          OrderStatus.COMPLETED, OrderStatus.CANCELLED, OrderStatus.REJECTED, OrderStatus.NO_SHOW);
+
+  // ── 사장 segment → statuses ──────────────────────────────────────────────────
+
+  private static final List<OrderStatus> SELLER_ALL =
+      List.of(
+          OrderStatus.PENDING,
+          OrderStatus.PREPARING,
+          OrderStatus.READY,
+          OrderStatus.COMPLETED,
+          OrderStatus.NO_SHOW,
+          OrderStatus.REJECTED,
+          OrderStatus.CANCELLED);
+
+  private static final List<OrderStatus> SELLER_CANCELLED =
+      List.of(OrderStatus.CANCELLED, OrderStatus.REJECTED, OrderStatus.NO_SHOW);
+
+  /** 소비자 주문 목록. segment → statuses 변환 후 최신순 반환. */
+  public List<OrderResponse> listMyOrders(Long customerId, String segment) {
+    List<OrderStatus> statuses = resolveCustomerSegment(segment);
+    return orderRepository
+        .findByCustomerIdAndStatusInOrderByCreatedAtDesc(customerId, statuses)
+        .stream()
+        .map(orderMapper::toResponse)
+        .toList();
+  }
+
+  /** 소비자 주문 상세. 본인 주문이 아니면 ORDER_FORBIDDEN 403. */
+  public OrderResponse getMyOrder(Long customerId, Long orderId) {
+    Order order =
+        orderRepository
+            .findById(orderId)
+            .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
+    if (!order.getCustomer().getId().equals(customerId)) {
+      throw new BusinessException(OrderErrorCode.ORDER_FORBIDDEN);
+    }
+    return orderMapper.toResponse(order);
+  }
+
+  /** 사장 매장 주문 목록. 매장 소유권 검증 후 segment 필터 적용. */
+  public List<SellerOrderResponse> listStoreOrders(Long sellerId, Long storeId, String segment) {
+    storeRepository
+        .findByIdAndSellerId(storeId, sellerId)
+        .orElseThrow(() -> new BusinessException(StoreErrorCode.STORE_ACCESS_DENIED));
+    List<OrderStatus> statuses = resolveSellerSegment(segment);
+    return orderRepository.findByStoreIdAndStatusInOrderByCreatedAtDesc(storeId, statuses).stream()
+        .map(orderMapper::toSellerResponse)
+        .toList();
+  }
+
+  /** 사장 주문 상세. 본인 매장 주문이 아니면 ORDER_FORBIDDEN 403. */
+  public SellerOrderResponse getStoreOrder(Long sellerId, Long orderId) {
+    Order order =
+        orderRepository
+            .findById(orderId)
+            .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
+    if (!order.getStore().getSeller().getId().equals(sellerId)) {
+      throw new BusinessException(OrderErrorCode.ORDER_FORBIDDEN);
+    }
+    return orderMapper.toSellerResponse(order);
+  }
+
+  private List<OrderStatus> resolveCustomerSegment(String segment) {
+    if (segment == null) return CUSTOMER_ALL;
+    return switch (segment.toUpperCase()) {
+      case "PICKUP_WAITING" -> CUSTOMER_PICKUP_WAITING;
+      case "DONE" -> CUSTOMER_DONE;
+      default -> CUSTOMER_ALL;
+    };
+  }
+
+  private List<OrderStatus> resolveSellerSegment(String segment) {
+    if (segment == null) return SELLER_ALL;
+    return switch (segment.toUpperCase()) {
+      case "PENDING" -> List.of(OrderStatus.PENDING);
+      case "PREPARING" -> List.of(OrderStatus.PREPARING);
+      case "READY" -> List.of(OrderStatus.READY);
+      case "COMPLETED" -> List.of(OrderStatus.COMPLETED);
+      case "CANCELLED" -> SELLER_CANCELLED;
+      default -> SELLER_ALL;
+    };
   }
 
   /** 서비스 내부 항목 컨텍스트. */

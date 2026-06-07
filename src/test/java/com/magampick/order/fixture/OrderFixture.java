@@ -14,6 +14,7 @@ import com.magampick.order.dto.CreateOrderRequest.AmountsRequest;
 import com.magampick.order.dto.CreateOrderRequest.OrderItemRequest;
 import com.magampick.order.dto.CreateOrderRequest.PickupRequest;
 import com.magampick.order.dto.OrderResponse;
+import com.magampick.order.dto.SellerOrderResponse;
 import com.magampick.product.domain.Product;
 import com.magampick.product.domain.ProductCategory;
 import com.magampick.product.domain.ProductStatus;
@@ -291,7 +292,36 @@ public class OrderFixture {
         "3827",
         "PENDING",
         "toss",
-        OffsetDateTime.of(2026, 6, 8, 10, 30, 0, 0, ZoneOffset.ofHours(9)));
+        OffsetDateTime.of(2026, 6, 8, 10, 30, 0, 0, ZoneOffset.ofHours(9)),
+        null,
+        null);
+  }
+
+  public static SellerOrderResponse aSellerOrderResponse(Long orderId) {
+    return new SellerOrderResponse(
+        orderId,
+        String.format("%04d", orderId),
+        10L,
+        "동네빵집",
+        "0212345678",
+        List.of(
+            new OrderResponse.OrderItemResponse(
+                1L, "DEAL", "크로아상", null, new BigDecimal("4500"), new BigDecimal("3000"), 2)),
+        new OrderResponse.PickupResponse("ASAP", null),
+        null,
+        new OrderResponse.OrderAmountsResponse(
+            new BigDecimal("9000"), new BigDecimal("3000"), new BigDecimal("6000")),
+        "3827",
+        "PENDING",
+        "toss",
+        OffsetDateTime.of(2026, 6, 8, 10, 30, 0, 0, ZoneOffset.ofHours(9)),
+        "테스터",
+        "01012345678",
+        null,
+        null,
+        null,
+        null,
+        null);
   }
 
   /** storePhone=null 인 응답 — @JsonInclude(NON_NULL) 직렬화 검증용. */
@@ -312,6 +342,8 @@ public class OrderFixture {
         "3827",
         "PENDING",
         "toss",
-        OffsetDateTime.of(2026, 6, 8, 10, 30, 0, 0, ZoneOffset.ofHours(9)));
+        OffsetDateTime.of(2026, 6, 8, 10, 30, 0, 0, ZoneOffset.ofHours(9)),
+        null,
+        null);
   }
 }

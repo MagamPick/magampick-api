@@ -72,6 +72,26 @@ public class Order extends BaseEntity {
   @Column(name = "memo", length = 80)
   private String memo;
 
+  /** 사장 수락 시각 (nullable). */
+  @Column(name = "accepted_at")
+  private LocalDateTime acceptedAt;
+
+  /** 준비완료 시각 (nullable). */
+  @Column(name = "ready_at")
+  private LocalDateTime readyAt;
+
+  /** 수령완료 시각 (nullable). */
+  @Column(name = "completed_at")
+  private LocalDateTime completedAt;
+
+  /** 사장 거절 시각 (nullable). */
+  @Column(name = "rejected_at")
+  private LocalDateTime rejectedAt;
+
+  /** 소비자 취소 시각 (nullable). */
+  @Column(name = "cancelled_at")
+  private LocalDateTime cancelledAt;
+
   /** 정상가 합계 (모든 항목의 regularPrice × qty 합). */
   @Column(name = "normal_total", precision = 12, scale = 0)
   private BigDecimal normalTotal;

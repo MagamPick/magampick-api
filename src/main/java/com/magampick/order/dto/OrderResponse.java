@@ -23,7 +23,13 @@ public record OrderResponse(
     @Schema(description = "픽업 인증 코드 4자리", example = "3827") String pickupCode,
     @Schema(description = "주문 상태", example = "PENDING") String status,
     @Schema(description = "결제 수단", example = "toss") String paymentMethod,
-    @Schema(description = "생성 시각 (KST ISO 8601)") OffsetDateTime createdAt) {
+    @Schema(description = "생성 시각 (KST ISO 8601)") OffsetDateTime createdAt,
+    @Schema(description = "수령완료 시각 (KST ISO 8601, nullable)")
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        OffsetDateTime completedAt,
+    @Schema(description = "취소 시각 (KST ISO 8601, nullable)")
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        OffsetDateTime cancelledAt) {
 
   @Schema(description = "주문 항목")
   public record OrderItemResponse(
