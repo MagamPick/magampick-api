@@ -88,7 +88,7 @@
 
 | 기능 | 도메인 | 상태 | 이슈 |
 |---|---|---|---|
-| 홈 피드 — 반경 내 매장/마감 임박 상품 카드 | stores | 미착수 | - |
+| 홈 피드 — 반경 내 매장/마감 임박 상품 카드 | stores | 완료 | [노션](https://app.notion.com/p/3696e59c28e681788675f00a7a529cc3) |
 | 전체 매장 조회 — 5km 이내 OPEN 매장 목록 (5종 정렬: 추천/거리/할인율/마감/별점), PostGIS 거리, 떨이·평점·단골 배치 집계 | stores | 완료 | [노션](https://app.notion.com/p/36f6e59c28e681f5a625eccb02bd7865) |
 | 매장 상세 조회 — 정보 + 상품/마감 임박 상품 목록 | stores | 완료 | [노션](https://app.notion.com/p/36f6e59c28e6814ab8decb1acb8276dc) |
 | 상품 상세 조회 — 사진/가격/할인율/리뷰 | products | 완료 | [노션](https://app.notion.com/p/3696e59c28e68155bc71c114b70596cc) |

@@ -298,7 +298,9 @@ Cookie: refresh_token={JWT}
 | `PATCH /api/v1/auth/me/password` | | ✅ | ✅ | |
 | `GET /api/v1/stores` **전체 매장 목록** | | ✅ | | |
 | `GET /api/v1/stores/map` **지도 기반 매장 조회** (literal `/map` — `/{id}` 보다 우선 매치) | | ✅ | | |
+| `GET /api/v1/stores/neighborhood` **우리 동네 마감픽** (literal — `/{id}` 보다 우선 매치) | | ✅ | | |
 | `GET /api/v1/stores/{id}` **매장 상세** (단일 세그먼트) | | ✅ | | |
+| `GET /api/v1/clearance-items/closing-soon` **마감 임박 특가** (literal — `/{id}` 보다 우선 매치) | | ✅ | | |
 | `GET /api/v1/clearance-items/{id}` **떨이 상품 상세** (단일 세그먼트) | | ✅ | | |
 | `GET /api/v1/products/{id}` **일반 상품 상세** (단일 세그먼트) | | ✅ | | |
 | `GET /api/v1/stores/{id}/clearance-items`, `GET /api/v1/stores/{id}/menu` (서브경로) | ✅ | ✅ | ✅ | ✅ |

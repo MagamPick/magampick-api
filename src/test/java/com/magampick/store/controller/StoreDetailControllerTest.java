@@ -24,6 +24,7 @@ import com.magampick.store.exception.StoreErrorCode;
 import com.magampick.store.service.StoreDetailQueryService;
 import com.magampick.store.service.StoreMapQueryService;
 import com.magampick.store.service.StoreMenuQueryService;
+import com.magampick.store.service.StoreNeighborhoodQueryService;
 import com.magampick.store.service.StoreQueryService;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -45,6 +46,7 @@ class StoreDetailControllerTest {
   @MockitoBean StoreDealQueryService storeDealQueryService;
   @MockitoBean StoreMenuQueryService storeMenuQueryService;
   @MockitoBean StoreMapQueryService storeMapQueryService;
+  @MockitoBean StoreNeighborhoodQueryService storeNeighborhoodQueryService;
   @MockitoBean JwtProvider jwtProvider;
 
   private static final CustomUserDetails CUSTOMER = new CustomUserDetails(1L, Role.CUSTOMER);

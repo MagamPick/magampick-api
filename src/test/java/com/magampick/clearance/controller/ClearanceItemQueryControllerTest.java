@@ -6,9 +6,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.magampick.address.exception.AddressErrorCode;
+import com.magampick.clearance.dto.ClosingDealResponse;
 import com.magampick.clearance.dto.DealProductDetailResponse;
 import com.magampick.clearance.exception.ClearanceItemErrorCode;
 import com.magampick.clearance.service.ClearanceItemDetailQueryService;
+import com.magampick.clearance.service.ClosingDealQueryService;
 import com.magampick.global.exception.BusinessException;
 import com.magampick.global.security.CustomUserDetails;
 import com.magampick.global.security.JwtAccessDeniedHandler;
@@ -19,6 +22,7 @@ import com.magampick.global.security.SecurityConfig;
 import com.magampick.store.domain.OperationStatus;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -32,6 +36,7 @@ class ClearanceItemQueryControllerTest {
 
   @Autowired MockMvc mockMvc;
   @MockitoBean ClearanceItemDetailQueryService clearanceItemDetailQueryService;
+  @MockitoBean ClosingDealQueryService closingDealQueryService;
   @MockitoBean JwtProvider jwtProvider;
 
   private static final CustomUserDetails CUSTOMER = new CustomUserDetails(1L, Role.CUSTOMER);
@@ -95,5 +100,56 @@ class ClearanceItemQueryControllerTest {
         .perform(get("/api/v1/clearance-items/999").with(user(CUSTOMER)))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.error.code").value("CLEARANCE_ITEM_NOT_FOUND"));
+  }
+
+  // ── GET /api/v1/clearance-items/closing-soon ──────────────────────────────────────────────────
+
+  @Test
+  void GET_closing_soon_200_정상() throws Exception {
+    ClosingDealResponse item =
+        new ClosingDealResponse(
+            1L,
+            "우리빵집",
+            "크로아상",
+            "/img/croissant.jpg",
+            33,
+            new BigDecimal("4500"),
+            new BigDecimal("3000"),
+            LocalDateTime.now().plusMinutes(45));
+    given(closingDealQueryService.getClosingSoonDeals(1L)).willReturn(List.of(item));
+
+    mockMvc
+        .perform(get("/api/v1/clearance-items/closing-soon").with(user(CUSTOMER)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data").isArray())
+        .andExpect(jsonPath("$.data[0].id").value(1))
+        .andExpect(jsonPath("$.data[0].storeName").value("우리빵집"))
+        .andExpect(jsonPath("$.data[0].discountRate").value(33));
+  }
+
+  @Test
+  void GET_closing_soon_401_미인증() throws Exception {
+    mockMvc
+        .perform(get("/api/v1/clearance-items/closing-soon"))
+        .andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void GET_closing_soon_403_사장_접근_거부() throws Exception {
+    mockMvc
+        .perform(get("/api/v1/clearance-items/closing-soon").with(user(SELLER)))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void GET_closing_soon_400_기본주소지_없음() throws Exception {
+    given(closingDealQueryService.getClosingSoonDeals(1L))
+        .willThrow(new BusinessException(AddressErrorCode.DEFAULT_ADDRESS_REQUIRED));
+
+    mockMvc
+        .perform(get("/api/v1/clearance-items/closing-soon").with(user(CUSTOMER)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("DEFAULT_ADDRESS_REQUIRED"));
   }
 }

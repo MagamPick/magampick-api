@@ -18,12 +18,14 @@ import com.magampick.global.security.JwtAuthenticationEntryPoint;
 import com.magampick.global.security.JwtProvider;
 import com.magampick.global.security.Role;
 import com.magampick.global.security.SecurityConfig;
+import com.magampick.store.dto.NeighborhoodStoreResponse;
 import com.magampick.store.dto.StoreListItemResponse;
 import com.magampick.store.dto.StoreListResponse;
 import com.magampick.store.dto.StoreSort;
 import com.magampick.store.service.StoreDetailQueryService;
 import com.magampick.store.service.StoreMapQueryService;
 import com.magampick.store.service.StoreMenuQueryService;
+import com.magampick.store.service.StoreNeighborhoodQueryService;
 import com.magampick.store.service.StoreQueryService;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -43,6 +45,7 @@ class StoreQueryControllerTest {
   @MockitoBean StoreDealQueryService storeDealQueryService;
   @MockitoBean StoreMenuQueryService storeMenuQueryService;
   @MockitoBean StoreMapQueryService storeMapQueryService;
+  @MockitoBean StoreNeighborhoodQueryService storeNeighborhoodQueryService;
   @MockitoBean JwtProvider jwtProvider;
 
   private static final CustomUserDetails CUSTOMER = new CustomUserDetails(1L, Role.CUSTOMER);
@@ -132,6 +135,49 @@ class StoreQueryControllerTest {
         .perform(get("/api/v1/stores").with(user(CUSTOMER)))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.error.code").value("DEFAULT_ADDRESS_REQUIRED"));
+  }
+
+  // ── GET /api/v1/stores/neighborhood ──────────────────────────────────────────────────────────
+
+  @Test
+  void neighborhood_200_정상() throws Exception {
+    NeighborhoodStoreResponse item =
+        new NeighborhoodStoreResponse(10L, "동네빵집", "/img/bread.jpg", 1.2, 4.5, 3L);
+    given(storeNeighborhoodQueryService.getNeighborhoodStores(1L)).willReturn(List.of(item));
+
+    mockMvc
+        .perform(get("/api/v1/stores/neighborhood").with(user(CUSTOMER)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data").isArray())
+        .andExpect(jsonPath("$.data[0].id").value(10))
+        .andExpect(jsonPath("$.data[0].name").value("동네빵집"))
+        .andExpect(jsonPath("$.data[0].distanceKm").value(1.2))
+        .andExpect(jsonPath("$.data[0].rating").value(4.5))
+        .andExpect(jsonPath("$.data[0].activeDealCount").value(3));
+  }
+
+  @Test
+  void neighborhood_401_미인증() throws Exception {
+    mockMvc.perform(get("/api/v1/stores/neighborhood")).andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void neighborhood_403_사장_접근_거부() throws Exception {
+    mockMvc
+        .perform(get("/api/v1/stores/neighborhood").with(user(SELLER)))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void neighborhood_400_기본주소지_없음() throws Exception {
+    given(storeNeighborhoodQueryService.getNeighborhoodStores(1L))
+        .willThrow(new BusinessException(AddressErrorCode.DEFAULT_ADDRESS_REQUIRED));
+
+    mockMvc
+        .perform(get("/api/v1/stores/neighborhood").with(user(CUSTOMER)))
+        .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.error.code").value("DEFAULT_ADDRESS_REQUIRED"));
   }
 
