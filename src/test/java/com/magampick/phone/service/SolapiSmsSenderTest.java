@@ -7,7 +7,6 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
-import java.util.Optional;
 import net.nurigo.sdk.message.model.Message;
 import net.nurigo.sdk.message.request.SingleMessageSendingRequest;
 import net.nurigo.sdk.message.service.DefaultMessageService;
@@ -32,7 +31,7 @@ class SolapiSmsSenderTest {
   void setUp() {
     SolapiProperties properties =
         new SolapiProperties("api-key", "api-secret", SENDER_NUMBER, "https://api.solapi.com");
-    sender = new SolapiSmsSender(smsConfig, Optional.of(messageService), Optional.of(properties));
+    sender = new SolapiSmsSender(smsConfig, messageService, properties);
   }
 
   @Test
@@ -68,16 +67,5 @@ class SolapiSmsSenderTest {
 
     assertThatThrownBy(() -> sender.sendVerificationCode("01011112222", "123456"))
         .isInstanceOf(RuntimeException.class);
-  }
-
-  @Test
-  void mock_꺼졌는데_SOLAPI_빈_없으면_RuntimeException() {
-    SolapiSmsSender senderWithoutSolapi =
-        new SolapiSmsSender(smsConfig, Optional.empty(), Optional.empty());
-    given(smsConfig.isMockEnabled()).willReturn(false);
-
-    assertThatThrownBy(() -> senderWithoutSolapi.sendVerificationCode("01011112222", "123456"))
-        .isInstanceOf(RuntimeException.class)
-        .hasMessageContaining("재시작");
   }
 }
