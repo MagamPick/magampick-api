@@ -266,6 +266,8 @@ class HomeFeedIntegrationTest {
     return Store.builder()
         .seller(seller)
         .businessNumber("1234567890")
+        .representativeName("홍길동")
+        .openDate(LocalDate.of(2024, 3, 15))
         .name(name)
         .roadAddress("서울시 중구 테스트로 1")
         .zonecode("04524")

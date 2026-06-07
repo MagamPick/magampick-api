@@ -307,6 +307,8 @@ class FavoriteServiceTest {
         Store.builder()
             .seller(null)
             .businessNumber("1234567890")
+            .representativeName("홍길동")
+            .openDate(LocalDate.of(2024, 3, 15))
             .name("동네빵집")
             .roadAddress("서울 강남구 테헤란로 427")
             .zonecode("06158")
