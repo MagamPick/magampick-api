@@ -9,6 +9,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
@@ -16,7 +17,9 @@ import lombok.NoArgsConstructor;
 
 /** 약관 마스터. (type, version) 별 1 row. 가입 화면이 조회해 표시한다. */
 @Entity
-@Table(name = "terms")
+@Table(
+    name = "terms",
+    uniqueConstraints = @UniqueConstraint(columnNames = {"type", "version", "role"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Term extends BaseEntity {
@@ -41,12 +44,21 @@ public class Term extends BaseEntity {
   @Column(name = "required", nullable = false)
   private boolean required;
 
+  @Column(name = "sort_order", nullable = false)
+  private int sortOrder;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "role", nullable = false, length = 10)
+  private TermRole role;
+
   @Builder
-  private Term(TermType type, int version, String title, String body, boolean required) {
+  private Term(
+      TermType type, int version, String title, String body, boolean required, TermRole role) {
     this.type = type;
     this.version = version;
     this.title = title;
     this.body = body;
     this.required = required;
+    this.role = role;
   }
 }

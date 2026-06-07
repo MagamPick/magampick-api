@@ -20,6 +20,7 @@ import com.magampick.global.support.CrossCuttingTestController;
 import com.magampick.phone.repository.PhoneVerificationStore;
 import com.magampick.store.dto.StoreCreateRequest;
 import com.magampick.terms.domain.Term;
+import com.magampick.terms.domain.TermRole;
 import com.magampick.terms.domain.TermType;
 import com.magampick.terms.repository.TermRepository;
 import jakarta.servlet.http.Cookie;
@@ -88,7 +89,9 @@ class AuthIntegrationTest {
   private MvcResult signupCustomer(String email, String phone) throws Exception {
     String verificationToken = verificationToken(phone);
     List<Long> requiredTermIds =
-        termRepository.findByRequiredTrueAndTypeIn(customerTermTypes()).stream()
+        termRepository
+            .findByRequiredTrueAndTypeInAndRole(customerTermTypes(), TermRole.CUSTOMER)
+            .stream()
             .map(Term::getId)
             .toList();
 
@@ -133,7 +136,9 @@ class AuthIntegrationTest {
     String phone = uniquePhone();
     String verificationToken = verificationToken(phone);
     List<Long> requiredTermIds =
-        termRepository.findByRequiredTrueAndTypeIn(sellerTermTypes()).stream()
+        termRepository
+            .findByRequiredTrueAndTypeInAndRole(sellerTermTypes(), TermRole.SELLER)
+            .stream()
             .map(Term::getId)
             .toList();
     SellerSignupRequest request =
@@ -175,7 +180,9 @@ class AuthIntegrationTest {
     String phone = uniquePhone();
     String verificationToken = verificationToken(phone);
     List<Long> requiredTermIds =
-        termRepository.findByRequiredTrueAndTypeIn(sellerTermTypes()).stream()
+        termRepository
+            .findByRequiredTrueAndTypeInAndRole(sellerTermTypes(), TermRole.SELLER)
+            .stream()
             .map(Term::getId)
             .toList();
     SellerSignupRequest request =
@@ -339,7 +346,11 @@ class AuthIntegrationTest {
 
     // 3. 약관 동의 + /signup/social → 201
     List<Long> requiredTermIds =
-        termRepository.findByRequiredTrue().stream().map(Term::getId).toList();
+        termRepository
+            .findByRequiredTrueAndTypeInAndRole(customerTermTypes(), TermRole.CUSTOMER)
+            .stream()
+            .map(Term::getId)
+            .toList();
     SocialSignupRequest signupRequest =
         new SocialSignupRequest(
             socialToken,

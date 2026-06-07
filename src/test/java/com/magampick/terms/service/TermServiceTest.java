@@ -14,6 +14,7 @@ import com.magampick.seller.domain.Seller;
 import com.magampick.terms.domain.CustomerTermsAgreement;
 import com.magampick.terms.domain.SellerTermsAgreement;
 import com.magampick.terms.domain.Term;
+import com.magampick.terms.domain.TermRole;
 import com.magampick.terms.domain.TermType;
 import com.magampick.terms.dto.TermResponse;
 import com.magampick.terms.exception.TermErrorCode;
@@ -60,7 +61,9 @@ class TermServiceTest {
             .body("본문")
             .required(false)
             .build();
-    given(termRepository.findByTypeInOrderByTypeAsc(customerTermTypes()))
+    given(
+            termRepository.findByTypeInAndRoleOrderBySortOrderAsc(
+                customerTermTypes(), TermRole.CUSTOMER))
         .willReturn(List.of(tos, marketing));
     given(termMapper.toResponse(tos))
         .willReturn(new TermResponse(1L, TermType.TERMS_OF_SERVICE, 1, "서비스 이용약관", "본문", true));
@@ -87,7 +90,7 @@ class TermServiceTest {
     Term age19 = term(6L, TermType.AGE_19, true);
     Term tos = term(1L, TermType.TERMS_OF_SERVICE, true);
     Term marketing = term(5L, TermType.MARKETING, false);
-    given(termRepository.findByTypeInOrderByTypeAsc(sellerTermTypes()))
+    given(termRepository.findByTypeInAndRoleOrderBySortOrderAsc(sellerTermTypes(), TermRole.SELLER))
         .willReturn(List.of(tos, age19, marketing));
     given(termMapper.toResponse(tos))
         .willReturn(new TermResponse(1L, TermType.TERMS_OF_SERVICE, 1, "서비스 이용약관", "본문", true));
@@ -108,7 +111,7 @@ class TermServiceTest {
   void 약관_동의_기록_성공() {
     // given — 필수 2종(1,2) + 선택 1종(5) 동의
     Customer customer = Customer.builder().email("a@test.com").nickname("nick").build();
-    given(termRepository.findByRequiredTrueAndTypeIn(customerTermTypes()))
+    given(termRepository.findByRequiredTrueAndTypeInAndRole(customerTermTypes(), TermRole.CUSTOMER))
         .willReturn(List.of(term(1L, true), term(2L, true)));
     given(termRepository.findAllById(anyIterable()))
         .willReturn(List.of(term(1L, true), term(2L, true), term(5L, false)));
@@ -128,7 +131,7 @@ class TermServiceTest {
     // given
     Seller seller =
         Seller.builder().email("s@test.com").passwordHash("hash").ownerName("홍길동").build();
-    given(termRepository.findByRequiredTrueAndTypeIn(sellerTermTypes()))
+    given(termRepository.findByRequiredTrueAndTypeInAndRole(sellerTermTypes(), TermRole.SELLER))
         .willReturn(List.of(term(1L, true), term(2L, true), term(6L, TermType.AGE_19, true)));
     given(termRepository.findAllById(anyIterable()))
         .willReturn(
@@ -150,7 +153,7 @@ class TermServiceTest {
     // given
     Seller seller =
         Seller.builder().email("s@test.com").passwordHash("hash").ownerName("홍길동").build();
-    given(termRepository.findByRequiredTrueAndTypeIn(sellerTermTypes()))
+    given(termRepository.findByRequiredTrueAndTypeInAndRole(sellerTermTypes(), TermRole.SELLER))
         .willReturn(List.of(term(1L, true), term(6L, TermType.AGE_19, true)));
 
     // when & then
@@ -165,7 +168,7 @@ class TermServiceTest {
   void 필수약관_미동의_시_REQUIRED_TERMS_NOT_AGREED() {
     // given — 필수 2종인데 1종만 동의
     Customer customer = Customer.builder().email("a@test.com").nickname("nick").build();
-    given(termRepository.findByRequiredTrueAndTypeIn(customerTermTypes()))
+    given(termRepository.findByRequiredTrueAndTypeInAndRole(customerTermTypes(), TermRole.CUSTOMER))
         .willReturn(List.of(term(1L, true), term(2L, true)));
 
     // when & then
@@ -180,7 +183,7 @@ class TermServiceTest {
   void 존재하지_않는_termId_시_INVALID_TERM() {
     // given — 필수 1종 동의했으나 보낸 id 중 99 는 실재 X
     Customer customer = Customer.builder().email("a@test.com").nickname("nick").build();
-    given(termRepository.findByRequiredTrueAndTypeIn(customerTermTypes()))
+    given(termRepository.findByRequiredTrueAndTypeInAndRole(customerTermTypes(), TermRole.CUSTOMER))
         .willReturn(List.of(term(1L, true)));
     given(termRepository.findAllById(anyIterable())).willReturn(List.of(term(1L, true)));
 

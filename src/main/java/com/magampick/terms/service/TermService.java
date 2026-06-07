@@ -6,6 +6,7 @@ import com.magampick.seller.domain.Seller;
 import com.magampick.terms.domain.CustomerTermsAgreement;
 import com.magampick.terms.domain.SellerTermsAgreement;
 import com.magampick.terms.domain.Term;
+import com.magampick.terms.domain.TermRole;
 import com.magampick.terms.domain.TermType;
 import com.magampick.terms.dto.TermResponse;
 import com.magampick.terms.exception.TermErrorCode;
@@ -48,14 +49,18 @@ public class TermService {
 
   /** 회원가입 화면에 표시할 약관 목록 (필수 + 선택). */
   public List<TermResponse> getTermsForSignup() {
-    return termRepository.findByTypeInOrderByTypeAsc(CUSTOMER_SIGNUP_TYPES).stream()
+    return termRepository
+        .findByTypeInAndRoleOrderBySortOrderAsc(CUSTOMER_SIGNUP_TYPES, TermRole.CUSTOMER)
+        .stream()
         .map(termMapper::toResponse)
         .toList();
   }
 
   /** 사장 회원가입 화면에 표시할 약관 목록 (필수 + 선택). */
   public List<TermResponse> getTermsForSellerSignup() {
-    return termRepository.findByTypeInOrderByTypeAsc(SELLER_SIGNUP_TYPES).stream()
+    return termRepository
+        .findByTypeInAndRoleOrderBySortOrderAsc(SELLER_SIGNUP_TYPES, TermRole.SELLER)
+        .stream()
         .map(termMapper::toResponse)
         .toList();
   }
@@ -68,7 +73,9 @@ public class TermService {
   public void recordAgreements(Customer customer, List<Long> agreedTermIds) {
     Set<Long> agreedIds = new HashSet<>(agreedTermIds);
     Set<Long> requiredIds =
-        termRepository.findByRequiredTrueAndTypeIn(CUSTOMER_SIGNUP_TYPES).stream()
+        termRepository
+            .findByRequiredTrueAndTypeInAndRole(CUSTOMER_SIGNUP_TYPES, TermRole.CUSTOMER)
+            .stream()
             .map(Term::getId)
             .collect(Collectors.toSet());
     if (!agreedIds.containsAll(requiredIds)) {
@@ -90,7 +97,9 @@ public class TermService {
   public void recordSellerAgreements(Seller seller, List<Long> agreedTermIds) {
     Set<Long> agreedIds = new HashSet<>(agreedTermIds);
     Set<Long> requiredIds =
-        termRepository.findByRequiredTrueAndTypeIn(SELLER_SIGNUP_TYPES).stream()
+        termRepository
+            .findByRequiredTrueAndTypeInAndRole(SELLER_SIGNUP_TYPES, TermRole.SELLER)
+            .stream()
             .map(Term::getId)
             .collect(Collectors.toSet());
     if (!agreedIds.containsAll(requiredIds)) {
