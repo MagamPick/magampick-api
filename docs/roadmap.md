@@ -104,8 +104,8 @@
 
 | 기능 | 도메인 | 상태 | 이슈 |
 |---|---|---|---|
-| 장바구니 관리 — 매장 혼합 경고 | orders | 미착수 | - |
-| 주문 생성 — 픽업 시간 지정(15분 단위), 요청사항 | orders | 미착수 | - |
+| 장바구니 관리 — 매장 혼합 경고 | orders | BE 무관 | 서버 미저장(클라이언트 localStorage) — [노션](https://app.notion.com/p/3696e59c28e68154875ecd4fef825e3c) |
+| 주문 생성 + 결제(토스 stub) — 픽업 15분 슬롯, 결제 동의, 픽업코드 4자리 발급 | orders | ✅ 완료 | [주문 생성](https://app.notion.com/p/3696e59c28e6817bbeecd14f7998402e) · [주문 결제](https://app.notion.com/p/3696e59c28e6815ca3d4c019ecf4dbbe) |
 | 주문 취소 (소비자) — `주문접수` 상태에서만 | orders | 미착수 | - |
 | 주문 수락/거절 (사장) — 거절 시 자동 환불 | orders | 미착수 | - |
 | 주문 상태 변경 — `주문접수 → 준비중 → 준비완료 → 픽업완료` | orders | 미착수 | - |
@@ -113,6 +113,8 @@
 
 - 계층 1의 "진행 중 주문 시 제한" 훅을 여기서 연결.
 - `orders` / `order_items` 테이블은 리뷰(계층 7) read 지원을 위해 선반영됨 (`feat/review-query`, 리뷰 목록 조회 PR). 주문 lifecycle·결제 컬럼은 본 계층에서 구현.
+- **주문 결제(토스 stub)** 는 주문 생성과 한 흐름이라 본 계층(`feat/order-checkout`)에서 함께 구현 — `payments` 테이블 + `PaymentGateway`/`StubPaymentGateway`(자동 승인). 토스 샌드박스 실연동·정산은 계층 6.
+- 주문 생성 시 떨이 재고 소진(remaining=0) → `SOLD_OUT` 자동 전이.
 
 ## 계층 6 — 결제 & 환불 & 노쇼
 
