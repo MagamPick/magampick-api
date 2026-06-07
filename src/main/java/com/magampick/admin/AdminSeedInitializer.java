@@ -19,8 +19,8 @@ public class AdminSeedInitializer implements ApplicationRunner {
   private final AdminRepository adminRepository;
   private final PasswordEncoder passwordEncoder;
 
-  @Value("${admin.seed.email:}")
-  private String email;
+  @Value("${admin.seed.username:}")
+  private String username;
 
   @Value("${admin.seed.password:}")
   private String password;
@@ -30,8 +30,8 @@ public class AdminSeedInitializer implements ApplicationRunner {
 
   @Override
   public void run(ApplicationArguments args) {
-    if (email.isBlank() || password.isBlank()) {
-      log.info("ADMIN_EMAIL / ADMIN_PASSWORD 미설정 — admin 시드 건너뜀");
+    if (username.isBlank() || password.isBlank()) {
+      log.info("ADMIN_USERNAME / ADMIN_PASSWORD 미설정 — admin 시드 건너뜀");
       return;
     }
 
@@ -42,12 +42,12 @@ public class AdminSeedInitializer implements ApplicationRunner {
 
     Admin admin =
         Admin.builder()
-            .email(email)
+            .username(username)
             .passwordHash(passwordEncoder.encode(password))
             .name(name)
             .build();
 
     adminRepository.save(admin);
-    log.info("기본 admin 계정 생성 완료. email={}", email);
+    log.info("기본 admin 계정 생성 완료. username={}", username);
   }
 }

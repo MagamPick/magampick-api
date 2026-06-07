@@ -117,6 +117,8 @@ jobs:
             SOLAPI_API_SECRET=${{ secrets.DEV_SOLAPI_API_SECRET }}
             SOLAPI_SENDER_NUMBER=${{ secrets.DEV_SOLAPI_SENDER_NUMBER }}
             NTS_BUSINESS_API_KEY=${{ secrets.DEV_NTS_BUSINESS_API_KEY }}
+            ADMIN_USERNAME=${{ secrets.DEV_ADMIN_USERNAME }}
+            ADMIN_PASSWORD=${{ secrets.DEV_ADMIN_PASSWORD }}
             ENVEOF
             docker login -u kasto6329 -p '${{ secrets.DOCKERHUB_TOKEN }}'
             docker compose -f docker-compose.yml -f docker-compose.prod.yml pull

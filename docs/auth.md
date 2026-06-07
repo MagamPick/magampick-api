@@ -12,7 +12,7 @@ JWT 기반 인증·인가 정책. API 레벨 요약은 [`api-convention.md` §9]
 |---|---|---|---|
 | 소비자 | `customers` | `ROLE_CUSTOMER` | (없음, 기본) |
 | 사장 | `sellers` | `ROLE_SELLER` | `/seller` |
-| 관리자 | `admins` | `ROLE_ADMIN` | `/admin` |
+| 관리자 | `admins` | `ROLE_ADMIN` | `/admin` | 사용자명+비밀번호 |
 
 세 테이블 분리 — 가입 흐름·필드 다름.
 

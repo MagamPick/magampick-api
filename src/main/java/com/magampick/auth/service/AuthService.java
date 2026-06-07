@@ -1,8 +1,11 @@
 package com.magampick.auth.service;
 
 import com.magampick.address.service.AddressService;
+import com.magampick.admin.domain.Admin;
+import com.magampick.admin.repository.AdminRepository;
 import com.magampick.auth.domain.CustomerOAuthAccount;
 import com.magampick.auth.domain.OAuthProviderType;
+import com.magampick.auth.dto.AdminLoginRequest;
 import com.magampick.auth.dto.CustomerSignupRequest;
 import com.magampick.auth.dto.EmailAvailabilityResponse;
 import com.magampick.auth.dto.IssuedTokens;
@@ -53,6 +56,7 @@ public class AuthService {
   private static final int SELLER_NAME_MIN = 2;
   private static final int SELLER_NAME_MAX = 20;
 
+  private final AdminRepository adminRepository;
   private final CustomerRepository customerRepository;
   private final SellerRepository sellerRepository;
   private final CustomerOAuthAccountRepository customerOAuthAccountRepository;
@@ -176,6 +180,17 @@ public class AuthService {
     }
     log.info("사장 로그인 성공. sellerId={}", seller.getId());
     return refreshTokenService.issueTokens(seller.getId(), Role.SELLER);
+  }
+
+  @Transactional
+  public IssuedTokens loginAdmin(AdminLoginRequest request) {
+    Admin admin =
+        adminRepository.findByUsername(request.username()).orElseThrow(this::invalidCredentials);
+    if (!passwordEncoder.matches(request.password(), admin.getPasswordHash())) {
+      throw invalidCredentials();
+    }
+    log.info("관리자 로그인 성공. adminId={}", admin.getId());
+    return refreshTokenService.issueTokens(admin.getId(), Role.ADMIN);
   }
 
   /** 카카오 1단계 — 인가코드로 카카오 정보 조회 후 기존/신규 분기. 기존은 즉시 토큰, 신규는 소셜 토큰 발급(가입 보류). */

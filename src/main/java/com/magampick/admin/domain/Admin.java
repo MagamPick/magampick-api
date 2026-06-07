@@ -22,8 +22,8 @@ public class Admin extends BaseEntity {
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
 
-  @Column(name = "email", nullable = false, length = 255, unique = true)
-  private String email;
+  @Column(name = "username", nullable = false, length = 50, unique = true)
+  private String username;
 
   @Column(name = "password_hash", nullable = false, length = 60)
   private String passwordHash;
@@ -32,8 +32,8 @@ public class Admin extends BaseEntity {
   private String name;
 
   @Builder
-  private Admin(String email, String passwordHash, String name) {
-    this.email = email;
+  private Admin(String username, String passwordHash, String name) {
+    this.username = username;
     this.passwordHash = passwordHash;
     this.name = name;
   }

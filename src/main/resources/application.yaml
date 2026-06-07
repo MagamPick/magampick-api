@@ -68,7 +68,7 @@ nts:
 
 admin:
   seed:
-    email: ${ADMIN_EMAIL:}
+    username: ${ADMIN_USERNAME:}
     password: ${ADMIN_PASSWORD:}
     name: ${ADMIN_NAME:관리자}
 

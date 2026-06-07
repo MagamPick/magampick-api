@@ -11,8 +11,11 @@ import static org.mockito.Mockito.never;
 
 import com.magampick.address.dto.AddressCreateRequest;
 import com.magampick.address.service.AddressService;
+import com.magampick.admin.domain.Admin;
+import com.magampick.admin.repository.AdminRepository;
 import com.magampick.auth.domain.CustomerOAuthAccount;
 import com.magampick.auth.domain.OAuthProviderType;
+import com.magampick.auth.dto.AdminLoginRequest;
 import com.magampick.auth.dto.CustomerSignupRequest;
 import com.magampick.auth.dto.EmailAvailabilityResponse;
 import com.magampick.auth.dto.IssuedTokens;
@@ -67,6 +70,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 @ExtendWith(MockitoExtension.class)
 class AuthServiceTest {
 
+  @Mock AdminRepository adminRepository;
   @Mock CustomerRepository customerRepository;
   @Mock SellerRepository sellerRepository;
   @Mock CustomerOAuthAccountRepository customerOAuthAccountRepository;
@@ -393,6 +397,42 @@ class AuthServiceTest {
         .isInstanceOf(BusinessException.class)
         .hasFieldOrPropertyWithValue("errorCode", TermErrorCode.REQUIRED_TERMS_NOT_AGREED);
     verify(storeService).deletePreparedImageBestEffort(prepared);
+  }
+
+  @Test
+  void 관리자_로그인_성공() {
+    AdminLoginRequest request = new AdminLoginRequest("admin", "Admin1234!");
+    Admin admin = Admin.builder().username("admin").passwordHash("encoded").name("관리자").build();
+    given(adminRepository.findByUsername("admin")).willReturn(Optional.of(admin));
+    given(passwordEncoder.matches("Admin1234!", "encoded")).willReturn(true);
+    given(refreshTokenService.issueTokens(any(), eq(Role.ADMIN)))
+        .willReturn(new IssuedTokens("access", "refresh", 1800L));
+
+    IssuedTokens result = authService.loginAdmin(request);
+
+    assertThat(result.accessToken()).isEqualTo("access");
+  }
+
+  @Test
+  void 관리자_로그인_존재하지_않는_사용자명_예외() {
+    AdminLoginRequest request = new AdminLoginRequest("nobody", "Admin1234!");
+    given(adminRepository.findByUsername("nobody")).willReturn(Optional.empty());
+
+    assertThatThrownBy(() -> authService.loginAdmin(request))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", AuthErrorCode.LOGIN_FAILED);
+  }
+
+  @Test
+  void 관리자_로그인_비밀번호_불일치_예외() {
+    AdminLoginRequest request = new AdminLoginRequest("admin", "wrong!");
+    Admin admin = Admin.builder().username("admin").passwordHash("encoded").name("관리자").build();
+    given(adminRepository.findByUsername("admin")).willReturn(Optional.of(admin));
+    given(passwordEncoder.matches("wrong!", "encoded")).willReturn(false);
+
+    assertThatThrownBy(() -> authService.loginAdmin(request))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", AuthErrorCode.LOGIN_FAILED);
   }
 
   @Test

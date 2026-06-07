@@ -1,5 +1,6 @@
 package com.magampick.auth.controller;
 
+import com.magampick.auth.dto.AdminLoginRequest;
 import com.magampick.auth.dto.CustomerSignupRequest;
 import com.magampick.auth.dto.EmailAvailabilityResponse;
 import com.magampick.auth.dto.IssuedTokens;
@@ -127,6 +128,20 @@ public class AuthController {
   public TokenResponse loginSeller(
       @Valid @RequestBody LoginRequest request, HttpServletResponse response) {
     return issue(authService.loginSeller(request), request.persistent(), response);
+  }
+
+  @PostMapping("/admin/login")
+  @Operation(
+      summary = "관리자 로그인",
+      description = "사용자명/비밀번호 로그인. access 는 바디, refresh 는 HttpOnly 쿠키.")
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "로그인 성공"),
+    @ApiResponse(responseCode = "400", description = "입력 검증 실패"),
+    @ApiResponse(responseCode = "401", description = "인증 실패")
+  })
+  public TokenResponse loginAdmin(
+      @Valid @RequestBody AdminLoginRequest request, HttpServletResponse response) {
+    return issue(authService.loginAdmin(request), true, response);
   }
 
   @PostMapping("/kakao")

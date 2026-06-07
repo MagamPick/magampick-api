@@ -28,7 +28,7 @@ class AdminSeedInitializerTest {
   @Test
   void admin이_없고_설정이_있으면_admin_생성() throws Exception {
     // given
-    ReflectionTestUtils.setField(sut, "email", "admin@magampick.com");
+    ReflectionTestUtils.setField(sut, "username", "admin");
     ReflectionTestUtils.setField(sut, "password", "Admin1234!");
     ReflectionTestUtils.setField(sut, "name", "관리자");
     given(adminRepository.count()).willReturn(0L);
@@ -44,7 +44,7 @@ class AdminSeedInitializerTest {
   @Test
   void admin이_이미_있으면_스킵() throws Exception {
     // given
-    ReflectionTestUtils.setField(sut, "email", "admin@magampick.com");
+    ReflectionTestUtils.setField(sut, "username", "admin");
     ReflectionTestUtils.setField(sut, "password", "Admin1234!");
     ReflectionTestUtils.setField(sut, "name", "관리자");
     given(adminRepository.count()).willReturn(1L);
@@ -57,9 +57,9 @@ class AdminSeedInitializerTest {
   }
 
   @Test
-  void email이_미설정이면_스킵() throws Exception {
+  void username이_미설정이면_스킵() throws Exception {
     // given
-    ReflectionTestUtils.setField(sut, "email", "");
+    ReflectionTestUtils.setField(sut, "username", "");
     ReflectionTestUtils.setField(sut, "password", "Admin1234!");
     ReflectionTestUtils.setField(sut, "name", "관리자");
 
@@ -74,7 +74,7 @@ class AdminSeedInitializerTest {
   @Test
   void password가_미설정이면_스킵() throws Exception {
     // given
-    ReflectionTestUtils.setField(sut, "email", "admin@magampick.com");
+    ReflectionTestUtils.setField(sut, "username", "admin");
     ReflectionTestUtils.setField(sut, "password", "");
     ReflectionTestUtils.setField(sut, "name", "관리자");
 

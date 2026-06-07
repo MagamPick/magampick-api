@@ -16,6 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.magampick.address.dto.AddressCreateRequest;
+import com.magampick.auth.dto.AdminLoginRequest;
 import com.magampick.auth.dto.CustomerSignupRequest;
 import com.magampick.auth.dto.IssuedTokens;
 import com.magampick.auth.dto.KakaoLoginRequest;
@@ -192,6 +193,22 @@ class AuthControllerTest {
                 .content(objectMapper.writeValueAsString(validSignupRequest())))
         .andExpect(status().isForbidden())
         .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
+  }
+
+  @Test
+  void 관리자_로그인_성공시_200_access바디_refresh쿠키() throws Exception {
+    given(authService.loginAdmin(any())).willReturn(new IssuedTokens("a", "r", 1800L));
+    given(refreshTokenCookie.create(eq("r"), anyBoolean())).willReturn(REFRESH_COOKIE);
+
+    mockMvc
+        .perform(
+            post("/api/v1/auth/admin/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(new AdminLoginRequest("admin", "Admin1234!"))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.accessToken").value("a"))
+        .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("refresh_token")));
   }
 
   @Test
