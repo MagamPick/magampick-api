@@ -68,7 +68,8 @@ class OrderControllerTest {
   @Test
   void 주문생성_201() throws Exception {
     // given
-    given(orderService.createOrder(eq(1L), any())).willReturn(OrderFixture.anOrderResponse(42L));
+    given(orderService.createOrder(eq(1L), any()))
+        .willReturn(OrderFixture.aPrepareOrderResponse(42L));
 
     // when / then
     mockMvc
@@ -79,9 +80,9 @@ class OrderControllerTest {
                 .with(user(CUSTOMER)))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.success").value(true))
-        .andExpect(jsonPath("$.data.status").value("PENDING"))
-        .andExpect(jsonPath("$.data.pickupCode").isString())
-        .andExpect(jsonPath("$.data.orderNo").isString());
+        .andExpect(jsonPath("$.data.orderId").value(42))
+        .andExpect(jsonPath("$.data.tossOrderId").value("order-42"))
+        .andExpect(jsonPath("$.data.amount").isNumber());
   }
 
   // ── 인증·인가 ─────────────────────────────────────────────────────────────────
@@ -262,22 +263,6 @@ class OrderControllerTest {
                 .with(user(CUSTOMER)))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
-  }
-
-  @Test
-  void 매장전화없음_storePhone_응답_생략() throws Exception {
-    // given — storePhone=null → @JsonInclude(NON_NULL) 으로 직렬화 시 필드 생략됨
-    given(orderService.createOrder(eq(1L), any()))
-        .willReturn(OrderFixture.anOrderResponseNullPhone(42L));
-
-    mockMvc
-        .perform(
-            post("/api/v1/orders")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(validRequestJson())
-                .with(user(CUSTOMER)))
-        .andExpect(status().isCreated())
-        .andExpect(jsonPath("$.data.storePhone").doesNotExist());
   }
 
   // ── GET /api/v1/orders — 소비자 목록 ────────────────────────────────────────

@@ -1,8 +1,10 @@
 package com.magampick.order.domain;
 
-/** 주문 상태 7값. Phase 5A 에서 PENDING 으로만 생성, 이후 상태 전이는 5B/6. */
+/** 주문 상태 8값. 결제 대기(AWAITING_PAYMENT) → 결제 확인 후 PENDING. */
 public enum OrderStatus {
-  /** 주문접수 — 결제 완료, 사장 수락 전. Phase 5A 기본값. */
+  /** 결제 대기 — 주문 임시 저장, 토스 결제 확인 전. */
+  AWAITING_PAYMENT,
+  /** 주문접수 — 결제 완료, 사장 수락 전. */
   PENDING,
   /** 준비중 — 사장이 수락 후 준비 시작. */
   PREPARING,

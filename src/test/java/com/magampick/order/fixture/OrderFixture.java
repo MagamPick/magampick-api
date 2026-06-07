@@ -14,6 +14,7 @@ import com.magampick.order.dto.CreateOrderRequest.AmountsRequest;
 import com.magampick.order.dto.CreateOrderRequest.OrderItemRequest;
 import com.magampick.order.dto.CreateOrderRequest.PickupRequest;
 import com.magampick.order.dto.OrderResponse;
+import com.magampick.order.dto.PrepareOrderResponse;
 import com.magampick.order.dto.SellerOrderResponse;
 import com.magampick.product.domain.Product;
 import com.magampick.product.domain.ProductCategory;
@@ -334,6 +335,10 @@ public class OrderFixture {
         null,
         null,
         null);
+  }
+
+  public static PrepareOrderResponse aPrepareOrderResponse(Long orderId) {
+    return new PrepareOrderResponse(orderId, "order-" + orderId, new BigDecimal("6000"), "크로아상 2개");
   }
 
   /** storePhone=null 인 응답 — @JsonInclude(NON_NULL) 직렬화 검증용. */

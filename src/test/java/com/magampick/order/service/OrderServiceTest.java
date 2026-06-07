@@ -21,6 +21,7 @@ import com.magampick.order.domain.PickupType;
 import com.magampick.order.dto.CreateOrderRequest;
 import com.magampick.order.dto.CreateOrderRequest.PickupRequest;
 import com.magampick.order.dto.OrderResponse;
+import com.magampick.order.dto.PrepareOrderResponse;
 import com.magampick.order.dto.SellerOrderResponse;
 import com.magampick.order.exception.OrderErrorCode;
 import com.magampick.order.fixture.OrderFixture;
@@ -29,6 +30,7 @@ import com.magampick.order.repository.OrderRepository;
 import com.magampick.payment.domain.PaymentStatus;
 import com.magampick.payment.repository.PaymentRepository;
 import com.magampick.payment.service.PaymentApproval;
+import com.magampick.payment.service.PaymentCancellation;
 import com.magampick.payment.service.PaymentGateway;
 import com.magampick.product.exception.ProductErrorCode;
 import com.magampick.product.repository.ProductRepository;
@@ -143,6 +145,12 @@ class OrderServiceTest {
             new PaymentApproval("stub_key_abc", PaymentStatus.APPROVED, LocalDateTime.now()));
   }
 
+  private void givenPaymentCancelled() {
+    given(paymentGateway.cancel(any()))
+        .willReturn(
+            new PaymentCancellation("stub_key_abc", PaymentStatus.CANCELED, LocalDateTime.now()));
+  }
+
   private void givenOrderMapperReturns() {
     given(orderMapper.toResponse(any(Order.class))).willReturn(OrderFixture.anOrderResponse(42L));
   }
@@ -156,21 +164,19 @@ class OrderServiceTest {
     givenClearanceItem();
     givenDecrementStockSucceeds();
     givenOrderSaved();
-    givenPaymentApproved();
     given(customerRepository.getReferenceById(CUSTOMER_ID)).willReturn(OrderFixture.aCustomer());
-    given(paymentRepository.save(any())).willReturn(null);
-    givenOrderMapperReturns();
 
     // when
     CreateOrderRequest req = OrderFixture.aDealOrderRequest(STORE_ID, CI_ID);
-    OrderResponse response = orderService.createOrder(CUSTOMER_ID, req);
+    PrepareOrderResponse response = orderService.createOrder(CUSTOMER_ID, req);
 
     // then
     assertThat(response).isNotNull();
-    assertThat(response.status()).isEqualTo("PENDING");
+    assertThat(response.amount())
+        .isEqualByComparingTo(new BigDecimal("6000")); // 4500*2 - 3000 = 6000
     then(orderRepository).should().save(any(Order.class));
-    then(paymentGateway).should().approve(any());
-    then(paymentRepository).should().save(any());
+    then(paymentGateway).should(never()).approve(any()); // createOrder 는 결제 호출 안 함
+    then(paymentRepository).should(never()).save(any());
   }
 
   @Test
@@ -181,14 +187,11 @@ class OrderServiceTest {
     givenDecrementStockSucceeds();
     givenProduct();
     givenOrderSaved();
-    givenPaymentApproved();
     given(customerRepository.getReferenceById(CUSTOMER_ID)).willReturn(OrderFixture.aCustomer());
-    given(paymentRepository.save(any())).willReturn(null);
-    givenOrderMapperReturns();
 
     // when
     CreateOrderRequest req = OrderFixture.aMixedOrderRequest(STORE_ID, CI_ID, PRODUCT_ID);
-    OrderResponse response = orderService.createOrder(CUSTOMER_ID, req);
+    PrepareOrderResponse response = orderService.createOrder(CUSTOMER_ID, req);
 
     // then
     assertThat(response).isNotNull();
@@ -485,9 +488,7 @@ class OrderServiceTest {
     ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
     given(orderRepository.save(orderCaptor.capture()))
         .willReturn(OrderFixture.anOrder(OrderFixture.aCustomer(), store));
-    givenPaymentApproved();
-    given(paymentRepository.save(any())).willReturn(null);
-    given(orderMapper.toResponse(any(Order.class))).willReturn(OrderFixture.anOrderResponse(42L));
+    given(customerRepository.getReferenceById(CUSTOMER_ID)).willReturn(OrderFixture.aCustomer());
 
     CreateOrderRequest req =
         OrderFixture.withPickup(
@@ -495,7 +496,7 @@ class OrderServiceTest {
             new PickupRequest(PickupType.SLOT, "18:30"));
 
     // when
-    OrderResponse response = svc.createOrder(CUSTOMER_ID, req);
+    PrepareOrderResponse response = svc.createOrder(CUSTOMER_ID, req);
 
     // then — 성공 및 pickupTime = 2026-06-07T18:30 확인
     assertThat(response).isNotNull();
@@ -514,10 +515,7 @@ class OrderServiceTest {
     givenClearanceItem();
     givenDecrementStockSucceeds();
     givenOrderSaved();
-    givenPaymentApproved();
     given(customerRepository.getReferenceById(CUSTOMER_ID)).willReturn(OrderFixture.aCustomer());
-    given(paymentRepository.save(any())).willReturn(null);
-    givenOrderMapperReturns();
 
     // when — qty=2
     orderService.createOrder(CUSTOMER_ID, OrderFixture.aDealOrderRequest(STORE_ID, CI_ID));
@@ -532,41 +530,16 @@ class OrderServiceTest {
     givenStoreOpen();
     givenClearanceItem();
     givenDecrementStockSucceeds();
-    Store store = OrderFixture.aStore();
-    Order order = OrderFixture.anOrder(OrderFixture.aCustomer(), store);
-    given(orderRepository.save(any(Order.class))).willReturn(order);
-    givenPaymentApproved();
     given(customerRepository.getReferenceById(CUSTOMER_ID)).willReturn(OrderFixture.aCustomer());
-    given(paymentRepository.save(any())).willReturn(null);
-    given(orderMapper.toResponse(any(Order.class))).willReturn(OrderFixture.anOrderResponse(42L));
+    ArgumentCaptor<Order> captor = ArgumentCaptor.forClass(Order.class);
+    given(orderRepository.save(captor.capture()))
+        .willReturn(OrderFixture.anOrder(OrderFixture.aCustomer(), OrderFixture.aStore()));
 
     // when
-    CreateOrderRequest req = OrderFixture.aDealOrderRequest(STORE_ID, CI_ID);
-    OrderResponse response = orderService.createOrder(CUSTOMER_ID, req);
+    orderService.createOrder(CUSTOMER_ID, OrderFixture.aDealOrderRequest(STORE_ID, CI_ID));
 
-    // then — Order 에 pickupCode 4자리 세팅 확인 (OrderFixture.anOrder 에 "3827" 세팅됨)
-    assertThat(response.pickupCode()).matches("\\d{4}");
-  }
-
-  @Test
-  void 결제_승인_후_PENDING_확정() {
-    // given
-    givenStoreOpen();
-    givenClearanceItem();
-    givenDecrementStockSucceeds();
-    givenOrderSaved();
-    givenPaymentApproved();
-    given(customerRepository.getReferenceById(CUSTOMER_ID)).willReturn(OrderFixture.aCustomer());
-    given(paymentRepository.save(any())).willReturn(null);
-    given(orderMapper.toResponse(any(Order.class))).willReturn(OrderFixture.anOrderResponse(42L));
-
-    // when
-    OrderResponse response =
-        orderService.createOrder(CUSTOMER_ID, OrderFixture.aDealOrderRequest(STORE_ID, CI_ID));
-
-    // then
-    assertThat(response.status()).isEqualTo("PENDING");
-    then(paymentRepository).should().save(any());
+    // then — 저장된 Order 에 pickupCode 4자리 세팅 확인
+    assertThat(captor.getValue().getPickupCode()).matches("\\d{4}");
   }
 
   // ── listMyOrders ─────────────────────────────────────────────────────────────
@@ -797,6 +770,7 @@ class OrderServiceTest {
     ArgumentCaptor<Order> captor = ArgumentCaptor.forClass(Order.class);
     given(orderRepository.save(captor.capture())).willReturn(order);
     given(orderMapper.toResponse(any(Order.class))).willReturn(OrderFixture.anOrderResponse(42L));
+    given(paymentRepository.findByOrderId(42L)).willReturn(Optional.empty()); // 결제 없음 (stub 시나리오)
 
     // when
     OrderResponse result = orderService.cancelOrder(CUSTOMER_ID, 42L);
@@ -806,6 +780,38 @@ class OrderServiceTest {
     assertThat(captor.getValue().getStatus()).isEqualTo(OrderStatus.CANCELLED);
     assertThat(captor.getValue().getCancelledAt()).isNotNull();
     then(orderRepository).should().save(any(Order.class));
+  }
+
+  @Test
+  void 취소_토스_환불_호출() {
+    // given — PENDING 주문 + Payment 있음
+    Store store = OrderFixture.aStore();
+    Order order = OrderFixture.anOrder(OrderFixture.aCustomer(), store);
+    ReflectionTestUtils.setField(order, "id", 42L);
+    given(orderRepository.findById(42L)).willReturn(Optional.of(order));
+    given(orderRepository.save(any(Order.class))).willReturn(order);
+    given(orderMapper.toResponse(any(Order.class))).willReturn(OrderFixture.anOrderResponse(42L));
+
+    com.magampick.payment.domain.Payment payment =
+        com.magampick.payment.domain.Payment.builder()
+            .order(order)
+            .provider("TOSS")
+            .method("toss")
+            .paymentKey("toss_pk")
+            .amount(new BigDecimal("6000"))
+            .status(PaymentStatus.APPROVED)
+            .approvedAt(LocalDateTime.now())
+            .build();
+    given(paymentRepository.findByOrderId(42L)).willReturn(Optional.of(payment));
+    givenPaymentCancelled();
+    given(paymentRepository.save(any())).willReturn(null);
+
+    // when
+    orderService.cancelOrder(CUSTOMER_ID, 42L);
+
+    // then
+    then(paymentGateway).should().cancel(any());
+    then(paymentRepository).should().save(any());
   }
 
   @Test
@@ -919,6 +925,7 @@ class OrderServiceTest {
     given(orderRepository.save(captor.capture())).willReturn(order);
     given(orderMapper.toSellerResponse(any(Order.class)))
         .willReturn(OrderFixture.aSellerOrderResponse(42L));
+    given(paymentRepository.findByOrderId(42L)).willReturn(Optional.empty());
 
     // when
     SellerOrderResponse result = orderService.rejectOrder(2L, 42L);

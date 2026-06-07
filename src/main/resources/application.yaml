@@ -66,6 +66,10 @@ nts:
   validate-url: https://api.odcloud.kr/api/nts-businessman/v1/validate
   status-url: https://api.odcloud.kr/api/nts-businessman/v1/status
 
+toss:
+  secret-key: ${TOSS_SECRET_KEY:}
+  base-url: https://api.tosspayments.com
+
 admin:
   seed:
     username: ${ADMIN_USERNAME:}
