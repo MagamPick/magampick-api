@@ -4,8 +4,6 @@ import com.magampick.favorite.domain.Favorite;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -16,10 +14,31 @@ public interface FavoriteRepository extends JpaRepository<Favorite, Long> {
 
   void deleteByCustomerIdAndStoreId(Long customerId, Long storeId);
 
+  /**
+   * 단골 매장 목록 + PostGIS 거리 조회. 거리/영업상태 필터 없음(전체 단골), 소프트삭제 매장만 제외.
+   *
+   * @param customerId 소비자 ID
+   * @param lat origin 위도 (기본 주소지)
+   * @param lng origin 경도 (기본 주소지)
+   * @return {@link FavoriteStoreCandidate} projection 목록
+   */
   @Query(
-      value = "SELECT f FROM Favorite f JOIN FETCH f.store WHERE f.customer.id = :customerId",
-      countQuery = "SELECT COUNT(f) FROM Favorite f WHERE f.customer.id = :customerId")
-  Page<Favorite> findByCustomerIdWithStore(@Param("customerId") Long customerId, Pageable pageable);
+      value =
+          """
+          SELECT s.id        AS storeId,
+                 s.name      AS name,
+                 s.image_url AS imageUrl,
+                 ST_Distance(s.location,
+                             ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography) AS distanceMeters,
+                 f.created_at AS createdAt
+          FROM favorites f
+          JOIN stores s ON s.id = f.store_id
+          WHERE f.customer_id = :cid
+            AND s.deleted_at IS NULL
+          """,
+      nativeQuery = true)
+  List<FavoriteStoreCandidate> findFavoriteStoresWithDistance(
+      @Param("cid") Long customerId, @Param("lat") double lat, @Param("lng") double lng);
 
   /**
    * 소비자 단골 배치 조회 — N+1 방지. 후보 storeIds 중 customerId 의 즐겨찾기인 store_id 목록 반환.

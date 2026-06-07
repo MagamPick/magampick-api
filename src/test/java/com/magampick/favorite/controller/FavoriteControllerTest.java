@@ -16,7 +16,6 @@ import com.magampick.favorite.dto.FavoriteAddRequest;
 import com.magampick.favorite.fixture.FavoriteFixture;
 import com.magampick.favorite.service.FavoriteService;
 import com.magampick.global.exception.BusinessException;
-import com.magampick.global.response.PageResponse;
 import com.magampick.global.security.CustomUserDetails;
 import com.magampick.global.security.JwtAccessDeniedHandler;
 import com.magampick.global.security.JwtAuthenticationEntryPoint;
@@ -24,7 +23,6 @@ import com.magampick.global.security.JwtProvider;
 import com.magampick.global.security.Role;
 import com.magampick.global.security.SecurityConfig;
 import com.magampick.store.exception.StoreErrorCode;
-import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -131,21 +129,30 @@ class FavoriteControllerTest {
   // ── GET /api/v1/customers/me/favorites ───────────────────────────────────────
 
   @Test
-  void GET_favorites_200_목록_조회() throws Exception {
-    PageResponse<com.magampick.favorite.dto.FavoriteStoreResponse> page =
-        new PageResponse<>(
-            List.of(FavoriteFixture.aStoreResponse(10L)), 0, 20, 1L, 1, false, false);
-    given(favoriteService.getFavorites(eq(1L), any())).willReturn(page);
+  void GET_favorites_200_목록_조회_새_shape() throws Exception {
+    given(favoriteService.getFavorites(eq(1L))).willReturn(FavoriteFixture.aListResponse(10L));
 
     mockMvc
         .perform(get("/api/v1/customers/me/favorites").with(user(CUSTOMER_USER)))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.data.content[0].storeId").value(10))
-        .andExpect(jsonPath("$.data.totalCount").value(1));
+        .andExpect(jsonPath("$.data.stores[0].id").value(10))
+        .andExpect(jsonPath("$.data.stores[0].name").value("동네빵집"))
+        .andExpect(jsonPath("$.data.stores[0].distanceKm").value(1.5))
+        .andExpect(jsonPath("$.data.stores[0].rating").value(4.3))
+        .andExpect(jsonPath("$.data.stores[0].activeDealCount").value(2))
+        .andExpect(jsonPath("$.data.totalCount").value(1))
+        .andExpect(jsonPath("$.data.totalActiveDealCount").value(2));
   }
 
   @Test
   void GET_favorites_401_미인증() throws Exception {
     mockMvc.perform(get("/api/v1/customers/me/favorites")).andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void GET_favorites_403_사장_접근_거부() throws Exception {
+    mockMvc
+        .perform(get("/api/v1/customers/me/favorites").with(user(SELLER_USER)))
+        .andExpect(status().isForbidden());
   }
 }
