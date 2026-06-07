@@ -100,9 +100,12 @@ public class SecurityConfig {
                     .hasRole("CUSTOMER")
                     // POST /api/v1/orders, GET /api/v1/orders, GET /api/v1/orders/* — 소비자 전용
                     // POST /api/v1/orders/{id}/cancel — 소비자 취소 (auth.md §9)
+                    // POST /api/v1/orders/{id}/refund — 소비자 환불 요청
                     .requestMatchers(HttpMethod.POST, "/api/v1/orders")
                     .hasRole("CUSTOMER")
                     .requestMatchers(HttpMethod.POST, "/api/v1/orders/*/cancel")
+                    .hasRole("CUSTOMER")
+                    .requestMatchers(HttpMethod.POST, "/api/v1/orders/*/refund")
                     .hasRole("CUSTOMER")
                     .requestMatchers(HttpMethod.GET, "/api/v1/orders")
                     .hasRole("CUSTOMER")

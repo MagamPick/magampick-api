@@ -1,6 +1,7 @@
 package com.magampick.order.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.magampick.refund.dto.RefundInfoResponse;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -29,7 +30,9 @@ public record OrderResponse(
         OffsetDateTime completedAt,
     @Schema(description = "취소 시각 (KST ISO 8601, nullable)")
         @JsonInclude(JsonInclude.Include.NON_NULL)
-        OffsetDateTime cancelledAt) {
+        OffsetDateTime cancelledAt,
+    @Schema(description = "환불 정보 (환불 미요청 시 null)") @JsonInclude(JsonInclude.Include.NON_NULL)
+        RefundInfoResponse refund) {
 
   @Schema(description = "주문 항목")
   public record OrderItemResponse(

@@ -305,6 +305,7 @@ public class OrderFixture {
         "toss",
         OffsetDateTime.of(2026, 6, 8, 10, 30, 0, 0, ZoneOffset.ofHours(9)),
         null,
+        null,
         null);
   }
 
@@ -354,6 +355,7 @@ public class OrderFixture {
         "PENDING",
         "toss",
         OffsetDateTime.of(2026, 6, 8, 10, 30, 0, 0, ZoneOffset.ofHours(9)),
+        null,
         null,
         null);
   }
