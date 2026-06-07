@@ -32,6 +32,8 @@ import com.magampick.payment.service.PaymentApproval;
 import com.magampick.payment.service.PaymentGateway;
 import com.magampick.product.exception.ProductErrorCode;
 import com.magampick.product.repository.ProductRepository;
+import com.magampick.refund.mapper.RefundMapper;
+import com.magampick.refund.repository.RefundRepository;
 import com.magampick.store.domain.OperationStatus;
 import com.magampick.store.domain.Store;
 import com.magampick.store.domain.StoreBusinessHour;
@@ -70,6 +72,8 @@ class OrderServiceTest {
   @Mock PaymentRepository paymentRepository;
   @Mock PaymentGateway paymentGateway;
   @Mock OrderMapper orderMapper;
+  @Mock RefundRepository refundRepository;
+  @Mock RefundMapper refundMapper;
   @Mock Clock clock;
 
   @InjectMocks OrderService orderService;
@@ -93,6 +97,8 @@ class OrderServiceTest {
         paymentRepository,
         paymentGateway,
         orderMapper,
+        refundRepository,
+        refundMapper,
         fixedClock);
   }
 

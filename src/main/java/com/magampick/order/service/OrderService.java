@@ -28,6 +28,8 @@ import com.magampick.product.domain.Product;
 import com.magampick.product.domain.ProductStatus;
 import com.magampick.product.exception.ProductErrorCode;
 import com.magampick.product.repository.ProductRepository;
+import com.magampick.refund.mapper.RefundMapper;
+import com.magampick.refund.repository.RefundRepository;
 import com.magampick.store.domain.OperationStatus;
 import com.magampick.store.domain.Store;
 import com.magampick.store.domain.StoreBusinessHour;
@@ -68,6 +70,8 @@ public class OrderService {
   private final PaymentRepository paymentRepository;
   private final PaymentGateway paymentGateway;
   private final OrderMapper orderMapper;
+  private final RefundRepository refundRepository;
+  private final RefundMapper refundMapper;
   private final Clock clock;
 
   /**
@@ -362,7 +366,7 @@ public class OrderService {
         .toList();
   }
 
-  /** 소비자 주문 상세. 본인 주문이 아니면 ORDER_FORBIDDEN 403. */
+  /** 소비자 주문 상세. 본인 주문이 아니면 ORDER_FORBIDDEN 403. 환불 정보가 있으면 refund 필드 포함. */
   public OrderResponse getMyOrder(Long customerId, Long orderId) {
     Order order =
         orderRepository
@@ -371,7 +375,11 @@ public class OrderService {
     if (!order.getCustomer().getId().equals(customerId)) {
       throw new BusinessException(OrderErrorCode.ORDER_FORBIDDEN);
     }
-    return orderMapper.toResponse(order);
+    OrderResponse base = orderMapper.toResponse(order);
+    return refundRepository
+        .findByOrderId(orderId)
+        .map(refund -> orderMapper.withRefund(base, refundMapper.toInfoResponse(refund)))
+        .orElse(base);
   }
 
   /** 사장 매장 주문 목록. 매장 소유권 검증 후 segment 필터 적용. */

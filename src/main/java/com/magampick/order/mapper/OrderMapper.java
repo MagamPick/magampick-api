@@ -5,6 +5,7 @@ import com.magampick.order.domain.OrderItem;
 import com.magampick.order.domain.PickupType;
 import com.magampick.order.dto.OrderResponse;
 import com.magampick.order.dto.SellerOrderResponse;
+import com.magampick.refund.dto.RefundInfoResponse;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -33,7 +34,29 @@ public interface OrderMapper {
   @Mapping(target = "createdAt", source = "createdAt", qualifiedByName = "toKst")
   @Mapping(target = "completedAt", source = "completedAt", qualifiedByName = "toKst")
   @Mapping(target = "cancelledAt", source = "cancelledAt", qualifiedByName = "toKst")
+  @Mapping(target = "refund", ignore = true)
   OrderResponse toResponse(Order order);
+
+  /** 환불 정보를 포함한 OrderResponse 생성. toResponse(Order) 결과에 refund 만 교체한 새 레코드를 반환한다. */
+  default OrderResponse withRefund(OrderResponse base, RefundInfoResponse refund) {
+    return new OrderResponse(
+        base.id(),
+        base.orderNo(),
+        base.storeId(),
+        base.storeName(),
+        base.storePhone(),
+        base.items(),
+        base.pickup(),
+        base.memo(),
+        base.amounts(),
+        base.pickupCode(),
+        base.status(),
+        base.paymentMethod(),
+        base.createdAt(),
+        base.completedAt(),
+        base.cancelledAt(),
+        refund);
+  }
 
   @Mapping(target = "orderNo", source = "id", qualifiedByName = "idToOrderNo")
   @Mapping(target = "storeId", source = "store.id")
