@@ -10,6 +10,8 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
+  mvc:
+    forward-headers-strategy: framework
 
 cors:
   allowed-origins:
