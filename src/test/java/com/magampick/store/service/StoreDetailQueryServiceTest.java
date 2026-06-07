@@ -26,6 +26,7 @@ import com.magampick.store.repository.StoreBusinessHourRepository;
 import com.magampick.store.repository.StoreRepository;
 import java.lang.reflect.Field;
 import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
@@ -199,6 +200,8 @@ class StoreDetailQueryServiceTest {
         Store.builder()
             .seller(stubSeller())
             .businessNumber("1234567890")
+            .representativeName("홍길동")
+            .openDate(LocalDate.of(2024, 3, 15))
             .name("테스트매장")
             .roadAddress("서울시 중구 테스트로 1")
             .zonecode("04524")

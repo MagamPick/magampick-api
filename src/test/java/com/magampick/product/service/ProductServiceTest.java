@@ -24,6 +24,7 @@ import com.magampick.store.domain.Store;
 import com.magampick.store.exception.StoreErrorCode;
 import com.magampick.store.repository.StoreRepository;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -64,6 +65,8 @@ class ProductServiceTest {
         Store.builder()
             .seller(seller())
             .businessNumber("1234567890")
+            .representativeName("홍길동")
+            .openDate(LocalDate.of(2024, 3, 15))
             .name("동네빵집")
             .roadAddress("서울 강남구 테헤란로 427")
             .zonecode("06158")

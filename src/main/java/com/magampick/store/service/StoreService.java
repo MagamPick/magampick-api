@@ -100,7 +100,13 @@ public class StoreService {
         geocodingService.geocode(
             new GeocodeQuery(request.sigunguCode(), request.roadnameCode(), request.roadAddress()));
     String imageUrl = uploadOptionalStoreImage(image);
-    return new PreparedStoreRegistration(businessNumber, request, location, imageUrl);
+    return new PreparedStoreRegistration(
+        businessNumber,
+        request.representativeName(),
+        request.openDate(),
+        request,
+        location,
+        imageUrl);
   }
 
   public Store createStore(Seller seller, PreparedStoreRegistration prepared) {
@@ -109,6 +115,8 @@ public class StoreService {
         Store.builder()
             .seller(seller)
             .businessNumber(prepared.businessNumber())
+            .representativeName(prepared.representativeName())
+            .openDate(prepared.openDate())
             .name(request.name())
             .roadAddress(request.roadAddress())
             .jibunAddress(request.jibunAddress())

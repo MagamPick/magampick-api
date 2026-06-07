@@ -152,6 +152,8 @@ class ProductDetailIntegrationTest {
     return Store.builder()
         .seller(seller)
         .businessNumber(String.valueOf(ts).substring(0, 10))
+        .representativeName("홍길동")
+        .openDate(LocalDate.of(2024, 3, 15))
         .name("통합테스트매장")
         .roadAddress("서울시 강남구 테헤란로 100")
         .zonecode("06158")

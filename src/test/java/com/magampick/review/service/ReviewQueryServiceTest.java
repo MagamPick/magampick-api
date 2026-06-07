@@ -16,6 +16,7 @@ import com.magampick.review.fixture.ReviewFixture;
 import com.magampick.review.mapper.ReviewMapper;
 import com.magampick.review.repository.ReviewRepository;
 import com.magampick.store.domain.Store;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -213,6 +214,8 @@ class ReviewQueryServiceTest {
         Store.builder()
             .seller(null)
             .businessNumber("1234567890")
+            .representativeName("홍길동")
+            .openDate(LocalDate.of(2024, 3, 15))
             .name("매장")
             .roadAddress("서울 강남구")
             .zonecode("06158")

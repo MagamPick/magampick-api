@@ -290,6 +290,8 @@ class ReviewRepositoryTest {
         Store.builder()
             .seller(seller)
             .businessNumber(String.valueOf(System.nanoTime()).substring(0, 10))
+            .representativeName("홍길동")
+            .openDate(LocalDate.of(2024, 3, 15))
             .name("테스트매장")
             .roadAddress("서울시 강남구 테헤란로 1")
             .zonecode("06158")

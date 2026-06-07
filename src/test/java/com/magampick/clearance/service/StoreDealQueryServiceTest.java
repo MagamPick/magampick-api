@@ -15,6 +15,7 @@ import com.magampick.seller.domain.Seller;
 import com.magampick.store.domain.OperationStatus;
 import com.magampick.store.domain.Store;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -113,6 +114,8 @@ class StoreDealQueryServiceTest {
     return Store.builder()
         .seller(seller)
         .businessNumber("1234567890")
+        .representativeName("홍길동")
+        .openDate(LocalDate.of(2024, 3, 15))
         .name("테스트매장")
         .roadAddress("서울시 중구 1")
         .zonecode("04524")
