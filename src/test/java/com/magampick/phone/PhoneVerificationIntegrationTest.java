@@ -106,11 +106,12 @@ class PhoneVerificationIntegrationTest {
                 .content("{\"phone\":\"" + rawPhone + "\"}"))
         .andExpect(status().isOk());
 
+    // 000000 은 mock 우회 코드이므로 실제 틀린 코드(999999) 로 검증
     mockMvc
         .perform(
             post("/api/v1/auth/phone-verifications/confirm")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"phone\":\"" + rawPhone + "\",\"code\":\"000000\"}"))
+                .content("{\"phone\":\"" + rawPhone + "\",\"code\":\"999999\"}"))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.error.code").value("OTP_INVALID"));
   }

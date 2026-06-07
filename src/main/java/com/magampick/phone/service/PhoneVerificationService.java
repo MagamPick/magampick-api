@@ -23,10 +23,12 @@ public class PhoneVerificationService {
   private static final Pattern PHONE_PATTERN = Pattern.compile("^010\\d{8}$");
   private static final int DAILY_SEND_LIMIT = 10;
   private static final int MAX_VERIFY_ATTEMPTS = 5;
+  private static final String MOCK_BYPASS_CODE = "000000";
 
   private final PhoneVerificationStore store;
   private final SmsSender smsSender;
   private final VerificationCodeGenerator codeGenerator;
+  private final SmsConfig smsConfig;
 
   /** 인증번호 발송. 형식·일일 한도·재발송 쿨다운 검사 후 SMS 발송하고 OTP 를 저장한다. */
   public void requestCode(String rawPhone) {
@@ -53,9 +55,16 @@ public class PhoneVerificationService {
     log.info("본인인증 번호 발송. phone={}", phone);
   }
 
-  /** 인증번호 검증. 성공 시 OTP 를 소비하고 본인인증 토큰(15분)을 발급한다. */
+  /** 인증번호 검증. 성공 시 OTP 를 소비하고 본인인증 토큰(15분)을 발급한다. mock 모드에서 000000 입력 시 OTP 없이 토큰 발급. */
   public String verifyCode(String rawPhone, String code) {
     String phone = normalize(rawPhone);
+
+    if (smsConfig.isMockEnabled() && MOCK_BYPASS_CODE.equals(code)) {
+      String token = store.issueToken(phone);
+      log.info("본인인증 mock 우회(000000). phone={}", phone);
+      return token;
+    }
+
     String savedCode =
         store
             .findOtpCode(phone)

@@ -30,6 +30,7 @@ class PhoneVerificationServiceTest {
   @Mock private PhoneVerificationStore store;
   @Mock private SmsSender smsSender;
   @Mock private VerificationCodeGenerator codeGenerator;
+  @Mock private SmsConfig smsConfig;
 
   @InjectMocks private PhoneVerificationService service;
 
@@ -154,6 +155,34 @@ class PhoneVerificationServiceTest {
         .extracting(e -> ((BusinessException) e).getErrorCode())
         .isEqualTo(PhoneVerificationErrorCode.OTP_ATTEMPT_LIMIT);
     verify(store).deleteOtp(PHONE);
+  }
+
+  @Test
+  void mock_모드에서_000000_입력하면_OTP_없이_토큰_발급() {
+    // given
+    given(smsConfig.isMockEnabled()).willReturn(true);
+    given(store.issueToken(PHONE)).willReturn("token-mock");
+
+    // when
+    String token = service.verifyCode(RAW_PHONE, "000000");
+
+    // then — bypass 는 OTP 조회 없이 바로 토큰 발급
+    assertThat(token).isEqualTo("token-mock");
+    verify(store, never()).findOtpCode(any());
+    verify(store).issueToken(PHONE);
+  }
+
+  @Test
+  void mock_꺼지면_000000은_일반_OTP_검증으로_처리() {
+    // given — smsConfig mock 기본값 false → bypass 미적용
+    given(store.findOtpCode(PHONE)).willReturn(Optional.of(CODE));
+    given(store.incrementOtpAttempts(PHONE)).willReturn(1L);
+
+    // when & then — 저장된 CODE 와 다르므로 OTP_INVALID
+    assertThatThrownBy(() -> service.verifyCode(RAW_PHONE, "000000"))
+        .isInstanceOf(BusinessException.class)
+        .extracting(e -> ((BusinessException) e).getErrorCode())
+        .isEqualTo(PhoneVerificationErrorCode.OTP_INVALID);
   }
 
   @Test

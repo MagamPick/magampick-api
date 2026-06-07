@@ -1,3 +1,7 @@
+app:
+  sms:
+    mock-enabled: true  # 실발송 전환 시 SMS_MOCK_ENABLED=false 환경변수 설정
+
 spring:
   datasource:
     url: ${DB_URL}

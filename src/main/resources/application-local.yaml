@@ -1,3 +1,7 @@
+app:
+  sms:
+    mock-enabled: true  # 로컬에서 실발송 테스트 원하면 SMS_MOCK_ENABLED=false 환경변수 설정
+
 spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/magampick

@@ -2,17 +2,17 @@ package com.magampick.phone.service;
 
 import net.nurigo.sdk.NurigoApp;
 import net.nurigo.sdk.message.service.DefaultMessageService;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Profile;
 
 /**
- * 실 SOLAPI SMS({@code @Profile("!test")}) 빈 구성 — {@link SolapiProperties} 바인딩 + SOLAPI {@link
- * DefaultMessageService}. test 프로파일은 {@link MockSmsSender} 를 쓰므로 이 구성은 로딩되지 않는다 (키 없이 테스트 가능).
+ * SOLAPI SMS 빈 구성. {@code app.sms.mock-enabled=false}(기본값) 일 때만 로딩 — mock 모드에서는 {@link
+ * SolapiProperties} 검증을 건너뛰므로 키 없이 기동 가능.
  */
 @Configuration
-@Profile("!test")
+@ConditionalOnProperty(name = "app.sms.mock-enabled", havingValue = "false", matchIfMissing = true)
 @EnableConfigurationProperties(SolapiProperties.class)
 public class SolapiConfig {
 
