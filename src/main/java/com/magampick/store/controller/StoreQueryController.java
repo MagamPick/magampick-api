@@ -5,9 +5,11 @@ import com.magampick.clearance.service.StoreDealQueryService;
 import com.magampick.global.security.CustomUserDetails;
 import com.magampick.product.dto.StoreMenuItemResponse;
 import com.magampick.store.dto.ConsumerStoreDetailResponse;
+import com.magampick.store.dto.MapStoreResponse;
 import com.magampick.store.dto.StoreListResponse;
 import com.magampick.store.dto.StoreSort;
 import com.magampick.store.service.StoreDetailQueryService;
+import com.magampick.store.service.StoreMapQueryService;
 import com.magampick.store.service.StoreMenuQueryService;
 import com.magampick.store.service.StoreQueryService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -35,6 +37,7 @@ public class StoreQueryController {
   private final StoreDetailQueryService storeDetailQueryService;
   private final StoreDealQueryService storeDealQueryService;
   private final StoreMenuQueryService storeMenuQueryService;
+  private final StoreMapQueryService storeMapQueryService;
 
   @GetMapping
   @Operation(
@@ -55,6 +58,27 @@ public class StoreQueryController {
     StoreSort storeSort = StoreSort.fromParam(sort);
     return ResponseEntity.ok(
         storeQueryService.getStores(userDetails.getUserId(), storeSort, page, size));
+  }
+
+  @GetMapping("/map")
+  @Operation(
+      summary = "지도 기반 매장 조회",
+      description =
+          "카카오맵 중심 GPS 좌표 기준 반경 내 OPEN·오늘영업 매장 마커 목록. radiusKm: 1/3/5 만 허용. ROLE_CUSTOMER 인증 필요.")
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "조회 성공"),
+    @ApiResponse(responseCode = "400", description = "radiusKm 값 오류 (INVALID_INPUT: 1/3/5 이외)"),
+    @ApiResponse(responseCode = "401", description = "미인증"),
+    @ApiResponse(responseCode = "403", description = "권한 없음 (ROLE_CUSTOMER 아님)")
+  })
+  public ResponseEntity<List<MapStoreResponse>> map(
+      @RequestParam double latitude,
+      @RequestParam double longitude,
+      @RequestParam int radiusKm,
+      @RequestParam boolean dealsOnly,
+      @AuthenticationPrincipal CustomUserDetails userDetails) {
+    return ResponseEntity.ok(
+        storeMapQueryService.getMapStores(latitude, longitude, radiusKm, dealsOnly));
   }
 
   @GetMapping("/{storeId}")

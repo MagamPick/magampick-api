@@ -9,6 +9,40 @@ import org.springframework.data.repository.query.Param;
 
 public interface StoreRepository extends JpaRepository<Store, Long> {
 
+  /**
+   * 지도 기반 매장 조회용 PostGIS 후보 쿼리. 조건: deleted_at IS NULL, operation_status=OPEN, radiusMeters
+   * 이내(ST_DWithin geography), 오늘 영업요일 존재(store_business_hours). 위경도(ST_Y/ST_X) 와 ST_Distance(m) 를
+   * 함께 반환.
+   *
+   * @param lat origin 위도
+   * @param lng origin 경도
+   * @param radiusMeters 반경(미터). radiusKm×1000 을 호출 측에서 계산.
+   * @param today DayOfWeek.name() 예) "SATURDAY"
+   */
+  @Query(
+      value =
+          """
+          SELECT s.id AS id, s.name AS name, s.image_url AS imageUrl,
+                 ST_Y(s.location::geometry) AS latitude,
+                 ST_X(s.location::geometry) AS longitude,
+                 ST_Distance(s.location, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography)
+                     AS distanceMeters
+          FROM stores s
+          WHERE s.deleted_at IS NULL
+            AND s.operation_status = 'OPEN'
+            AND ST_DWithin(s.location, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography, :radiusMeters)
+            AND EXISTS (
+                SELECT 1 FROM store_business_hours h
+                WHERE h.store_id = s.id AND h.day_of_week = :today
+            )
+          """,
+      nativeQuery = true)
+  List<MapStoreCandidate> findMapStoresWithinRadius(
+      @Param("lat") double lat,
+      @Param("lng") double lng,
+      @Param("radiusMeters") int radiusMeters,
+      @Param("today") String today);
+
   /** 사장 보유 매장 목록 — 등록순(`created_at` asc). 노션 "보유 매장 목록 조회" 정렬 명세 정합. */
   List<Store> findBySellerIdOrderByCreatedAtAsc(Long sellerId);
 
