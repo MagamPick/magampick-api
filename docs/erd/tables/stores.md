@@ -9,6 +9,8 @@
 | id | BIGINT | N | PK, IDENTITY | 매장 식별자 |
 | seller_id | BIGINT | N | FK → sellers.id | 소유 사장 |
 | business_number | VARCHAR(10) | N |  | 사업자 번호 (하이픈 제거 10자리, 매장별, UNIQUE 미적용) |
+| representative_name | VARCHAR(30) | N |  | 대표자 실명 (사업자등록증 기재, 국세청 검증 시 사용한 값) |
+| open_date | DATE | N |  | 개업일자 (사업자등록증 기재, 국세청 검증 시 사용한 값) |
 | name | VARCHAR(50) | N |  | 매장명 |
 | road_address | VARCHAR(200) | N |  | 도로명 주소 |
 | jibun_address | VARCHAR(200) | Y |  | 지번 주소 |

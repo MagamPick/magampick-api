@@ -13,6 +13,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -36,6 +37,12 @@ public class Store extends BaseEntity {
 
   @Column(name = "business_number", nullable = false, length = 10)
   private String businessNumber;
+
+  @Column(name = "representative_name", nullable = false, length = 30)
+  private String representativeName;
+
+  @Column(name = "open_date", nullable = false)
+  private LocalDate openDate;
 
   @Column(name = "name", nullable = false, length = 50)
   private String name;
@@ -75,6 +82,8 @@ public class Store extends BaseEntity {
   private Store(
       Seller seller,
       String businessNumber,
+      String representativeName,
+      LocalDate openDate,
       String name,
       String roadAddress,
       String jibunAddress,
@@ -87,6 +96,8 @@ public class Store extends BaseEntity {
       OperationStatus operationStatus) {
     this.seller = seller;
     this.businessNumber = businessNumber;
+    this.representativeName = representativeName;
+    this.openDate = openDate;
     this.name = name;
     this.roadAddress = roadAddress;
     this.jibunAddress = jibunAddress;

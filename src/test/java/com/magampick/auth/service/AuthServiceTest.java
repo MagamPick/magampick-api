@@ -137,6 +137,8 @@ class AuthServiceTest {
   private PreparedStoreRegistration preparedStoreRegistration(SellerSignupRequest request) {
     return new PreparedStoreRegistration(
         "1234567890",
+        request.store().representativeName(),
+        request.store().openDate(),
         request.store(),
         GeometryUtil.toPoint(37.5, 127.0),
         "/uploads/2026/6/store.jpg");
