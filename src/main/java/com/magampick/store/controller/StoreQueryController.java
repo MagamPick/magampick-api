@@ -6,11 +6,13 @@ import com.magampick.global.security.CustomUserDetails;
 import com.magampick.product.dto.StoreMenuItemResponse;
 import com.magampick.store.dto.ConsumerStoreDetailResponse;
 import com.magampick.store.dto.MapStoreResponse;
+import com.magampick.store.dto.NeighborhoodStoreResponse;
 import com.magampick.store.dto.StoreListResponse;
 import com.magampick.store.dto.StoreSort;
 import com.magampick.store.service.StoreDetailQueryService;
 import com.magampick.store.service.StoreMapQueryService;
 import com.magampick.store.service.StoreMenuQueryService;
+import com.magampick.store.service.StoreNeighborhoodQueryService;
 import com.magampick.store.service.StoreQueryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -38,6 +40,7 @@ public class StoreQueryController {
   private final StoreDealQueryService storeDealQueryService;
   private final StoreMenuQueryService storeMenuQueryService;
   private final StoreMapQueryService storeMapQueryService;
+  private final StoreNeighborhoodQueryService storeNeighborhoodQueryService;
 
   @GetMapping
   @Operation(
@@ -58,6 +61,23 @@ public class StoreQueryController {
     StoreSort storeSort = StoreSort.fromParam(sort);
     return ResponseEntity.ok(
         storeQueryService.getStores(userDetails.getUserId(), storeSort, page, size));
+  }
+
+  /** 우리 동네 마감픽 목록. literal `/neighborhood` 이 `/{storeId}` 보다 먼저 라우팅됨 (Spring MVC literal 우선). */
+  @GetMapping("/neighborhood")
+  @Operation(
+      summary = "우리 동네 마감픽 조회",
+      description = "기본 주소지 5km · OPEN · 오늘영업 매장 중 단골 제외, 추천 스코어 정렬 최대 6개 반환. ROLE_CUSTOMER 인증 필요.")
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "조회 성공"),
+    @ApiResponse(responseCode = "400", description = "기본 주소지 없음 (DEFAULT_ADDRESS_REQUIRED)"),
+    @ApiResponse(responseCode = "401", description = "미인증"),
+    @ApiResponse(responseCode = "403", description = "권한 없음 (ROLE_CUSTOMER 아님)")
+  })
+  public ResponseEntity<List<NeighborhoodStoreResponse>> neighborhood(
+      @AuthenticationPrincipal CustomUserDetails userDetails) {
+    return ResponseEntity.ok(
+        storeNeighborhoodQueryService.getNeighborhoodStores(userDetails.getUserId()));
   }
 
   @GetMapping("/map")

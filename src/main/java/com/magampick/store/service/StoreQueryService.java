@@ -150,9 +150,7 @@ public class StoreQueryService {
           case RECOMMENDED ->
               Comparator.comparingDouble(
                       (EnrichedStore e) ->
-                          (5.0 - e.distanceKm())
-                              + e.rating()
-                              + (e.activeDealCount() > 0 ? 1.5 : 0.0))
+                          recommendedScore(e.distanceKm(), e.rating(), e.activeDealCount()))
                   .reversed();
           case DISTANCE -> Comparator.comparingDouble(EnrichedStore::distanceKm);
           case DISCOUNT ->
@@ -184,6 +182,17 @@ public class StoreQueryService {
               };
         };
     return stores.stream().sorted(comparator).toList();
+  }
+
+  // ── 공유 추천 스코어 공식 (StoreNeighborhoodQueryService 와 동일) ───────────────────────────────
+
+  /**
+   * 추천 스코어. StoreNeighborhoodQueryService 와 동일 공식 — 단일 소스.
+   *
+   * <p>score = (5.0 - distanceKm) + rating + (activeDealCount > 0 ? 1.5 : 0.0)
+   */
+  static double recommendedScore(double distanceKm, double rating, long activeDealCount) {
+    return (5.0 - distanceKm) + rating + (activeDealCount > 0 ? 1.5 : 0.0);
   }
 
   // ── 내부 데이터 홀더 ───────────────────────────────────────────────────────────────────────────

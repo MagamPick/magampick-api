@@ -1,12 +1,15 @@
 package com.magampick.clearance.controller;
 
+import com.magampick.clearance.dto.ClosingDealResponse;
 import com.magampick.clearance.dto.DealProductDetailResponse;
 import com.magampick.clearance.service.ClearanceItemDetailQueryService;
+import com.magampick.clearance.service.ClosingDealQueryService;
 import com.magampick.global.security.CustomUserDetails;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,6 +25,26 @@ import org.springframework.web.bind.annotation.RestController;
 public class ClearanceItemQueryController {
 
   private final ClearanceItemDetailQueryService clearanceItemDetailQueryService;
+  private final ClosingDealQueryService closingDealQueryService;
+
+  /**
+   * 마감 임박 특가 목록. literal `/closing-soon` 이 `/{clearanceItemId}` 보다 먼저 라우팅됨 (Spring MVC literal 우선).
+   */
+  @GetMapping("/closing-soon")
+  @Operation(
+      summary = "마감 임박 특가 조회",
+      description =
+          "기본 주소지 5km · OPEN · 오늘영업 매장의 60분 이내 활성 떨이를 마감 가까운 순 최대 5개 반환. ROLE_CUSTOMER 인증 필요.")
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "조회 성공"),
+    @ApiResponse(responseCode = "400", description = "기본 주소지 없음 (DEFAULT_ADDRESS_REQUIRED)"),
+    @ApiResponse(responseCode = "401", description = "미인증"),
+    @ApiResponse(responseCode = "403", description = "권한 없음 (ROLE_CUSTOMER 아님)")
+  })
+  public List<ClosingDealResponse> closingSoon(
+      @AuthenticationPrincipal CustomUserDetails userDetails) {
+    return closingDealQueryService.getClosingSoonDeals(userDetails.getUserId());
+  }
 
   @GetMapping("/{clearanceItemId}")
   @Operation(

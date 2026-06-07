@@ -23,6 +23,7 @@ import com.magampick.store.dto.MapStoreResponse;
 import com.magampick.store.service.StoreDetailQueryService;
 import com.magampick.store.service.StoreMapQueryService;
 import com.magampick.store.service.StoreMenuQueryService;
+import com.magampick.store.service.StoreNeighborhoodQueryService;
 import com.magampick.store.service.StoreQueryService;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -42,6 +43,7 @@ class StoreMapQueryControllerTest {
   @MockitoBean StoreDealQueryService storeDealQueryService;
   @MockitoBean StoreMenuQueryService storeMenuQueryService;
   @MockitoBean StoreMapQueryService storeMapQueryService;
+  @MockitoBean StoreNeighborhoodQueryService storeNeighborhoodQueryService;
   @MockitoBean JwtProvider jwtProvider;
 
   private static final CustomUserDetails CUSTOMER = new CustomUserDetails(1L, Role.CUSTOMER);
