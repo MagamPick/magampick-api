@@ -52,11 +52,19 @@ solapi:
   sender-number: ${SOLAPI_SENDER_NUMBER:}
   api-url: ${SOLAPI_API_URL:https://api.solapi.com}
 
+# FCM (Firebase Cloud Messaging) 푸시. credentials = Firebase 서비스 계정 JSON 을 base64 인코딩한 값(환경변수).
+# mock-enabled=false 일 때만 FirebaseConfig 로딩 → 자격증명 필요. local/test/dev 는 true 로 덮어씀(키 없이 기동).
+fcm:
+  credentials: ${FCM_CREDENTIALS:}
+
 # SMS mock 모드. true: 실발송 없이 로그, 000000 코드로 본인인증 우회 가능. false: SOLAPI 실발송.
 # 로컬·테스트는 application-local/test.yaml 에서 true 로 덮어씀. 환경변수 SMS_MOCK_ENABLED 로 override 가능.
+# FCM mock 모드도 동일 — true: 실발송 없이 로그. 환경변수 FCM_MOCK_ENABLED 로 override.
 app:
   sms:
     mock-enabled: ${SMS_MOCK_ENABLED:false}
+  fcm:
+    mock-enabled: ${FCM_MOCK_ENABLED:false}
 
 # 국세청 사업자등록 검증 (공공데이터포털). service-key 는 환경변수(미설정 시 호출 거부 → VERIFICATION_FAILED). test 프로파일은 Mock 사용.
 # verification-mode: status(기본, 상태조회 번호만 — 출시 전 데모 단계) | validate(진위확인 번호+대표자명+개업일자 3요소). validate 전환 시 NTS_VERIFICATION_MODE=validate

@@ -4,6 +4,8 @@
 app:
   sms:
     mock-enabled: true  # 테스트에서 SOLAPI 키 없이 기동, 000000 우회 가능
+  fcm:
+    mock-enabled: true  # 테스트에서 Firebase 자격증명 없이 기동
 
 spring:
   jpa:
