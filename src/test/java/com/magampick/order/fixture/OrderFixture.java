@@ -256,6 +256,17 @@ public class OrderFixture {
         .build();
   }
 
+  /**
+   * 특정 상태의 Order 픽스처. 상태 전이 테스트에서 재사용.
+   *
+   * @param status 원하는 OrderStatus
+   */
+  public static Order anOrderWithStatus(Customer customer, Store store, OrderStatus status) {
+    Order order = anOrder(customer, store);
+    ReflectionTestUtils.setField(order, "status", status);
+    return order;
+  }
+
   // ── OrderItem 엔티티 ──────────────────────────────────────────────────────────
 
   /**

@@ -135,4 +135,41 @@ public class Order extends BaseEntity {
   public void addOrderItem(OrderItem item) {
     this.orderItems.add(item);
   }
+
+  // ── 상태 전이 메서드 (서비스에서 전이 가능 여부 검증 후 호출) ────────────────────────────
+
+  /** 소비자 취소. PENDING → CANCELLED. */
+  public void cancel(LocalDateTime now) {
+    this.status = OrderStatus.CANCELLED;
+    this.cancelledAt = now;
+  }
+
+  /** 사장 수락. PENDING → PREPARING. */
+  public void accept(LocalDateTime now) {
+    this.status = OrderStatus.PREPARING;
+    this.acceptedAt = now;
+  }
+
+  /** 사장 거절. PENDING → REJECTED. */
+  public void reject(LocalDateTime now) {
+    this.status = OrderStatus.REJECTED;
+    this.rejectedAt = now;
+  }
+
+  /** 준비완료. PREPARING → READY. */
+  public void markReady(LocalDateTime now) {
+    this.status = OrderStatus.READY;
+    this.readyAt = now;
+  }
+
+  /** 수령완료. READY → COMPLETED. */
+  public void complete(LocalDateTime now) {
+    this.status = OrderStatus.COMPLETED;
+    this.completedAt = now;
+  }
+
+  /** 미수령. READY → NO_SHOW. timestamp 없음. */
+  public void noShow() {
+    this.status = OrderStatus.NO_SHOW;
+  }
 }

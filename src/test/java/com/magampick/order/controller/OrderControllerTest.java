@@ -355,4 +355,57 @@ class OrderControllerTest {
         .andExpect(status().isForbidden())
         .andExpect(jsonPath("$.error.code").value("ORDER_FORBIDDEN"));
   }
+
+  // ── POST /api/v1/orders/{id}/cancel — 소비자 취소 ────────────────────────────
+
+  @Test
+  void 소비자_주문_취소_200() throws Exception {
+    // given
+    given(orderService.cancelOrder(1L, 42L)).willReturn(OrderFixture.anOrderResponse(42L));
+
+    // when / then
+    mockMvc
+        .perform(post("/api/v1/orders/42/cancel").with(user(CUSTOMER)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.id").value(42));
+  }
+
+  @Test
+  void 취소_미인증_401() throws Exception {
+    mockMvc.perform(post("/api/v1/orders/42/cancel")).andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void 취소_사장권한_403() throws Exception {
+    mockMvc
+        .perform(post("/api/v1/orders/42/cancel").with(user(SELLER)))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void 취소_잘못된전이_409() throws Exception {
+    // given — PENDING 아닌 상태에서 취소 시도
+    willThrow(new BusinessException(OrderErrorCode.INVALID_ORDER_TRANSITION))
+        .given(orderService)
+        .cancelOrder(1L, 42L);
+
+    mockMvc
+        .perform(post("/api/v1/orders/42/cancel").with(user(CUSTOMER)))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.error.code").value("INVALID_ORDER_TRANSITION"));
+  }
+
+  @Test
+  void 취소_주문없음_404() throws Exception {
+    // given
+    willThrow(new BusinessException(OrderErrorCode.ORDER_NOT_FOUND))
+        .given(orderService)
+        .cancelOrder(1L, 99L);
+
+    mockMvc
+        .perform(post("/api/v1/orders/99/cancel").with(user(CUSTOMER)))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.error.code").value("ORDER_NOT_FOUND"));
+  }
 }

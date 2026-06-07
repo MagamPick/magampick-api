@@ -99,8 +99,10 @@ public class SecurityConfig {
                     .requestMatchers("/api/v1/customers/me/**")
                     .hasRole("CUSTOMER")
                     // POST /api/v1/orders, GET /api/v1/orders, GET /api/v1/orders/* — 소비자 전용
-                    // (auth.md §9)
+                    // POST /api/v1/orders/{id}/cancel — 소비자 취소 (auth.md §9)
                     .requestMatchers(HttpMethod.POST, "/api/v1/orders")
+                    .hasRole("CUSTOMER")
+                    .requestMatchers(HttpMethod.POST, "/api/v1/orders/*/cancel")
                     .hasRole("CUSTOMER")
                     .requestMatchers(HttpMethod.GET, "/api/v1/orders")
                     .hasRole("CUSTOMER")

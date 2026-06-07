@@ -13,10 +13,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 사장 주문 조회 API. Phase 5B step1: 매장별 주문 목록 + 단건 상세. */
+/** 사장 주문 조회/상태 전이 API. Phase 5B step1: 매장별 주문 목록 + 단건 상세. step2: 수락/거절/준비완료/수령완료/미수령. */
 @RestController
 @RequiredArgsConstructor
 @Tag(name = "Order (Seller)", description = "사장 주문 조회 API")
@@ -57,6 +58,91 @@ public class SellerOrderController {
   public ResponseEntity<SellerOrderResponse> getStoreOrder(
       @AuthenticationPrincipal CustomUserDetails userDetails, @PathVariable Long id) {
     SellerOrderResponse result = orderService.getStoreOrder(userDetails.getUserId(), id);
+    return ResponseEntity.ok(result);
+  }
+
+  @PostMapping("/api/v1/seller/orders/{id}/accept")
+  @Operation(
+      summary = "주문 수락",
+      description = "사장 본인 매장 주문 수락. PENDING → PREPARING. ROLE_SELLER 인증 필요.")
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "수락 성공"),
+    @ApiResponse(responseCode = "401", description = "미인증"),
+    @ApiResponse(responseCode = "403", description = "권한 없음 또는 타인 매장 주문"),
+    @ApiResponse(responseCode = "404", description = "주문 없음"),
+    @ApiResponse(responseCode = "409", description = "허용되지 않는 상태 전이")
+  })
+  public ResponseEntity<SellerOrderResponse> acceptOrder(
+      @AuthenticationPrincipal CustomUserDetails userDetails, @PathVariable Long id) {
+    SellerOrderResponse result = orderService.acceptOrder(userDetails.getUserId(), id);
+    return ResponseEntity.ok(result);
+  }
+
+  @PostMapping("/api/v1/seller/orders/{id}/reject")
+  @Operation(
+      summary = "주문 거절",
+      description = "사장 본인 매장 주문 거절. PENDING → REJECTED. 자동 환불 stub. ROLE_SELLER 인증 필요.")
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "거절 성공"),
+    @ApiResponse(responseCode = "401", description = "미인증"),
+    @ApiResponse(responseCode = "403", description = "권한 없음 또는 타인 매장 주문"),
+    @ApiResponse(responseCode = "404", description = "주문 없음"),
+    @ApiResponse(responseCode = "409", description = "허용되지 않는 상태 전이")
+  })
+  public ResponseEntity<SellerOrderResponse> rejectOrder(
+      @AuthenticationPrincipal CustomUserDetails userDetails, @PathVariable Long id) {
+    SellerOrderResponse result = orderService.rejectOrder(userDetails.getUserId(), id);
+    return ResponseEntity.ok(result);
+  }
+
+  @PostMapping("/api/v1/seller/orders/{id}/ready")
+  @Operation(
+      summary = "준비완료",
+      description = "사장 본인 매장 주문 준비완료. PREPARING → READY. ROLE_SELLER 인증 필요.")
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "준비완료 성공"),
+    @ApiResponse(responseCode = "401", description = "미인증"),
+    @ApiResponse(responseCode = "403", description = "권한 없음 또는 타인 매장 주문"),
+    @ApiResponse(responseCode = "404", description = "주문 없음"),
+    @ApiResponse(responseCode = "409", description = "허용되지 않는 상태 전이")
+  })
+  public ResponseEntity<SellerOrderResponse> readyOrder(
+      @AuthenticationPrincipal CustomUserDetails userDetails, @PathVariable Long id) {
+    SellerOrderResponse result = orderService.readyOrder(userDetails.getUserId(), id);
+    return ResponseEntity.ok(result);
+  }
+
+  @PostMapping("/api/v1/seller/orders/{id}/complete")
+  @Operation(
+      summary = "수령완료",
+      description = "사장 본인 매장 주문 수령완료. READY → COMPLETED. ROLE_SELLER 인증 필요.")
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "수령완료 성공"),
+    @ApiResponse(responseCode = "401", description = "미인증"),
+    @ApiResponse(responseCode = "403", description = "권한 없음 또는 타인 매장 주문"),
+    @ApiResponse(responseCode = "404", description = "주문 없음"),
+    @ApiResponse(responseCode = "409", description = "허용되지 않는 상태 전이")
+  })
+  public ResponseEntity<SellerOrderResponse> completeOrder(
+      @AuthenticationPrincipal CustomUserDetails userDetails, @PathVariable Long id) {
+    SellerOrderResponse result = orderService.completeOrder(userDetails.getUserId(), id);
+    return ResponseEntity.ok(result);
+  }
+
+  @PostMapping("/api/v1/seller/orders/{id}/no-show")
+  @Operation(
+      summary = "미수령",
+      description = "사장 본인 매장 주문 미수령 처리. READY → NO_SHOW. ROLE_SELLER 인증 필요.")
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "미수령 처리 성공"),
+    @ApiResponse(responseCode = "401", description = "미인증"),
+    @ApiResponse(responseCode = "403", description = "권한 없음 또는 타인 매장 주문"),
+    @ApiResponse(responseCode = "404", description = "주문 없음"),
+    @ApiResponse(responseCode = "409", description = "허용되지 않는 상태 전이")
+  })
+  public ResponseEntity<SellerOrderResponse> noShowOrder(
+      @AuthenticationPrincipal CustomUserDetails userDetails, @PathVariable Long id) {
+    SellerOrderResponse result = orderService.noShowOrder(userDetails.getUserId(), id);
     return ResponseEntity.ok(result);
   }
 }

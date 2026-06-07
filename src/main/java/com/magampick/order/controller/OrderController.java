@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** 소비자 주문 API. Phase 5A: 주문 생성 + stub 결제. Phase 5B step1: 주문 조회. */
+/** 소비자 주문 API. Phase 5A: 주문 생성 + stub 결제. Phase 5B step1: 주문 조회. Phase 5B step2: 취소. */
 @RestController
 @RequestMapping("/api/v1/orders")
 @RequiredArgsConstructor
@@ -79,6 +79,23 @@ public class OrderController {
   public ResponseEntity<OrderResponse> getMyOrder(
       @AuthenticationPrincipal CustomUserDetails userDetails, @PathVariable Long id) {
     OrderResponse result = orderService.getMyOrder(userDetails.getUserId(), id);
+    return ResponseEntity.ok(result);
+  }
+
+  @PostMapping("/{id}/cancel")
+  @Operation(
+      summary = "주문 취소",
+      description = "소비자 본인 주문 취소. PENDING 상태만 가능. 자동 환불 stub. ROLE_CUSTOMER 인증 필요.")
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "취소 성공"),
+    @ApiResponse(responseCode = "401", description = "미인증"),
+    @ApiResponse(responseCode = "403", description = "권한 없음 또는 타인 주문"),
+    @ApiResponse(responseCode = "404", description = "주문 없음"),
+    @ApiResponse(responseCode = "409", description = "허용되지 않는 상태 전이")
+  })
+  public ResponseEntity<OrderResponse> cancelOrder(
+      @AuthenticationPrincipal CustomUserDetails userDetails, @PathVariable Long id) {
+    OrderResponse result = orderService.cancelOrder(userDetails.getUserId(), id);
     return ResponseEntity.ok(result);
   }
 }
