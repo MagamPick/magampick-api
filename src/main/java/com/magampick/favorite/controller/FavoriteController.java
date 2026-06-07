@@ -2,9 +2,8 @@ package com.magampick.favorite.controller;
 
 import com.magampick.favorite.dto.FavoriteAddRequest;
 import com.magampick.favorite.dto.FavoriteAddResponse;
-import com.magampick.favorite.dto.FavoriteStoreResponse;
+import com.magampick.favorite.dto.FavoriteListResponse;
 import com.magampick.favorite.service.FavoriteService;
-import com.magampick.global.response.PageResponse;
 import com.magampick.global.security.CustomUserDetails;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -13,9 +12,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.net.URI;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -67,16 +63,14 @@ public class FavoriteController {
   }
 
   @GetMapping
-  @Operation(summary = "즐겨찾기 목록 조회")
+  @Operation(summary = "단골 매장 목록 조회")
   @ApiResponses({
     @ApiResponse(responseCode = "200", description = "조회 성공"),
+    @ApiResponse(responseCode = "400", description = "기본 주소지 없음 (DEFAULT_ADDRESS_REQUIRED)"),
     @ApiResponse(responseCode = "401", description = "미인증"),
     @ApiResponse(responseCode = "403", description = "권한 없음")
   })
-  public PageResponse<FavoriteStoreResponse> list(
-      @AuthenticationPrincipal CustomUserDetails userDetails,
-      @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
-          Pageable pageable) {
-    return favoriteService.getFavorites(userDetails.getUserId(), pageable);
+  public FavoriteListResponse list(@AuthenticationPrincipal CustomUserDetails userDetails) {
+    return favoriteService.getFavorites(userDetails.getUserId());
   }
 }
