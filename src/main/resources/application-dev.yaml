@@ -14,6 +14,7 @@ spring:
 cors:
   allowed-origins:
     - https://dev.magampick.com
+    - https://api.dev.magampick.com
     - http://localhost:5173
 
 auth:
