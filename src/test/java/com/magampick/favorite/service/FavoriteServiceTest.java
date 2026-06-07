@@ -32,6 +32,7 @@ import com.magampick.review.service.ReviewQueryService;
 import com.magampick.store.domain.Store;
 import com.magampick.store.exception.StoreErrorCode;
 import com.magampick.store.repository.StoreRepository;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;

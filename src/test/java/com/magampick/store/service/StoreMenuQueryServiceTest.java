@@ -13,6 +13,7 @@ import com.magampick.seller.domain.Seller;
 import com.magampick.store.domain.OperationStatus;
 import com.magampick.store.domain.Store;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

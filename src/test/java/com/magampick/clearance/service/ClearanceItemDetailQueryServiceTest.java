@@ -24,6 +24,7 @@ import com.magampick.store.dto.StorePreviewInfo;
 import com.magampick.store.service.StorePreviewHelper;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;

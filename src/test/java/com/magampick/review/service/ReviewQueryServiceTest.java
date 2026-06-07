@@ -16,6 +16,7 @@ import com.magampick.review.fixture.ReviewFixture;
 import com.magampick.review.mapper.ReviewMapper;
 import com.magampick.review.repository.ReviewRepository;
 import com.magampick.store.domain.Store;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
