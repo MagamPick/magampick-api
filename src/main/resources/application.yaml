@@ -66,6 +66,12 @@ nts:
   validate-url: https://api.odcloud.kr/api/nts-businessman/v1/validate
   status-url: https://api.odcloud.kr/api/nts-businessman/v1/status
 
+admin:
+  seed:
+    email: ${ADMIN_EMAIL:}
+    password: ${ADMIN_PASSWORD:}
+    name: ${ADMIN_NAME:관리자}
+
 magampick:
   storage:
     local:
