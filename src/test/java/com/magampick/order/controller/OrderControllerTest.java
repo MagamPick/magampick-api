@@ -1,10 +1,12 @@
 package com.magampick.order.controller;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -276,5 +278,81 @@ class OrderControllerTest {
                 .with(user(CUSTOMER)))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.data.storePhone").doesNotExist());
+  }
+
+  // ── GET /api/v1/orders — 소비자 목록 ────────────────────────────────────────
+
+  @Test
+  void 소비자_주문_목록_200() throws Exception {
+    // given
+    given(orderService.listMyOrders(eq(1L), anyString()))
+        .willReturn(List.of(OrderFixture.anOrderResponse(42L)));
+
+    // when / then
+    mockMvc
+        .perform(get("/api/v1/orders").with(user(CUSTOMER)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data[0].id").value(42));
+  }
+
+  @Test
+  void 소비자_주문_목록_미인증_401() throws Exception {
+    mockMvc.perform(get("/api/v1/orders")).andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void 소비자_주문_목록_사장권한_403() throws Exception {
+    mockMvc.perform(get("/api/v1/orders").with(user(SELLER))).andExpect(status().isForbidden());
+  }
+
+  // ── GET /api/v1/orders/{id} — 소비자 상세 ────────────────────────────────────
+
+  @Test
+  void 소비자_주문_상세_200() throws Exception {
+    // given
+    given(orderService.getMyOrder(1L, 42L)).willReturn(OrderFixture.anOrderResponse(42L));
+
+    // when / then
+    mockMvc
+        .perform(get("/api/v1/orders/42").with(user(CUSTOMER)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.id").value(42));
+  }
+
+  @Test
+  void 소비자_주문_상세_미인증_401() throws Exception {
+    mockMvc.perform(get("/api/v1/orders/42")).andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void 소비자_주문_상세_사장권한_403() throws Exception {
+    mockMvc.perform(get("/api/v1/orders/42").with(user(SELLER))).andExpect(status().isForbidden());
+  }
+
+  @Test
+  void 소비자_주문_없음_404() throws Exception {
+    // given
+    given(orderService.getMyOrder(1L, 99L))
+        .willThrow(new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
+
+    // when / then
+    mockMvc
+        .perform(get("/api/v1/orders/99").with(user(CUSTOMER)))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.error.code").value("ORDER_NOT_FOUND"));
+  }
+
+  @Test
+  void 타인_주문_조회시_403_응답() throws Exception {
+    // given
+    given(orderService.getMyOrder(1L, 42L))
+        .willThrow(new BusinessException(OrderErrorCode.ORDER_FORBIDDEN));
+
+    // when / then
+    mockMvc
+        .perform(get("/api/v1/orders/42").with(user(CUSTOMER)))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.error.code").value("ORDER_FORBIDDEN"));
   }
 }

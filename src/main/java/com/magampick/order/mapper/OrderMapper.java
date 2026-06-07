@@ -4,6 +4,7 @@ import com.magampick.order.domain.Order;
 import com.magampick.order.domain.OrderItem;
 import com.magampick.order.domain.PickupType;
 import com.magampick.order.dto.OrderResponse;
+import com.magampick.order.dto.SellerOrderResponse;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -12,7 +13,10 @@ import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.Named;
 
-/** Order 엔티티 → OrderResponse DTO 변환. orderNo, pickup, amounts, createdAt 는 파생 로직 포함. */
+/**
+ * Order 엔티티 → OrderResponse / SellerOrderResponse DTO 변환. orderNo, pickup, amounts, createdAt 는 파생
+ * 로직 포함.
+ */
 @Mapper(componentModel = "spring")
 public interface OrderMapper {
 
@@ -27,7 +31,29 @@ public interface OrderMapper {
   @Mapping(target = "status", source = "status")
   @Mapping(target = "paymentMethod", constant = "toss")
   @Mapping(target = "createdAt", source = "createdAt", qualifiedByName = "toKst")
+  @Mapping(target = "completedAt", source = "completedAt", qualifiedByName = "toKst")
+  @Mapping(target = "cancelledAt", source = "cancelledAt", qualifiedByName = "toKst")
   OrderResponse toResponse(Order order);
+
+  @Mapping(target = "orderNo", source = "id", qualifiedByName = "idToOrderNo")
+  @Mapping(target = "storeId", source = "store.id")
+  @Mapping(target = "storeName", source = "store.name")
+  @Mapping(target = "storePhone", source = "store.phone")
+  @Mapping(target = "items", source = "orderItems")
+  @Mapping(target = "pickup", expression = "java(toPickupResponse(order))")
+  @Mapping(target = "amounts", expression = "java(toAmountsResponse(order))")
+  @Mapping(target = "pickupCode", source = "pickupCode")
+  @Mapping(target = "status", source = "status")
+  @Mapping(target = "paymentMethod", constant = "toss")
+  @Mapping(target = "createdAt", source = "createdAt", qualifiedByName = "toKst")
+  @Mapping(target = "customerName", source = "customer.nickname")
+  @Mapping(target = "customerPhone", source = "customer.phone")
+  @Mapping(target = "acceptedAt", source = "acceptedAt", qualifiedByName = "toKst")
+  @Mapping(target = "readyAt", source = "readyAt", qualifiedByName = "toKst")
+  @Mapping(target = "completedAt", source = "completedAt", qualifiedByName = "toKst")
+  @Mapping(target = "rejectedAt", source = "rejectedAt", qualifiedByName = "toKst")
+  @Mapping(target = "cancelledAt", source = "cancelledAt", qualifiedByName = "toKst")
+  SellerOrderResponse toSellerResponse(Order order);
 
   @Mapping(
       target = "kind",
