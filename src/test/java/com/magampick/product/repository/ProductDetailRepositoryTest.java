@@ -14,6 +14,7 @@ import com.magampick.store.domain.OperationStatus;
 import com.magampick.store.domain.Store;
 import com.magampick.store.repository.StoreRepository;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Optional;
 import org.hibernate.Hibernate;
 import org.junit.jupiter.api.BeforeEach;
