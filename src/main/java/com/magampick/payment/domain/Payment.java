@@ -59,6 +59,11 @@ public class Payment extends BaseEntity {
   @Column(name = "approved_at")
   private LocalDateTime approvedAt;
 
+  /** 결제 취소. status → CANCELED. */
+  public void cancel() {
+    this.status = PaymentStatus.CANCELED;
+  }
+
   @Builder
   private Payment(
       Order order,

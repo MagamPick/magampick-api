@@ -136,6 +136,11 @@ public class Order extends BaseEntity {
     this.orderItems.add(item);
   }
 
+  /** 토스 결제 확인 완료. AWAITING_PAYMENT → PENDING. */
+  public void activate() {
+    this.status = OrderStatus.PENDING;
+  }
+
   // ── 상태 전이 메서드 (서비스에서 전이 가능 여부 검증 후 호출) ────────────────────────────
 
   /** 소비자 취소. PENDING → CANCELLED. */

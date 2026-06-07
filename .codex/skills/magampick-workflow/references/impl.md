@@ -293,5 +293,5 @@ When the Notion body + plan are silent, pull mechanical detail from the conventi
 - No GitHub issue is created. Tracking lives on the PR + the Notion body checklist.
 - Migration version = timestamp. Never edit already-merged migrations.
 - Korean test method names (`docs/test-convention.md`).
-- Never bypass approval gates (commit message / PR body / merge). Never use `--no-verify`.
+- Never bypass explicit approval gates (commit message / PR body). Never use `--no-verify`. After PR body approval, CI green is the merge gate.
 - PowerShell 5.1: Korean method names / comments are UTF-8 (default for Write). Diagnose Gradle encoding issues at build-fail time.

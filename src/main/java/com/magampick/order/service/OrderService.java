@@ -14,15 +14,13 @@ import com.magampick.order.domain.OrderStatus;
 import com.magampick.order.domain.PickupType;
 import com.magampick.order.dto.CreateOrderRequest;
 import com.magampick.order.dto.OrderResponse;
+import com.magampick.order.dto.PrepareOrderResponse;
 import com.magampick.order.dto.SellerOrderResponse;
 import com.magampick.order.exception.OrderErrorCode;
 import com.magampick.order.mapper.OrderMapper;
 import com.magampick.order.repository.OrderRepository;
-import com.magampick.payment.domain.Payment;
-import com.magampick.payment.domain.PaymentStatus;
 import com.magampick.payment.repository.PaymentRepository;
-import com.magampick.payment.service.PaymentApproval;
-import com.magampick.payment.service.PaymentCommand;
+import com.magampick.payment.service.PaymentCancellationCommand;
 import com.magampick.payment.service.PaymentGateway;
 import com.magampick.product.domain.Product;
 import com.magampick.product.domain.ProductStatus;
@@ -52,7 +50,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 주문 생성 서비스. Phase 5A: 주문 생성 + stub 결제 자동승인 한 트랜잭션. 검증→재고차감→주문확정→픽업코드→결제→Payment 저장 순서. */
+/** 주문 생성·관리 서비스. createOrder 는 AWAITING_PAYMENT 임시 생성, 결제 확인은 TossConfirmService. */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -75,11 +73,11 @@ public class OrderService {
   private final Clock clock;
 
   /**
-   * 주문 생성 + stub 결제 자동승인 (한 @Transactional). 검증 순서: 결제동의 → 매장 영업 → 항목 검증/금액 재계산 → 교차검증 → 픽업 검증 →
-   * 재고차감 → 주문생성 → 픽업코드 → 결제 stub 승인 → Payment 저장.
+   * 주문 임시 생성 (AWAITING_PAYMENT). 검증 → 재고차감 → 주문 생성 → PrepareOrderResponse 반환. 결제 확인은
+   * TossConfirmService.confirmPayment().
    */
   @Transactional
-  public OrderResponse createOrder(Long customerId, CreateOrderRequest request) {
+  public PrepareOrderResponse createOrder(Long customerId, CreateOrderRequest request) {
 
     // ── 1. 결제 동의 검증 ─────────────────────────────────────────────────────
     if (!Boolean.TRUE.equals(request.paymentAgreed())) {
@@ -202,13 +200,13 @@ public class OrderService {
     // ── 7. 픽업 코드 생성 (4자리) ─────────────────────────────────────────────
     String pickupCode = String.format("%04d", ThreadLocalRandom.current().nextInt(10000));
 
-    // ── 8. 주문 생성 ──────────────────────────────────────────────────────────
+    // ── 8. 주문 임시 생성 (AWAITING_PAYMENT) ─────────────────────────────────
     Customer customer = customerRepository.getReferenceById(customerId);
     Order order =
         Order.builder()
             .customer(customer)
             .store(store)
-            .status(OrderStatus.PENDING)
+            .status(OrderStatus.AWAITING_PAYMENT)
             .totalPrice(payTotal)
             .pickupTime(pickupTime)
             .pickupType(request.pickup().type())
@@ -218,7 +216,6 @@ public class OrderService {
             .discountTotal(discountTotal)
             .build();
 
-    // 주문 항목 추가
     for (ResolvedItem item : resolvedItems) {
       OrderItem oi;
       if (item.kind() == ItemKind.DEAL) {
@@ -247,36 +244,26 @@ public class OrderService {
 
     Order savedOrder = orderRepository.save(order);
 
-    // ── 9. stub 결제 승인 ─────────────────────────────────────────────────────
-    PaymentCommand paymentCommand =
-        new PaymentCommand("order-" + savedOrder.getId(), payTotal, request.paymentMethod());
-    PaymentApproval approval = paymentGateway.approve(paymentCommand);
-
-    if (approval.status() != PaymentStatus.APPROVED) {
-      throw new BusinessException(OrderErrorCode.PAYMENT_FAILED);
-    }
-
-    // ── 10. Payment 저장 ──────────────────────────────────────────────────────
-    Payment payment =
-        Payment.builder()
-            .order(savedOrder)
-            .provider("TOSS")
-            .method(request.paymentMethod())
-            .paymentKey(approval.paymentKey())
-            .amount(payTotal)
-            .status(approval.status())
-            .approvedAt(approval.approvedAt())
-            .build();
-    paymentRepository.save(payment);
+    String tossOrderId = "order-" + savedOrder.getId();
+    String orderName = buildOrderName(resolvedItems);
 
     log.info(
-        "주문 생성됨. orderId={}, customerId={}, storeId={}, payTotal={}",
+        "주문 임시 생성됨. orderId={}, customerId={}, storeId={}, payTotal={}",
         savedOrder.getId(),
         customerId,
         store.getId(),
         payTotal);
 
-    return orderMapper.toResponse(savedOrder);
+    return new PrepareOrderResponse(savedOrder.getId(), tossOrderId, payTotal, orderName);
+  }
+
+  private String buildOrderName(List<ResolvedItem> items) {
+    if (items.isEmpty()) return "주문";
+    String first = items.get(0).name();
+    if (items.size() == 1) {
+      return first + " " + items.get(0).qty() + "개";
+    }
+    return first + " 외 " + (items.size() - 1) + "건";
   }
 
   /**
@@ -407,7 +394,7 @@ public class OrderService {
 
   // ── 주문 상태 전이 ────────────────────────────────────────────────────────────
 
-  /** 소비자 주문 취소. PENDING → CANCELLED. 자동 환불 stub (로그만). */
+  /** 소비자 주문 취소. PENDING → CANCELLED. 토스 환불 후 상태 전이. */
   @Transactional
   public OrderResponse cancelOrder(Long customerId, Long orderId) {
     Order order =
@@ -420,8 +407,8 @@ public class OrderService {
     if (order.getStatus() != OrderStatus.PENDING) {
       throw new BusinessException(OrderErrorCode.INVALID_ORDER_TRANSITION);
     }
+    refundPayment(orderId, "고객 취소");
     order.cancel(LocalDateTime.now(clock));
-    log.info("환불 stub: orderId={}, 실제 환불 Phase 6에서 구현", orderId);
     Order saved = orderRepository.save(order);
     return orderMapper.toResponse(saved);
   }
@@ -438,15 +425,15 @@ public class OrderService {
     return orderMapper.toSellerResponse(saved);
   }
 
-  /** 사장 주문 거절. PENDING → REJECTED. 자동 환불 stub (로그만). */
+  /** 사장 주문 거절. PENDING → REJECTED. 토스 환불 후 상태 전이. */
   @Transactional
   public SellerOrderResponse rejectOrder(Long sellerId, Long orderId) {
     Order order = findOrderForSeller(sellerId, orderId);
     if (order.getStatus() != OrderStatus.PENDING) {
       throw new BusinessException(OrderErrorCode.INVALID_ORDER_TRANSITION);
     }
+    refundPayment(orderId, "사장 거절");
     order.reject(LocalDateTime.now(clock));
-    log.info("환불 stub: orderId={}, 실제 환불 Phase 6에서 구현", orderId);
     Order saved = orderRepository.save(order);
     return orderMapper.toSellerResponse(saved);
   }
@@ -485,6 +472,20 @@ public class OrderService {
     order.noShow();
     Order saved = orderRepository.save(order);
     return orderMapper.toSellerResponse(saved);
+  }
+
+  /** 결제 취소(환불) 헬퍼. Payment 가 있으면 PG 취소 → Payment.cancel() 저장. */
+  private void refundPayment(Long orderId, String reason) {
+    paymentRepository
+        .findByOrderId(orderId)
+        .ifPresent(
+            payment -> {
+              paymentGateway.cancel(
+                  new PaymentCancellationCommand(
+                      payment.getPaymentKey(), reason, payment.getAmount()));
+              payment.cancel();
+              paymentRepository.save(payment);
+            });
   }
 
   /** 사장 전용: 주문 조회 + 본인 매장 검증. 공통 헬퍼. */

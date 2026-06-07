@@ -1,17 +1,25 @@
 package com.magampick.payment.service;
 
 /**
- * 결제 PG 추상화. Phase 5A: {@link StubPaymentGateway} (자동 승인). 실 토스 샌드박스 연동 시 {@code
- * TossPaymentGateway}(@Profile("!test"))로 교체 — stub 은 @Profile("test") 로 전환.
+ * 결제 PG 추상화. 테스트: {@link StubPaymentGateway} (@Profile("test")), 그 외: {@code TossPaymentGateway}.
  */
 public interface PaymentGateway {
 
   /**
    * 결제 승인 요청.
    *
-   * @param command 승인 커맨드 (금액, 멱등키, 수단)
+   * @param command 승인 커맨드 (paymentKey, 멱등키, 금액, 수단)
    * @return 승인 결과 (paymentKey, status, approvedAt)
-   * @throws com.magampick.global.exception.BusinessException PAYMENT_FAILED 시
+   * @throws com.magampick.global.exception.BusinessException 승인 실패 시
    */
   PaymentApproval approve(PaymentCommand command);
+
+  /**
+   * 결제 취소(환불) 요청.
+   *
+   * @param command 취소 커맨드 (paymentKey, 취소 사유, 취소 금액)
+   * @return 취소 결과 (paymentKey, CANCELED, cancelledAt)
+   * @throws com.magampick.global.exception.BusinessException 취소 실패 시
+   */
+  PaymentCancellation cancel(PaymentCancellationCommand command);
 }

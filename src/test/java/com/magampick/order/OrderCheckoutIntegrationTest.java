@@ -21,6 +21,7 @@ import com.magampick.order.dto.CreateOrderRequest.OrderItemRequest;
 import com.magampick.order.dto.CreateOrderRequest.PickupRequest;
 import com.magampick.payment.domain.Payment;
 import com.magampick.payment.domain.PaymentStatus;
+import com.magampick.payment.dto.TossConfirmRequest;
 import com.magampick.payment.repository.PaymentRepository;
 import com.magampick.product.domain.Product;
 import com.magampick.product.domain.ProductCategory;
@@ -53,8 +54,8 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * 주문 생성 + 결제 end-to-end 통합 테스트. 떨이 + 일반 상품 혼합 주문: 재고차감 + Payment APPROVED + 픽업코드 4자리 + status
- * PENDING 전 흐름 검증.
+ * 주문 생성 + 결제 end-to-end 통합 테스트. 2단계 플로우: POST /orders (AWAITING_PAYMENT) → POST
+ * /payments/toss/confirm (PENDING). 떨이 + 일반 상품 혼합 주문: 재고차감 + Payment APPROVED + 픽업코드 4자리 전 흐름 검증.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -82,29 +83,24 @@ class OrderCheckoutIntegrationTest {
     Store store = storeRepository.save(newStore(seller));
     storeBusinessHourRepository.save(todayBusinessHour(store));
 
-    // 떨이 상품 (remainingQuantity=10)
     ClearanceItem dealItem = clearanceItemRepository.save(newClearanceItem(store, 10));
-
-    // 일반 상품
     Product menuItem = productRepository.save(newProduct(store));
-
     String token = jwtProvider.issueAccessToken(customer.getId(), Role.CUSTOMER);
 
     CreateOrderRequest request =
         new CreateOrderRequest(
             store.getId(),
             List.of(
-                new OrderItemRequest(ItemKind.DEAL, dealItem.getId(), 2), // 2개
-                new OrderItemRequest(ItemKind.MENU, menuItem.getId(), 1) // 1개
-                ),
+                new OrderItemRequest(ItemKind.DEAL, dealItem.getId(), 2),
+                new OrderItemRequest(ItemKind.MENU, menuItem.getId(), 1)),
             new PickupRequest(PickupType.ASAP, null),
             "빵 나오면 바로 주세요",
             "toss",
             true,
             null);
 
-    // ── when ─────────────────────────────────────────────────────────────────
-    MvcResult result =
+    // ── 1단계: 주문 생성 → AWAITING_PAYMENT ────────────────────────────────────
+    MvcResult createResult =
         mockMvc
             .perform(
                 post("/api/v1/orders")
@@ -114,23 +110,41 @@ class OrderCheckoutIntegrationTest {
             .andExpect(status().isCreated())
             .andReturn();
 
-    // ── then — 응답 ────────────────────────────────────────────────────────────
-    JsonNode data = objectMapper.readTree(result.getResponse().getContentAsString()).path("data");
+    JsonNode createData =
+        objectMapper.readTree(createResult.getResponse().getContentAsString()).path("data");
+    long orderId = createData.path("orderId").asLong();
+    BigDecimal amount = new BigDecimal(createData.path("amount").asText());
 
-    assertThat(data.path("status").asText()).isEqualTo("PENDING");
-    assertThat(data.path("pickupCode").asText()).matches("\\d{4}");
-    assertThat(data.path("orderNo").asText()).isNotBlank();
-    assertThat(data.path("paymentMethod").asText()).isEqualTo("toss");
-    assertThat(data.path("items").isArray()).isTrue();
-    assertThat(data.path("items").size()).isEqualTo(2);
-    assertThat(data.path("amounts").path("payTotal").asLong()).isGreaterThan(0L);
+    assertThat(orderId).isPositive();
+    assertThat(createData.path("tossOrderId").asText()).isEqualTo("order-" + orderId);
+    assertThat(amount).isGreaterThan(BigDecimal.ZERO);
 
-    // ── then — 재고 차감 확인 ─────────────────────────────────────────────────
+    // 재고 차감은 주문 생성 시점에 완료
     ClearanceItem refreshedDeal = clearanceItemRepository.findById(dealItem.getId()).orElseThrow();
     assertThat(refreshedDeal.getRemainingQuantity()).isEqualTo(8); // 10 - 2 = 8
 
-    // ── then — Payment 저장 확인 ──────────────────────────────────────────────
-    Long orderId = data.path("id").asLong();
+    // ── 2단계: 결제 확인 → PENDING ────────────────────────────────────────────
+    TossConfirmRequest confirmRequest = new TossConfirmRequest("stub_test_paykey", orderId, amount);
+
+    MvcResult confirmResult =
+        mockMvc
+            .perform(
+                post("/api/v1/payments/toss/confirm")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(confirmRequest)))
+            .andExpect(status().isOk())
+            .andReturn();
+
+    JsonNode confirmData =
+        objectMapper.readTree(confirmResult.getResponse().getContentAsString()).path("data");
+    assertThat(confirmData.path("status").asText()).isEqualTo("PENDING");
+    assertThat(confirmData.path("pickupCode").asText()).matches("\\d{4}");
+    assertThat(confirmData.path("paymentMethod").asText()).isEqualTo("toss");
+    assertThat(confirmData.path("items").size()).isEqualTo(2);
+    assertThat(confirmData.path("amounts").path("payTotal").asLong()).isGreaterThan(0L);
+
+    // Payment 저장 확인
     Optional<Payment> paymentOpt =
         paymentRepository.findAll().stream()
             .filter(p -> p.getOrder().getId().equals(orderId))
