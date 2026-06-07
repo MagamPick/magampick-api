@@ -17,6 +17,7 @@ public enum OrderErrorCode implements BaseErrorCode {
   PAYMENT_FAILED(HttpStatus.CONFLICT, "PAYMENT_FAILED", "결제 승인에 실패했습니다"),
   ORDER_NOT_FOUND(HttpStatus.NOT_FOUND, "ORDER_NOT_FOUND", "주문을 찾을 수 없습니다"),
   ORDER_FORBIDDEN(HttpStatus.FORBIDDEN, "ORDER_FORBIDDEN", "본인 주문에만 접근할 수 있습니다"),
+  INVALID_ORDER_TRANSITION(HttpStatus.CONFLICT, "INVALID_ORDER_TRANSITION", "허용되지 않는 상태 전이입니다"),
   ;
 
   private final HttpStatus status;

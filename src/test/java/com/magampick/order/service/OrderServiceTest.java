@@ -778,4 +778,364 @@ class OrderServiceTest {
         .isInstanceOf(BusinessException.class)
         .hasFieldOrPropertyWithValue("errorCode", OrderErrorCode.ORDER_NOT_FOUND);
   }
+
+  // ── cancelOrder ─────────────────────────────────────────────────────────────
+
+  @Test
+  void 주문접수_상태에서_취소_성공() {
+    // given — PENDING 주문, customer.id=1
+    Store store = OrderFixture.aStore();
+    Order order = OrderFixture.anOrder(OrderFixture.aCustomer(), store); // PENDING
+    ReflectionTestUtils.setField(order, "id", 42L);
+    given(orderRepository.findById(42L)).willReturn(Optional.of(order));
+    ArgumentCaptor<Order> captor = ArgumentCaptor.forClass(Order.class);
+    given(orderRepository.save(captor.capture())).willReturn(order);
+    given(orderMapper.toResponse(any(Order.class))).willReturn(OrderFixture.anOrderResponse(42L));
+
+    // when
+    OrderResponse result = orderService.cancelOrder(CUSTOMER_ID, 42L);
+
+    // then
+    assertThat(result).isNotNull();
+    assertThat(captor.getValue().getStatus()).isEqualTo(OrderStatus.CANCELLED);
+    assertThat(captor.getValue().getCancelledAt()).isNotNull();
+    then(orderRepository).should().save(any(Order.class));
+  }
+
+  @Test
+  void 준비중_상태에서_취소시_409() {
+    // given — PREPARING 주문 → CANCELLED 불가
+    Store store = OrderFixture.aStore();
+    Order order =
+        OrderFixture.anOrderWithStatus(OrderFixture.aCustomer(), store, OrderStatus.PREPARING);
+    ReflectionTestUtils.setField(order, "id", 42L);
+    given(orderRepository.findById(42L)).willReturn(Optional.of(order));
+
+    // when / then
+    assertThatThrownBy(() -> orderService.cancelOrder(CUSTOMER_ID, 42L))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", OrderErrorCode.INVALID_ORDER_TRANSITION);
+    then(orderRepository).should(never()).save(any());
+  }
+
+  @Test
+  void 취소_주문없음_404() {
+    given(orderRepository.findById(99L)).willReturn(Optional.empty());
+
+    assertThatThrownBy(() -> orderService.cancelOrder(CUSTOMER_ID, 99L))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", OrderErrorCode.ORDER_NOT_FOUND);
+  }
+
+  @Test
+  void 취소_타인주문_403() {
+    // given — customer.id=1 의 주문, 접근자=999
+    Store store = OrderFixture.aStore();
+    Order order = OrderFixture.anOrder(OrderFixture.aCustomer(), store);
+    ReflectionTestUtils.setField(order, "id", 42L);
+    given(orderRepository.findById(42L)).willReturn(Optional.of(order));
+
+    assertThatThrownBy(() -> orderService.cancelOrder(999L, 42L))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", OrderErrorCode.ORDER_FORBIDDEN);
+  }
+
+  // ── acceptOrder ──────────────────────────────────────────────────────────────
+
+  @Test
+  void 사장_수락_성공() {
+    // given — PENDING 주문, store.seller.id=2
+    Store store = OrderFixture.aStore();
+    Order order = OrderFixture.anOrder(OrderFixture.aCustomer(), store); // PENDING
+    ReflectionTestUtils.setField(order, "id", 42L);
+    given(orderRepository.findById(42L)).willReturn(Optional.of(order));
+    ArgumentCaptor<Order> captor = ArgumentCaptor.forClass(Order.class);
+    given(orderRepository.save(captor.capture())).willReturn(order);
+    given(orderMapper.toSellerResponse(any(Order.class)))
+        .willReturn(OrderFixture.aSellerOrderResponse(42L));
+
+    // when
+    SellerOrderResponse result = orderService.acceptOrder(2L, 42L);
+
+    // then
+    assertThat(result).isNotNull();
+    assertThat(captor.getValue().getStatus()).isEqualTo(OrderStatus.PREPARING);
+    assertThat(captor.getValue().getAcceptedAt()).isNotNull();
+  }
+
+  @Test
+  void 비접수중_상태에서_수락시_409() {
+    // given — PREPARING 주문 → PENDING 이 아니므로 수락 불가
+    Store store = OrderFixture.aStore();
+    Order order =
+        OrderFixture.anOrderWithStatus(OrderFixture.aCustomer(), store, OrderStatus.PREPARING);
+    ReflectionTestUtils.setField(order, "id", 42L);
+    given(orderRepository.findById(42L)).willReturn(Optional.of(order));
+
+    assertThatThrownBy(() -> orderService.acceptOrder(2L, 42L))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", OrderErrorCode.INVALID_ORDER_TRANSITION);
+    then(orderRepository).should(never()).save(any());
+  }
+
+  @Test
+  void 사장_수락_주문없음_404() {
+    given(orderRepository.findById(99L)).willReturn(Optional.empty());
+
+    assertThatThrownBy(() -> orderService.acceptOrder(2L, 99L))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", OrderErrorCode.ORDER_NOT_FOUND);
+  }
+
+  @Test
+  void 사장_수락_타매장_403() {
+    // given — store.seller.id=2, 접근자=sellerId=999
+    Store store = OrderFixture.aStore();
+    Order order = OrderFixture.anOrder(OrderFixture.aCustomer(), store);
+    ReflectionTestUtils.setField(order, "id", 42L);
+    given(orderRepository.findById(42L)).willReturn(Optional.of(order));
+
+    assertThatThrownBy(() -> orderService.acceptOrder(999L, 42L))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", OrderErrorCode.ORDER_FORBIDDEN);
+  }
+
+  // ── rejectOrder ──────────────────────────────────────────────────────────────
+
+  @Test
+  void 사장_거절_성공() {
+    // given — PENDING 주문
+    Store store = OrderFixture.aStore();
+    Order order = OrderFixture.anOrder(OrderFixture.aCustomer(), store);
+    ReflectionTestUtils.setField(order, "id", 42L);
+    given(orderRepository.findById(42L)).willReturn(Optional.of(order));
+    ArgumentCaptor<Order> captor = ArgumentCaptor.forClass(Order.class);
+    given(orderRepository.save(captor.capture())).willReturn(order);
+    given(orderMapper.toSellerResponse(any(Order.class)))
+        .willReturn(OrderFixture.aSellerOrderResponse(42L));
+
+    // when
+    SellerOrderResponse result = orderService.rejectOrder(2L, 42L);
+
+    // then
+    assertThat(result).isNotNull();
+    assertThat(captor.getValue().getStatus()).isEqualTo(OrderStatus.REJECTED);
+    assertThat(captor.getValue().getRejectedAt()).isNotNull();
+  }
+
+  @Test
+  void 비접수중_상태에서_거절시_409() {
+    Store store = OrderFixture.aStore();
+    Order order =
+        OrderFixture.anOrderWithStatus(OrderFixture.aCustomer(), store, OrderStatus.PREPARING);
+    ReflectionTestUtils.setField(order, "id", 42L);
+    given(orderRepository.findById(42L)).willReturn(Optional.of(order));
+
+    assertThatThrownBy(() -> orderService.rejectOrder(2L, 42L))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", OrderErrorCode.INVALID_ORDER_TRANSITION);
+    then(orderRepository).should(never()).save(any());
+  }
+
+  @Test
+  void 사장_거절_주문없음_404() {
+    given(orderRepository.findById(99L)).willReturn(Optional.empty());
+
+    assertThatThrownBy(() -> orderService.rejectOrder(2L, 99L))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", OrderErrorCode.ORDER_NOT_FOUND);
+  }
+
+  @Test
+  void 사장_거절_타매장_403() {
+    Store store = OrderFixture.aStore();
+    Order order = OrderFixture.anOrder(OrderFixture.aCustomer(), store);
+    ReflectionTestUtils.setField(order, "id", 42L);
+    given(orderRepository.findById(42L)).willReturn(Optional.of(order));
+
+    assertThatThrownBy(() -> orderService.rejectOrder(999L, 42L))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", OrderErrorCode.ORDER_FORBIDDEN);
+  }
+
+  // ── readyOrder ───────────────────────────────────────────────────────────────
+
+  @Test
+  void 사장_준비완료_성공() {
+    // given — PREPARING 주문
+    Store store = OrderFixture.aStore();
+    Order order =
+        OrderFixture.anOrderWithStatus(OrderFixture.aCustomer(), store, OrderStatus.PREPARING);
+    ReflectionTestUtils.setField(order, "id", 42L);
+    given(orderRepository.findById(42L)).willReturn(Optional.of(order));
+    ArgumentCaptor<Order> captor = ArgumentCaptor.forClass(Order.class);
+    given(orderRepository.save(captor.capture())).willReturn(order);
+    given(orderMapper.toSellerResponse(any(Order.class)))
+        .willReturn(OrderFixture.aSellerOrderResponse(42L));
+
+    // when
+    SellerOrderResponse result = orderService.readyOrder(2L, 42L);
+
+    // then
+    assertThat(result).isNotNull();
+    assertThat(captor.getValue().getStatus()).isEqualTo(OrderStatus.READY);
+    assertThat(captor.getValue().getReadyAt()).isNotNull();
+  }
+
+  @Test
+  void 접수중_상태에서_준비완료시_409() {
+    // given — PENDING 주문 → PREPARING 이 아니므로 준비완료 불가
+    Store store = OrderFixture.aStore();
+    Order order = OrderFixture.anOrder(OrderFixture.aCustomer(), store); // PENDING
+    ReflectionTestUtils.setField(order, "id", 42L);
+    given(orderRepository.findById(42L)).willReturn(Optional.of(order));
+
+    assertThatThrownBy(() -> orderService.readyOrder(2L, 42L))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", OrderErrorCode.INVALID_ORDER_TRANSITION);
+    then(orderRepository).should(never()).save(any());
+  }
+
+  @Test
+  void 사장_준비완료_주문없음_404() {
+    given(orderRepository.findById(99L)).willReturn(Optional.empty());
+
+    assertThatThrownBy(() -> orderService.readyOrder(2L, 99L))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", OrderErrorCode.ORDER_NOT_FOUND);
+  }
+
+  @Test
+  void 사장_준비완료_타매장_403() {
+    Store store = OrderFixture.aStore();
+    Order order =
+        OrderFixture.anOrderWithStatus(OrderFixture.aCustomer(), store, OrderStatus.PREPARING);
+    ReflectionTestUtils.setField(order, "id", 42L);
+    given(orderRepository.findById(42L)).willReturn(Optional.of(order));
+
+    assertThatThrownBy(() -> orderService.readyOrder(999L, 42L))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", OrderErrorCode.ORDER_FORBIDDEN);
+  }
+
+  // ── completeOrder ────────────────────────────────────────────────────────────
+
+  @Test
+  void 사장_수령완료_성공() {
+    // given — READY 주문
+    Store store = OrderFixture.aStore();
+    Order order =
+        OrderFixture.anOrderWithStatus(OrderFixture.aCustomer(), store, OrderStatus.READY);
+    ReflectionTestUtils.setField(order, "id", 42L);
+    given(orderRepository.findById(42L)).willReturn(Optional.of(order));
+    ArgumentCaptor<Order> captor = ArgumentCaptor.forClass(Order.class);
+    given(orderRepository.save(captor.capture())).willReturn(order);
+    given(orderMapper.toSellerResponse(any(Order.class)))
+        .willReturn(OrderFixture.aSellerOrderResponse(42L));
+
+    // when
+    SellerOrderResponse result = orderService.completeOrder(2L, 42L);
+
+    // then
+    assertThat(result).isNotNull();
+    assertThat(captor.getValue().getStatus()).isEqualTo(OrderStatus.COMPLETED);
+    assertThat(captor.getValue().getCompletedAt()).isNotNull();
+  }
+
+  @Test
+  void 준비중_상태에서_수령완료시_409() {
+    // given — PREPARING 주문 → READY 가 아니므로 수령완료 불가
+    Store store = OrderFixture.aStore();
+    Order order =
+        OrderFixture.anOrderWithStatus(OrderFixture.aCustomer(), store, OrderStatus.PREPARING);
+    ReflectionTestUtils.setField(order, "id", 42L);
+    given(orderRepository.findById(42L)).willReturn(Optional.of(order));
+
+    assertThatThrownBy(() -> orderService.completeOrder(2L, 42L))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", OrderErrorCode.INVALID_ORDER_TRANSITION);
+    then(orderRepository).should(never()).save(any());
+  }
+
+  @Test
+  void 사장_수령완료_주문없음_404() {
+    given(orderRepository.findById(99L)).willReturn(Optional.empty());
+
+    assertThatThrownBy(() -> orderService.completeOrder(2L, 99L))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", OrderErrorCode.ORDER_NOT_FOUND);
+  }
+
+  @Test
+  void 사장_수령완료_타매장_403() {
+    Store store = OrderFixture.aStore();
+    Order order =
+        OrderFixture.anOrderWithStatus(OrderFixture.aCustomer(), store, OrderStatus.READY);
+    ReflectionTestUtils.setField(order, "id", 42L);
+    given(orderRepository.findById(42L)).willReturn(Optional.of(order));
+
+    assertThatThrownBy(() -> orderService.completeOrder(999L, 42L))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", OrderErrorCode.ORDER_FORBIDDEN);
+  }
+
+  // ── noShowOrder ──────────────────────────────────────────────────────────────
+
+  @Test
+  void 사장_미수령_성공() {
+    // given — READY 주문
+    Store store = OrderFixture.aStore();
+    Order order =
+        OrderFixture.anOrderWithStatus(OrderFixture.aCustomer(), store, OrderStatus.READY);
+    ReflectionTestUtils.setField(order, "id", 42L);
+    given(orderRepository.findById(42L)).willReturn(Optional.of(order));
+    ArgumentCaptor<Order> captor = ArgumentCaptor.forClass(Order.class);
+    given(orderRepository.save(captor.capture())).willReturn(order);
+    given(orderMapper.toSellerResponse(any(Order.class)))
+        .willReturn(OrderFixture.aSellerOrderResponse(42L));
+
+    // when
+    SellerOrderResponse result = orderService.noShowOrder(2L, 42L);
+
+    // then
+    assertThat(result).isNotNull();
+    assertThat(captor.getValue().getStatus()).isEqualTo(OrderStatus.NO_SHOW);
+  }
+
+  @Test
+  void 준비중_상태에서_미수령시_409() {
+    // given — PREPARING 주문 → READY 가 아니므로 미수령 불가
+    Store store = OrderFixture.aStore();
+    Order order =
+        OrderFixture.anOrderWithStatus(OrderFixture.aCustomer(), store, OrderStatus.PREPARING);
+    ReflectionTestUtils.setField(order, "id", 42L);
+    given(orderRepository.findById(42L)).willReturn(Optional.of(order));
+
+    assertThatThrownBy(() -> orderService.noShowOrder(2L, 42L))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", OrderErrorCode.INVALID_ORDER_TRANSITION);
+    then(orderRepository).should(never()).save(any());
+  }
+
+  @Test
+  void 사장_미수령_주문없음_404() {
+    given(orderRepository.findById(99L)).willReturn(Optional.empty());
+
+    assertThatThrownBy(() -> orderService.noShowOrder(2L, 99L))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", OrderErrorCode.ORDER_NOT_FOUND);
+  }
+
+  @Test
+  void 사장_미수령_타매장_403() {
+    Store store = OrderFixture.aStore();
+    Order order =
+        OrderFixture.anOrderWithStatus(OrderFixture.aCustomer(), store, OrderStatus.READY);
+    ReflectionTestUtils.setField(order, "id", 42L);
+    given(orderRepository.findById(42L)).willReturn(Optional.of(order));
+
+    assertThatThrownBy(() -> orderService.noShowOrder(999L, 42L))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", OrderErrorCode.ORDER_FORBIDDEN);
+  }
 }

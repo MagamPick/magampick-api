@@ -397,6 +397,100 @@ public class OrderService {
     return orderMapper.toSellerResponse(order);
   }
 
+  // ── 주문 상태 전이 ────────────────────────────────────────────────────────────
+
+  /** 소비자 주문 취소. PENDING → CANCELLED. 자동 환불 stub (로그만). */
+  @Transactional
+  public OrderResponse cancelOrder(Long customerId, Long orderId) {
+    Order order =
+        orderRepository
+            .findById(orderId)
+            .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
+    if (!order.getCustomer().getId().equals(customerId)) {
+      throw new BusinessException(OrderErrorCode.ORDER_FORBIDDEN);
+    }
+    if (order.getStatus() != OrderStatus.PENDING) {
+      throw new BusinessException(OrderErrorCode.INVALID_ORDER_TRANSITION);
+    }
+    order.cancel(LocalDateTime.now(clock));
+    log.info("환불 stub: orderId={}, 실제 환불 Phase 6에서 구현", orderId);
+    Order saved = orderRepository.save(order);
+    return orderMapper.toResponse(saved);
+  }
+
+  /** 사장 주문 수락. PENDING → PREPARING. */
+  @Transactional
+  public SellerOrderResponse acceptOrder(Long sellerId, Long orderId) {
+    Order order = findOrderForSeller(sellerId, orderId);
+    if (order.getStatus() != OrderStatus.PENDING) {
+      throw new BusinessException(OrderErrorCode.INVALID_ORDER_TRANSITION);
+    }
+    order.accept(LocalDateTime.now(clock));
+    Order saved = orderRepository.save(order);
+    return orderMapper.toSellerResponse(saved);
+  }
+
+  /** 사장 주문 거절. PENDING → REJECTED. 자동 환불 stub (로그만). */
+  @Transactional
+  public SellerOrderResponse rejectOrder(Long sellerId, Long orderId) {
+    Order order = findOrderForSeller(sellerId, orderId);
+    if (order.getStatus() != OrderStatus.PENDING) {
+      throw new BusinessException(OrderErrorCode.INVALID_ORDER_TRANSITION);
+    }
+    order.reject(LocalDateTime.now(clock));
+    log.info("환불 stub: orderId={}, 실제 환불 Phase 6에서 구현", orderId);
+    Order saved = orderRepository.save(order);
+    return orderMapper.toSellerResponse(saved);
+  }
+
+  /** 사장 준비완료. PREPARING → READY. */
+  @Transactional
+  public SellerOrderResponse readyOrder(Long sellerId, Long orderId) {
+    Order order = findOrderForSeller(sellerId, orderId);
+    if (order.getStatus() != OrderStatus.PREPARING) {
+      throw new BusinessException(OrderErrorCode.INVALID_ORDER_TRANSITION);
+    }
+    order.markReady(LocalDateTime.now(clock));
+    Order saved = orderRepository.save(order);
+    return orderMapper.toSellerResponse(saved);
+  }
+
+  /** 사장 수령완료. READY → COMPLETED. */
+  @Transactional
+  public SellerOrderResponse completeOrder(Long sellerId, Long orderId) {
+    Order order = findOrderForSeller(sellerId, orderId);
+    if (order.getStatus() != OrderStatus.READY) {
+      throw new BusinessException(OrderErrorCode.INVALID_ORDER_TRANSITION);
+    }
+    order.complete(LocalDateTime.now(clock));
+    Order saved = orderRepository.save(order);
+    return orderMapper.toSellerResponse(saved);
+  }
+
+  /** 사장 미수령. READY → NO_SHOW. */
+  @Transactional
+  public SellerOrderResponse noShowOrder(Long sellerId, Long orderId) {
+    Order order = findOrderForSeller(sellerId, orderId);
+    if (order.getStatus() != OrderStatus.READY) {
+      throw new BusinessException(OrderErrorCode.INVALID_ORDER_TRANSITION);
+    }
+    order.noShow();
+    Order saved = orderRepository.save(order);
+    return orderMapper.toSellerResponse(saved);
+  }
+
+  /** 사장 전용: 주문 조회 + 본인 매장 검증. 공통 헬퍼. */
+  private Order findOrderForSeller(Long sellerId, Long orderId) {
+    Order order =
+        orderRepository
+            .findById(orderId)
+            .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
+    if (!order.getStore().getSeller().getId().equals(sellerId)) {
+      throw new BusinessException(OrderErrorCode.ORDER_FORBIDDEN);
+    }
+    return order;
+  }
+
   private List<OrderStatus> resolveCustomerSegment(String segment) {
     if (segment == null) return CUSTOMER_ALL;
     return switch (segment.toUpperCase()) {
