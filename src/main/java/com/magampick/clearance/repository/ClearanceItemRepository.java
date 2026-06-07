@@ -50,6 +50,24 @@ public interface ClearanceItemRepository extends JpaRepository<ClearanceItem, Lo
   int closeExpiredItems(@Param("now") LocalDateTime now);
 
   /**
+   * 재고 조건부 차감 — 동시성 안전. remaining_quantity >= qty 인 경우에만 차감 실행. 재고 소진(remaining=0) 시 status 를
+   * SOLD_OUT 으로 전이. 영향 행 = 0 이면 재고 부족(OUT_OF_STOCK).
+   *
+   * @param id 떨이 상품 ID
+   * @param qty 차감할 수량
+   * @return 영향 행 수 (1 = 성공, 0 = 재고 부족)
+   */
+  @Modifying(clearAutomatically = true)
+  @Query(
+      "UPDATE ClearanceItem c"
+          + " SET c.remainingQuantity = c.remainingQuantity - :qty,"
+          + " c.status = CASE WHEN c.remainingQuantity - :qty = 0"
+          + " THEN com.magampick.clearance.domain.ClearanceItemStatus.SOLD_OUT"
+          + " ELSE c.status END"
+          + " WHERE c.id = :id AND c.remainingQuantity >= :qty")
+  int decrementStock(@Param("id") Long id, @Param("qty") int qty);
+
+  /**
    * 마감 임박 특가 조회 (홈 피드). 기본 주소지 5km 이내, OPEN 매장, 오늘 영업, status=OPEN 떨이 중 pickupEndAt ∈ [now, until].
    * 마감 가까운 순(ASC), LIMIT 5.
    *

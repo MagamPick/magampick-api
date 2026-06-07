@@ -25,7 +25,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/** 주문. Phase 5 이전 스키마 선반영 — 상태 전이 로직 / 결제 컬럼 없음. 리뷰 read-only (Phase 4) 를 위해 최소 구현. */
+/** 주문. Phase 5A: 주문 생성 + stub 결제 확정. */
 @Entity
 @Table(name = "orders")
 @Getter
@@ -48,14 +48,37 @@ public class Order extends BaseEntity {
   @Column(name = "status", nullable = false, length = 20)
   private OrderStatus status;
 
+  /** 결제액(payTotal). 쿠폰·포인트 미적용 = normalTotal - discountTotal. */
   @Column(name = "total_price", nullable = false, precision = 12, scale = 0)
   private BigDecimal totalPrice;
 
+  /** SLOT 픽업 시각(KST). ASAP = null. */
   @Column(name = "pickup_time")
   private LocalDateTime pickupTime;
 
   @Column(name = "deleted_at")
   private LocalDateTime deletedAt;
+
+  /** 픽업 유형 (ASAP / SLOT). Phase 5A 이전 주문은 null. */
+  @Enumerated(EnumType.STRING)
+  @Column(name = "pickup_type", length = 10)
+  private PickupType pickupType;
+
+  /** 픽업 인증 코드 4자리 숫자 문자열. */
+  @Column(name = "pickup_code", length = 4)
+  private String pickupCode;
+
+  /** 픽업 요청 메모 (≤80자, 선택). */
+  @Column(name = "memo", length = 80)
+  private String memo;
+
+  /** 정상가 합계 (모든 항목의 regularPrice × qty 합). */
+  @Column(name = "normal_total", precision = 12, scale = 0)
+  private BigDecimal normalTotal;
+
+  /** 할인 합계 (떨이 항목의 (regularPrice - salePrice) × qty 합). */
+  @Column(name = "discount_total", precision = 12, scale = 0)
+  private BigDecimal discountTotal;
 
   @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
   private List<OrderItem> orderItems = new ArrayList<>();
@@ -66,15 +89,30 @@ public class Order extends BaseEntity {
       Store store,
       OrderStatus status,
       BigDecimal totalPrice,
-      LocalDateTime pickupTime) {
+      LocalDateTime pickupTime,
+      PickupType pickupType,
+      String pickupCode,
+      String memo,
+      BigDecimal normalTotal,
+      BigDecimal discountTotal) {
     this.customer = customer;
     this.store = store;
-    this.status = status != null ? status : OrderStatus.RECEIVED;
+    this.status = status != null ? status : OrderStatus.PENDING;
     this.totalPrice = totalPrice != null ? totalPrice : BigDecimal.ZERO;
     this.pickupTime = pickupTime;
+    this.pickupType = pickupType;
+    this.pickupCode = pickupCode;
+    this.memo = memo;
+    this.normalTotal = normalTotal;
+    this.discountTotal = discountTotal;
   }
 
   public boolean isDeleted() {
     return deletedAt != null;
+  }
+
+  /** 주문 항목 추가. CascadeType.ALL 이 저장을 처리한다. */
+  public void addOrderItem(OrderItem item) {
+    this.orderItems.add(item);
   }
 }

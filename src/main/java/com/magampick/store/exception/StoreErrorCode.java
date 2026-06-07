@@ -36,6 +36,7 @@ public enum StoreErrorCode implements BaseErrorCode {
       HttpStatus.BAD_REQUEST, "BUSINESS_HOURS_INVALID_RANGE", "마감 시간은 오픈 시간 이후여야 합니다 (자정 넘김 미지원)"),
   TODAY_BUSINESS_HOURS_LOCKED(
       HttpStatus.CONFLICT, "TODAY_BUSINESS_HOURS_LOCKED", "영업 중에는 오늘 요일 영업시간을 변경할 수 없습니다"),
+  STORE_CLOSED(HttpStatus.CONFLICT, "STORE_CLOSED", "현재 영업중인 매장이 아닙니다"),
   ;
 
   private final HttpStatus status;
