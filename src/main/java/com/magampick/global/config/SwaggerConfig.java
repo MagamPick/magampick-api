@@ -5,7 +5,10 @@ import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
+import io.swagger.v3.oas.models.servers.Server;
+import java.util.List;
 import org.springdoc.core.models.GroupedOpenApi;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -15,19 +18,28 @@ public class SwaggerConfig {
 
   private static final String SECURITY_SCHEME_NAME = "BearerAuth";
 
+  @Value("${app.swagger.server-url:}")
+  private String swaggerServerUrl;
+
   @Bean
   public OpenAPI openAPI() {
-    return new OpenAPI()
-        .info(new Info().title("Magampick API").version("v1").description("마감 임박 베이커리/카페 픽업 플랫폼"))
-        .addSecurityItem(new SecurityRequirement().addList(SECURITY_SCHEME_NAME))
-        .components(
-            new Components()
-                .addSecuritySchemes(
-                    SECURITY_SCHEME_NAME,
-                    new SecurityScheme()
-                        .type(SecurityScheme.Type.HTTP)
-                        .scheme("bearer")
-                        .bearerFormat("JWT")));
+    OpenAPI api =
+        new OpenAPI()
+            .info(
+                new Info().title("Magampick API").version("v1").description("마감 임박 베이커리/카페 픽업 플랫폼"))
+            .addSecurityItem(new SecurityRequirement().addList(SECURITY_SCHEME_NAME))
+            .components(
+                new Components()
+                    .addSecuritySchemes(
+                        SECURITY_SCHEME_NAME,
+                        new SecurityScheme()
+                            .type(SecurityScheme.Type.HTTP)
+                            .scheme("bearer")
+                            .bearerFormat("JWT")));
+    if (!swaggerServerUrl.isBlank()) {
+      api.servers(List.of(new Server().url(swaggerServerUrl)));
+    }
+    return api;
   }
 
   @Bean
