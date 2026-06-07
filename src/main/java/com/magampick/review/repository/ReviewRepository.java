@@ -3,6 +3,7 @@ package com.magampick.review.repository;
 import com.magampick.review.domain.Review;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -53,4 +54,16 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
           + "JOIN o.orderItems oi "
           + "WHERE oi.clearanceItem.id = :clearanceItemId AND r.deletedAt IS NULL")
   List<Object[]> findClearanceItemRatingStats(@Param("clearanceItemId") Long clearanceItemId);
+
+  /** 주문별 리뷰 조회 (soft-delete 제외). */
+  Optional<Review> findByOrderIdAndDeletedAtIsNull(Long orderId);
+
+  /** 주문별 리뷰 조회 (soft-delete 포함, 중복 검사용). */
+  Optional<Review> findByOrderId(Long orderId);
+
+  /** 주문 ID 목록으로 배치 조회 (soft-delete 제외). */
+  List<Review> findByOrderIdInAndDeletedAtIsNull(Collection<Long> orderIds);
+
+  /** 소비자 본인 리뷰 목록 최신순 (soft-delete 제외). */
+  List<Review> findByCustomerIdAndDeletedAtIsNullOrderByCreatedAtDesc(Long customerId);
 }

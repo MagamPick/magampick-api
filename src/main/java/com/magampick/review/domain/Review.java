@@ -31,7 +31,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/** 리뷰. 주문(order) 단위 1:1. write 는 Phase 7 구현 예정 — 현재 read-only. */
+/** 리뷰. 주문(order) 단위 1:1. */
 @Entity
 @Table(name = "reviews")
 @Getter
@@ -89,8 +89,31 @@ public class Review extends BaseEntity {
     return deletedAt != null;
   }
 
-  /** soft-delete. Phase 7 리뷰 삭제 구현 시 사용. */
+  /** soft-delete. */
   public void delete() {
     this.deletedAt = LocalDateTime.now();
+  }
+
+  /** 리뷰 내용 수정. */
+  public void update(int rating, String content, Set<ReviewTag> newTags) {
+    this.rating = rating;
+    this.content = content;
+    this.tags.clear();
+    if (newTags != null) this.tags.addAll(newTags);
+  }
+
+  /** 이미지 전체 삭제 (수정 시 재업로드 전 호출). */
+  public void clearImages() {
+    this.reviewImages.clear();
+  }
+
+  /** 이미지 추가. */
+  public void addImage(ReviewImage image) {
+    this.reviewImages.add(image);
+  }
+
+  /** 사장 답글 존재 여부. */
+  public boolean hasReply() {
+    return this.reviewReply != null;
   }
 }

@@ -1,9 +1,11 @@
 package com.magampick.review.mapper;
 
+import com.magampick.order.domain.ItemKind;
 import com.magampick.order.domain.OrderItem;
 import com.magampick.review.domain.Review;
 import com.magampick.review.domain.ReviewImage;
 import com.magampick.review.domain.ReviewTag;
+import com.magampick.review.dto.MyReviewResponse;
 import com.magampick.review.dto.StoreReviewResponse;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -39,12 +41,53 @@ public interface ReviewMapper {
     if (items == null || items.isEmpty()) {
       return List.of();
     }
-    return items.stream()
-        .map(
-            oi ->
-                new StoreReviewResponse.ReviewedProduct(
-                    oi.getClearanceItem().getId(), "deal", oi.getClearanceItem().getName()))
-        .toList();
+    return items.stream().map(this::toStoreReviewedProduct).toList();
+  }
+
+  private StoreReviewResponse.ReviewedProduct toStoreReviewedProduct(OrderItem oi) {
+    Long productId =
+        oi.getItemKind() == ItemKind.DEAL ? oi.getClearanceItem().getId() : oi.getProduct().getId();
+    String kind = oi.getItemKind() == ItemKind.DEAL ? "deal" : "menu";
+    return new StoreReviewResponse.ReviewedProduct(productId, kind, oi.getName());
+  }
+
+  /** Review → MyReviewResponse 변환. */
+  default MyReviewResponse toMyReviewResponse(Review review) {
+    List<MyReviewResponse.ReviewedProduct> items =
+        review.getOrder().getOrderItems().stream()
+            .map(
+                oi -> {
+                  Long productId =
+                      oi.getItemKind() == ItemKind.DEAL
+                          ? oi.getClearanceItem().getId()
+                          : oi.getProduct().getId();
+                  String kind = oi.getItemKind() == ItemKind.DEAL ? "deal" : "menu";
+                  return new MyReviewResponse.ReviewedProduct(productId, kind, oi.getName());
+                })
+            .toList();
+
+    List<String> photos =
+        review.getReviewImages().stream()
+            .sorted(Comparator.comparingInt(ReviewImage::getSortOrder))
+            .map(ReviewImage::getUrl)
+            .toList();
+
+    List<String> tags = mapTagLabels(review.getTags());
+
+    String ownerReply =
+        review.getReviewReply() != null ? review.getReviewReply().getContent() : null;
+
+    return new MyReviewResponse(
+        review.getId(),
+        review.getStore().getId(),
+        review.getStore().getName(),
+        items,
+        review.getRating(),
+        review.getContent(),
+        tags,
+        photos,
+        toKst(review.getCreatedAt()),
+        ownerReply);
   }
 
   @Named("toPhotoUrls")
