@@ -198,19 +198,24 @@ erDiagram
         varchar status
     }
 
-    points {
-        bigint customer_id PK_FK
-        bigint balance
-        timestamp last_used_at
+    point_accruals {
+        bigint id PK
+        bigint customer_id FK
+        bigint order_id FK_nullable
+        bigint initial_amount
+        bigint remaining_amount
+        timestamp earned_at
+        timestamp expires_at
+        varchar status
     }
     point_transactions {
         bigint id PK
         bigint customer_id FK
         bigint order_id FK_nullable
-        bigint amount
-        varchar type
         varchar reason
-        timestamp expires_at
+        bigint amount
+        varchar store_name
+        timestamp occurred_at
     }
     coupons {
         bigint id PK
@@ -268,7 +273,7 @@ erDiagram
     customers ||--o{ reviews : "writes"
     customers ||--o{ inquiries : "submits"
     customers ||--|| notification_settings : "configures"
-    customers ||--|| points : "owns"
+    customers ||--o{ point_accruals : "earns"
     customers ||--o{ point_transactions : "records"
     customers ||--o{ user_coupons : "owns"
     customers ||--o{ review_reports : "files"
@@ -295,6 +300,7 @@ erDiagram
     orders ||--o{ order_items : "contains"
     orders ||--|| payments : "paid_by"
     orders ||--|| reviews : "reviewed_as"
+    orders ||--o{ point_accruals : "earns"
     orders ||--o{ point_transactions : "earns_or_uses"
     payments ||--o{ refunds : "refunded_by"
 
@@ -351,8 +357,8 @@ erDiagram
 - `review_reports` — 리뷰 신고
 
 ### Benefits
-- `points` — 사용자별 포인트 잔액 (캐시 + 마지막 사용 시각)
-- `point_transactions` — 적립/사용/만료 내역
+- `point_accruals` — 적립 lot (FIFO 차감 방식 잔량 관리, balance source of truth)
+- `point_transactions` — 포인트 내역 (적립·사용·만료·복원·회수 5사유)
 - `coupons` — 쿠폰 마스터 (관리자/이벤트 발급)
 - `user_coupons` — 사용자에게 발급된 쿠폰 인스턴스
 
