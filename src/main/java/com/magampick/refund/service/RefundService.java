@@ -95,6 +95,16 @@ public class RefundService {
     log.info(
         "환불 요청됨. refundId={}, orderId={}, customerId={}", savedRefund.getId(), orderId, customerId);
 
+    // ── 매장 사장에게 환불 요청 알림 ────────────────────────────────────────────
+    Long sellerId = order.getStore().getSeller().getId();
+    notificationService.notifySeller(
+        sellerId,
+        "refundRequest",
+        NotificationCategory.REFUND,
+        "환불 요청이 접수되었어요",
+        order.getCustomer().getNickname() + "님이 환불을 요청했어요. 3일 내 처리해 주세요.",
+        "/refunds");
+
     // ── OrderResponse with refund 반환 ────────────────────────────────────────
     RefundInfoResponse refundInfo = refundMapper.toInfoResponse(savedRefund);
     OrderResponse base = orderMapper.toResponse(order);
@@ -175,6 +185,39 @@ public class RefundService {
         .stream()
         .map(Refund::getId)
         .toList();
+  }
+
+  /** D+2 리마인드 대상 환불 목록. REQUESTED + requestedAt 2일 이전 + reminderSentAt IS NULL. */
+  @Transactional(readOnly = true)
+  public List<Refund> findReminderTargets() {
+    LocalDateTime threshold = LocalDateTime.now(clock).minusDays(2);
+    return refundRepository.findAllByStatusAndRequestedAtBeforeAndReminderSentAtIsNull(
+        RefundStatus.REQUESTED, threshold);
+  }
+
+  /** 리마인드 발송 + reminderSentAt 기록. 독립 트랜잭션(스케줄러가 건별 호출). 이미 발송됐거나 처리된 건은 skip. */
+  @Transactional
+  public void sendReminderAndMark(Long refundId) {
+    Refund refund =
+        refundRepository
+            .findById(refundId)
+            .orElseThrow(() -> new BusinessException(RefundErrorCode.REFUND_NOT_FOUND));
+    if (refund.getStatus() != RefundStatus.REQUESTED || refund.getReminderSentAt() != null) {
+      return; // 이미 처리됐거나 리마인드 발송 완료 — skip
+    }
+
+    Long sellerId = refund.getOrder().getStore().getSeller().getId();
+    notificationService.notifySeller(
+        sellerId,
+        "refundRequest",
+        NotificationCategory.REFUND,
+        "환불 처리 기한이 하루 남았어요",
+        "내일까지 처리하지 않으면 자동 승인됩니다.",
+        "/refunds");
+
+    refund.markReminderSent(LocalDateTime.now(clock));
+    refundRepository.save(refund);
+    log.info("환불 리마인드 발송됨. refundId={}", refundId);
   }
 
   /** 단건 자동 승인 + 혜택 정리. 독립 트랜잭션(스케줄러가 건별 호출). */
