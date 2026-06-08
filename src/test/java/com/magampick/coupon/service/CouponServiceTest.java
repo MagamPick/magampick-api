@@ -454,4 +454,20 @@ class CouponServiceTest {
     // then: 발급 시도 없음
     then(userCouponRepository).should(never()).save(any());
   }
+
+  // ── expireCoupons ─────────────────────────────────────────────────────────────
+
+  @Test
+  void 소멸배치_USABLE만료_EXPIRED() {
+    // given
+    injectClock();
+    given(userCouponRepository.expireUsableBefore(any(LocalDate.class))).willReturn(3);
+
+    // when
+    int result = couponService.expireCoupons();
+
+    // then
+    assertThat(result).isEqualTo(3);
+    then(userCouponRepository).should().expireUsableBefore(any(LocalDate.class));
+  }
 }

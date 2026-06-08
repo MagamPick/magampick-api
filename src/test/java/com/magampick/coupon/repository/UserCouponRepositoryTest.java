@@ -199,4 +199,49 @@ class UserCouponRepositoryTest {
     // then
     assertThat(claimed).isEmpty();
   }
+
+  // ── expireUsableBefore ────────────────────────────────────────────────────────
+
+  @Test
+  void expireUsableBefore_USABLE만료만_EXPIRED_USED는유지() {
+    // given
+    LocalDate today = LocalDate.now();
+
+    // 만료된 USABLE (expiresAt = 어제)
+    UserCoupon expiredUsable =
+        userCouponRepository.save(
+            UserCoupon.builder()
+                .customer(customer)
+                .coupon(coupon1)
+                .status(CouponStatus.USABLE)
+                .expiresAt(today.minusDays(1)) // 어제 = 만료
+                .issuedAt(LocalDateTime.now().minusDays(30))
+                .build());
+
+    // 유효한 USABLE (expiresAt = 미래)
+    UserCoupon validUsable =
+        userCouponRepository.save(
+            UserCoupon.builder()
+                .customer(customer)
+                .coupon(coupon2)
+                .status(CouponStatus.USABLE)
+                .expiresAt(today.plusDays(7)) // 미래 = 유효
+                .issuedAt(LocalDateTime.now().minusDays(1))
+                .build());
+
+    userCouponRepository.flush();
+
+    // when: today 기준으로 만료 처리
+    int updated = userCouponRepository.expireUsableBefore(today);
+
+    // then: 만료된 USABLE 1건만 EXPIRED 전이
+    assertThat(updated).isEqualTo(1);
+
+    UserCoupon refreshedExpired =
+        userCouponRepository.findById(expiredUsable.getId()).orElseThrow();
+    assertThat(refreshedExpired.getStatus()).isEqualTo(CouponStatus.EXPIRED);
+
+    UserCoupon refreshedValid = userCouponRepository.findById(validUsable.getId()).orElseThrow();
+    assertThat(refreshedValid.getStatus()).isEqualTo(CouponStatus.USABLE); // 유지
+  }
 }

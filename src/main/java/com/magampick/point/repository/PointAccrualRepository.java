@@ -2,6 +2,7 @@ package com.magampick.point.repository;
 
 import com.magampick.point.domain.PointAccrual;
 import com.magampick.point.domain.PointAccrualStatus;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -31,4 +32,21 @@ public interface PointAccrualRepository extends JpaRepository<PointAccrual, Long
    */
   List<PointAccrual> findByCustomerIdAndStatusOrderByEarnedAtAscIdAsc(
       Long customerId, PointAccrualStatus status);
+
+  /**
+   * 주문 ID 로 적립 lot 조회. clawback 시 주문에 연결된 EARN lot 을 찾는다.
+   *
+   * @param orderId 주문 ID
+   * @return 해당 주문의 적립 lot 목록
+   */
+  List<PointAccrual> findByOrderId(Long orderId);
+
+  /**
+   * 만료 기간이 경과한 ACTIVE 적립 lot 조회. 소멸 배치에서 사용.
+   *
+   * @param status 조회할 상태 (ACTIVE)
+   * @param now 기준 시각 — expiresAt 이 now 이전인 lot 만 반환
+   * @return 소멸 대상 적립 lot 목록
+   */
+  List<PointAccrual> findByStatusAndExpiresAtBefore(PointAccrualStatus status, LocalDateTime now);
 }

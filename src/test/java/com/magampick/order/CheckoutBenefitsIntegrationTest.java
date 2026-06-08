@@ -36,6 +36,9 @@ import com.magampick.product.domain.Product;
 import com.magampick.product.domain.ProductCategory;
 import com.magampick.product.domain.ProductStatus;
 import com.magampick.product.repository.ProductRepository;
+import com.magampick.refund.dto.RefundRequestRequest;
+import com.magampick.refund.repository.RefundRepository;
+import com.magampick.refund.service.RefundService;
 import com.magampick.seller.domain.Seller;
 import com.magampick.seller.repository.SellerRepository;
 import com.magampick.store.domain.OperationStatus;
@@ -85,6 +88,8 @@ class CheckoutBenefitsIntegrationTest {
   @Autowired PointTransactionRepository pointTransactionRepository;
   @Autowired OrderRepository orderRepository;
   @Autowired OrderService orderService;
+  @Autowired RefundService refundService;
+  @Autowired RefundRepository refundRepository;
   @Autowired JwtProvider jwtProvider;
 
   @Test
@@ -414,6 +419,143 @@ class CheckoutBenefitsIntegrationTest {
     // 잔액 증가 확인 (1000 - 500 + 10 = 510)
     long balance = pointAccrualRepository.sumActiveRemainingByCustomerId(customer.getId());
     assertThat(balance).isEqualTo(510L);
+  }
+
+  @Test
+  void 환불승인시_쿠폰포인트_복원_적립회수() throws Exception {
+    // ── given ─────────────────────────────────────────────────────────────
+    Customer customer = customerRepository.save(newCustomer());
+    Seller seller = sellerRepository.save(newSeller());
+    Store store = storeRepository.save(newStore(seller));
+    storeBusinessHourRepository.save(todayBusinessHour(store));
+    Product menuItem = productRepository.save(newMenuProduct(store));
+
+    // 쿠폰 발급 (AMOUNT 1000, 최소주문 2000)
+    Coupon coupon =
+        couponRepository.save(
+            Coupon.builder()
+                .kind(CouponKind.EVENT)
+                .label("환불테스트 1000원 쿠폰")
+                .discountType(CouponDiscountType.AMOUNT)
+                .discountValue(1000)
+                .minOrder(2000)
+                .validUntil(LocalDate.now().plusDays(30))
+                .active(true)
+                .build());
+
+    UserCoupon userCoupon =
+        userCouponRepository.save(
+            UserCoupon.builder()
+                .customer(customer)
+                .coupon(coupon)
+                .status(CouponStatus.USABLE)
+                .expiresAt(LocalDate.now().plusDays(30))
+                .issuedAt(LocalDateTime.now())
+                .build());
+
+    // 포인트 2000P 시드
+    pointAccrualRepository.save(
+        PointAccrual.builder()
+            .customer(customer)
+            .order(null)
+            .initialAmount(2000L)
+            .remainingAmount(2000L)
+            .earnedAt(LocalDateTime.now().minusDays(1))
+            .expiresAt(LocalDateTime.now().plusYears(1))
+            .status(PointAccrualStatus.ACTIVE)
+            .build());
+
+    String customerToken = jwtProvider.issueAccessToken(customer.getId(), Role.CUSTOMER);
+
+    // ── 1단계: 주문 생성 (쿠폰+포인트 500) ─────────────────────────────────
+    // menuSubtotal=3500, coupon=1000, point=500 → finalAmount=2000
+    CreateOrderRequest request =
+        new CreateOrderRequest(
+            store.getId(),
+            List.of(new OrderItemRequest(ItemKind.MENU, menuItem.getId(), 1)),
+            new PickupRequest(PickupType.ASAP, null),
+            null,
+            "toss",
+            true,
+            null,
+            userCoupon.getId(),
+            500);
+
+    MvcResult createResult =
+        mockMvc
+            .perform(
+                post("/api/v1/orders")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + customerToken)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(request)))
+            .andExpect(status().isCreated())
+            .andReturn();
+
+    JsonNode createData =
+        objectMapper.readTree(createResult.getResponse().getContentAsString()).path("data");
+    long orderId = createData.path("orderId").asLong();
+    BigDecimal amount = new BigDecimal(createData.path("amount").asText());
+
+    // ── 2단계: 결제 확인 (PENDING) ──────────────────────────────────────────
+    mockMvc
+        .perform(
+            post("/api/v1/payments/toss/confirm")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + customerToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        new TossConfirmRequest("stub_refund_benefit_key", orderId, amount))))
+        .andExpect(status().isOk());
+
+    // ── 3단계: COMPLETED 로 전이 (포인트 적립 발생) ──────────────────────────
+    orderService.acceptOrder(seller.getId(), orderId);
+    orderService.readyOrder(seller.getId(), orderId);
+    orderService.completeOrder(seller.getId(), orderId);
+
+    // 적립 확인
+    List<?> earnTxs =
+        pointTransactionRepository.findByCustomerIdAndReasonInOrderByOccurredAtDescIdDesc(
+            customer.getId(), List.of(PointReason.EARN));
+    assertThat(earnTxs).hasSize(1); // EARN lot 1개 생성됨
+
+    // EARN lot의 잔량 확인 (2000 - 500 + earnedPoints)
+    long balanceAfterEarn = pointAccrualRepository.sumActiveRemainingByCustomerId(customer.getId());
+    assertThat(balanceAfterEarn).isGreaterThan(0);
+
+    // ── 4단계: 환불 요청 ─────────────────────────────────────────────────────
+    refundService.requestRefund(
+        customer.getId(), orderId, new RefundRequestRequest("상품이 예상과 달랐어요"));
+
+    Long refundId = refundRepository.findByOrderId(orderId).orElseThrow().getId();
+
+    // ── 5단계: 환불 승인 (혜택 정리 트리거) ──────────────────────────────────
+    refundService.approveRefund(seller.getId(), refundId);
+
+    // ── 검증 ─────────────────────────────────────────────────────────────────
+
+    // 쿠폰 USABLE 복원 확인
+    UserCoupon refreshedCoupon = userCouponRepository.findById(userCoupon.getId()).orElseThrow();
+    assertThat(refreshedCoupon.getStatus()).isEqualTo(CouponStatus.USABLE);
+
+    // RESTORE 포인트 내역 확인 (사용 500P 복원)
+    var restoreTxs =
+        pointTransactionRepository.findByCustomerIdAndReasonInOrderByOccurredAtDescIdDesc(
+            customer.getId(), List.of(PointReason.RESTORE));
+    assertThat(restoreTxs).hasSize(1);
+    assertThat(restoreTxs.get(0).getAmount()).isEqualTo(500L);
+
+    // CLAWBACK 내역 확인 (적립분 회수됨)
+    var clawbackTxs =
+        pointTransactionRepository.findByCustomerIdAndReasonInOrderByOccurredAtDescIdDesc(
+            customer.getId(), List.of(PointReason.CLAWBACK));
+    assertThat(clawbackTxs).hasSize(1);
+    // clawback 금액 > 0 (earnedPoints 만큼 회수됨)
+    assertThat(clawbackTxs.get(0).getAmount()).isGreaterThan(0L);
+
+    // 최종 잔액: seed(2000) - use(500) + earn(N) - clawback(N) + restore(500) = 2000
+    // EARN과 CLAWBACK이 상쇄되어 원래 2000P 로 돌아옴
+    long finalBalance = pointAccrualRepository.sumActiveRemainingByCustomerId(customer.getId());
+    assertThat(finalBalance).isEqualTo(2000L);
   }
 
   // ── helper ────────────────────────────────────────────────────────────────

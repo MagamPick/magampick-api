@@ -370,6 +370,146 @@ class PointServiceTest {
     assertThat(txCaptor.getValue().getAmount()).isEqualTo(300L);
   }
 
+  // ── 회수(clawback) ──────────────────────────────────────────────────────────
+
+  @Test
+  void 회수_미사용분_전액_CLAWBACK() {
+    // given
+    injectClock();
+    Customer customer = customer();
+    Order order = mockOrder(customer);
+
+    // EARN lot: remainingAmount=1000 (미사용 전액)
+    LocalDateTime now = LocalDateTime.now(fixedClock);
+    PointAccrual earnLot = buildAccrual(customer, 1000L, now.minusDays(1));
+    given(pointAccrualRepository.findByOrderId(42L)).willReturn(List.of(earnLot));
+    given(pointAccrualRepository.saveAll(any())).willAnswer(inv -> inv.getArgument(0));
+    given(pointTransactionRepository.save(any(PointTransaction.class)))
+        .willAnswer(inv -> inv.getArgument(0));
+
+    // when
+    pointService.clawback(order);
+
+    // then: lot 전액 회수 → EXHAUSTED
+    assertThat(earnLot.getRemainingAmount()).isEqualTo(0L);
+    assertThat(earnLot.getStatus()).isEqualTo(PointAccrualStatus.EXHAUSTED);
+
+    // CLAWBACK 내역 저장 확인
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<PointTransaction> txCaptor = ArgumentCaptor.forClass(PointTransaction.class);
+    then(pointTransactionRepository).should().save(txCaptor.capture());
+    assertThat(txCaptor.getValue().getReason()).isEqualTo(PointReason.CLAWBACK);
+    assertThat(txCaptor.getValue().getAmount()).isEqualTo(1000L);
+  }
+
+  @Test
+  void 회수_일부사용분만() {
+    // given: 초기 1000P 중 700 사용 → remainingAmount=300
+    injectClock();
+    Customer customer = customer();
+    Order order = mockOrder(customer);
+
+    LocalDateTime now = LocalDateTime.now(fixedClock);
+    PointAccrual earnLot =
+        PointAccrual.builder()
+            .customer(customer)
+            .order(null)
+            .initialAmount(1000L)
+            .remainingAmount(300L) // 700 사용 후 300 남음
+            .earnedAt(now.minusDays(1))
+            .expiresAt(now.plusYears(1))
+            .status(PointAccrualStatus.ACTIVE)
+            .build();
+
+    given(pointAccrualRepository.findByOrderId(42L)).willReturn(List.of(earnLot));
+    given(pointAccrualRepository.saveAll(any())).willAnswer(inv -> inv.getArgument(0));
+    given(pointTransactionRepository.save(any(PointTransaction.class)))
+        .willAnswer(inv -> inv.getArgument(0));
+
+    // when
+    pointService.clawback(order);
+
+    // then: 남은 300 만 회수
+    assertThat(earnLot.getRemainingAmount()).isEqualTo(0L);
+    assertThat(earnLot.getStatus()).isEqualTo(PointAccrualStatus.EXHAUSTED);
+
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<PointTransaction> txCaptor = ArgumentCaptor.forClass(PointTransaction.class);
+    then(pointTransactionRepository).should().save(txCaptor.capture());
+    assertThat(txCaptor.getValue().getAmount()).isEqualTo(300L);
+  }
+
+  @Test
+  void 회수_전액사용시_회수0_내역없음() {
+    // given: remainingAmount=0 (이미 전부 사용됨) — clock/customer 불필요(트랜잭션 없음)
+    Order order = mock(Order.class);
+    lenient().when(order.getId()).thenReturn(42L);
+
+    LocalDateTime now = LocalDateTime.now(fixedClock);
+    PointAccrual exhaustedLot =
+        PointAccrual.builder()
+            .customer(customer())
+            .order(null)
+            .initialAmount(1000L)
+            .remainingAmount(0L)
+            .earnedAt(now.minusDays(1))
+            .expiresAt(now.plusYears(1))
+            .status(PointAccrualStatus.EXHAUSTED)
+            .build();
+
+    given(pointAccrualRepository.findByOrderId(42L)).willReturn(List.of(exhaustedLot));
+
+    // when
+    pointService.clawback(order);
+
+    // then: 회수 0 → 내역 없음
+    then(pointTransactionRepository).should(never()).save(any());
+    then(pointAccrualRepository).should(never()).saveAll(any());
+  }
+
+  // ── 소멸 배치(expireAccruals) ─────────────────────────────────────────────────
+
+  @Test
+  void 소멸배치_만료ACTIVE_EXPIRED전이_EXPIRE내역() {
+    // given
+    injectClock();
+    Customer customer = customer();
+    LocalDateTime now = LocalDateTime.now(fixedClock);
+
+    // 만료된 ACTIVE lot (remainingAmount=500)
+    PointAccrual expiredLot =
+        PointAccrual.builder()
+            .customer(customer)
+            .order(null)
+            .initialAmount(500L)
+            .remainingAmount(500L)
+            .earnedAt(now.minusYears(2))
+            .expiresAt(now.minusDays(1)) // 이미 만료
+            .status(PointAccrualStatus.ACTIVE)
+            .build();
+
+    given(pointAccrualRepository.findByStatusAndExpiresAtBefore(PointAccrualStatus.ACTIVE, now))
+        .willReturn(List.of(expiredLot));
+    given(pointAccrualRepository.saveAll(any())).willAnswer(inv -> inv.getArgument(0));
+    given(pointTransactionRepository.save(any(PointTransaction.class)))
+        .willAnswer(inv -> inv.getArgument(0));
+
+    // when
+    int count = pointService.expireAccruals();
+
+    // then: lot EXPIRED 전이
+    assertThat(expiredLot.getStatus()).isEqualTo(PointAccrualStatus.EXPIRED);
+    assertThat(expiredLot.getRemainingAmount()).isEqualTo(0L);
+    assertThat(count).isEqualTo(1);
+
+    // EXPIRE 내역 저장 확인
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<PointTransaction> txCaptor = ArgumentCaptor.forClass(PointTransaction.class);
+    then(pointTransactionRepository).should().save(txCaptor.capture());
+    assertThat(txCaptor.getValue().getReason()).isEqualTo(PointReason.EXPIRE);
+    assertThat(txCaptor.getValue().getAmount()).isEqualTo(500L);
+  }
+
   // ── helpers ──────────────────────────────────────────────────────────────────
 
   private PointAccrual buildAccrual(Customer customer, long amount, LocalDateTime earnedAt) {

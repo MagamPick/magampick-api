@@ -134,6 +134,72 @@ public class PointService {
     log.info("포인트 복원됨. orderId={}, amount={}", order.getId(), amount);
   }
 
+  /**
+   * 픽업 후 환불 시 해당 주문 적립분(EARN lot) 회수. 0 floor — 이미 사용한 잔량은 회수 불가.
+   *
+   * <p>IMPORTANT: clawback 은 restore 보다 먼저 실행해야 한다. findByOrderId 는 EARN lot 과 (나중에 생성될) RESTORE
+   * lot 을 모두 반환하므로, restore 로 새 lot 이 생기기 전에 호출해야 EARN lot 만 대상이 된다.
+   *
+   * @param order 환불 대상 주문
+   */
+  @Transactional
+  public void clawback(Order order) {
+    List<PointAccrual> lots = pointAccrualRepository.findByOrderId(order.getId());
+    long reclaimed = 0;
+    for (PointAccrual lot : lots) {
+      long r = lot.getRemainingAmount();
+      if (r > 0) {
+        lot.deduct(r);
+        reclaimed += r;
+      }
+    }
+    if (reclaimed > 0) {
+      pointAccrualRepository.saveAll(lots);
+      pointTransactionRepository.save(
+          PointTransaction.builder()
+              .customer(order.getCustomer())
+              .order(order)
+              .reason(PointReason.CLAWBACK)
+              .amount(reclaimed)
+              .storeName(order.getStore().getName())
+              .occurredAt(LocalDateTime.now(clock))
+              .build());
+      log.info("포인트 적립 회수됨. orderId={}, amount={}", order.getId(), reclaimed);
+    }
+  }
+
+  /**
+   * 만료 경과 ACTIVE lot 소멸 배치. expiresAt 이 현재 시각보다 이전인 ACTIVE lot 을 EXPIRED 로 전이.
+   *
+   * @return 처리한 lot 수
+   */
+  @Transactional
+  public int expireAccruals() {
+    LocalDateTime now = LocalDateTime.now(clock);
+    List<PointAccrual> lots =
+        pointAccrualRepository.findByStatusAndExpiresAtBefore(PointAccrualStatus.ACTIVE, now);
+    for (PointAccrual lot : lots) {
+      long r = lot.getRemainingAmount();
+      lot.expire();
+      if (r > 0) {
+        pointTransactionRepository.save(
+            PointTransaction.builder()
+                .customer(lot.getCustomer())
+                .order(null)
+                .reason(PointReason.EXPIRE)
+                .amount(r)
+                .storeName(null)
+                .occurredAt(now)
+                .build());
+      }
+    }
+    if (!lots.isEmpty()) {
+      pointAccrualRepository.saveAll(lots);
+    }
+    log.info("포인트 소멸 배치 완료. 처리 lot 수={}", lots.size());
+    return lots.size();
+  }
+
   /** 새 ACTIVE 포인트 lot + 거래 내역 공통 저장. earn/restore 에서 재사용. */
   private void recordAccrual(Order order, long amount, PointReason reason, LocalDateTime now) {
     pointAccrualRepository.save(
