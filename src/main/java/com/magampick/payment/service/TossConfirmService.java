@@ -2,6 +2,8 @@ package com.magampick.payment.service;
 
 import com.magampick.coupon.service.CouponService;
 import com.magampick.global.exception.BusinessException;
+import com.magampick.notification.domain.NotificationCategory;
+import com.magampick.notification.service.NotificationService;
 import com.magampick.order.domain.Order;
 import com.magampick.order.domain.OrderStatus;
 import com.magampick.order.dto.OrderResponse;
@@ -30,6 +32,7 @@ public class TossConfirmService {
   private final OrderMapper orderMapper;
   private final CouponService couponService;
   private final PointService pointService;
+  private final NotificationService notificationService;
 
   @Transactional
   public OrderResponse confirmPayment(Long customerId, TossConfirmRequest request) {
@@ -78,6 +81,14 @@ public class TossConfirmService {
             .approvedAt(approval.approvedAt())
             .build();
     paymentRepository.save(payment);
+
+    notificationService.notifySeller(
+        order.getStore().getSeller().getId(),
+        "newOrder",
+        NotificationCategory.ORDER,
+        "새 주문이 들어왔어요",
+        order.getCustomer().getNickname() + "님이 주문했어요.",
+        "/orders");
 
     log.info(
         "토스 결제 확인 완료. orderId={}, customerId={}, paymentKey={}",

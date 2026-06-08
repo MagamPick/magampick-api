@@ -9,6 +9,8 @@ import static org.mockito.BDDMockito.then;
 
 import com.magampick.coupon.service.CouponService;
 import com.magampick.global.exception.BusinessException;
+import com.magampick.notification.domain.NotificationCategory;
+import com.magampick.notification.service.NotificationService;
 import com.magampick.order.domain.Order;
 import com.magampick.order.domain.OrderStatus;
 import com.magampick.order.domain.PickupType;
@@ -40,6 +42,7 @@ class TossConfirmServiceTest {
   @Mock OrderMapper orderMapper;
   @Mock CouponService couponService;
   @Mock PointService pointService;
+  @Mock NotificationService notificationService;
 
   @InjectMocks TossConfirmService tossConfirmService;
 
@@ -167,6 +170,28 @@ class TossConfirmServiceTest {
     // then: finalAmount 기준으로 검증 통과 + 혜택 소비 호출됨
     then(couponService).should().use(99L);
     then(pointService).should().use(any(Order.class), eq(500L));
+  }
+
+  @Test
+  void 결제_확인_완료_시_사장에게_신규주문_알림_발송() {
+    // given — store.seller.id=2 (OrderFixture.aStore()), customer.nickname="테스터"
+    Order order = awaitingOrder();
+    given(orderRepository.findById(ORDER_ID)).willReturn(Optional.of(order));
+    given(paymentGateway.approve(any()))
+        .willReturn(new PaymentApproval(PAYMENT_KEY, PaymentStatus.APPROVED, LocalDateTime.now()));
+    given(paymentRepository.save(any())).willReturn(null);
+    given(orderMapper.toResponse(any())).willReturn(OrderFixture.anOrderResponse(ORDER_ID));
+
+    TossConfirmRequest req = new TossConfirmRequest(PAYMENT_KEY, ORDER_ID, AMOUNT);
+
+    // when
+    tossConfirmService.confirmPayment(CUSTOMER_ID, req);
+
+    // then — 사장(id=2)에게 newOrder 설정 키로 알림 발송
+    then(notificationService)
+        .should()
+        .notifySeller(
+            eq(2L), eq("newOrder"), eq(NotificationCategory.ORDER), any(), any(), eq("/orders"));
   }
 
   @Test

@@ -22,6 +22,8 @@ import com.magampick.coupon.exception.CouponErrorCode;
 import com.magampick.coupon.service.CouponService;
 import com.magampick.customer.repository.CustomerRepository;
 import com.magampick.global.exception.BusinessException;
+import com.magampick.notification.domain.NotificationCategory;
+import com.magampick.notification.service.NotificationService;
 import com.magampick.order.domain.ItemKind;
 import com.magampick.order.domain.Order;
 import com.magampick.order.domain.OrderStatus;
@@ -89,6 +91,7 @@ class OrderServiceTest {
   @Mock Clock clock;
   @Mock CouponService couponService;
   @Mock PointService pointService;
+  @Mock NotificationService notificationService;
 
   @InjectMocks OrderService orderService;
 
@@ -115,6 +118,7 @@ class OrderServiceTest {
         refundMapper,
         couponService,
         pointService,
+        notificationService,
         fixedClock);
   }
 
@@ -1372,5 +1376,115 @@ class OrderServiceTest {
 
     // then
     then(pointService).should().earn(any(Order.class), eq(45L));
+  }
+
+  // ── 알림 발송 ────────────────────────────────────────────────────────────────
+
+  @Test
+  void 주문_수락_시_소비자에게_알림_발송() {
+    // given — PENDING 주문, customer.id=1, store.name="동네빵집"
+    Store store = OrderFixture.aStore();
+    Order order = OrderFixture.anOrder(OrderFixture.aCustomer(), store);
+    ReflectionTestUtils.setField(order, "id", 42L);
+    given(orderRepository.findById(42L)).willReturn(Optional.of(order));
+    given(orderRepository.save(any(Order.class))).willReturn(order);
+    given(orderMapper.toSellerResponse(any(Order.class)))
+        .willReturn(OrderFixture.aSellerOrderResponse(42L));
+
+    // when
+    orderService.acceptOrder(2L, 42L);
+
+    // then — 소비자(id=1)에게 orderRefund 설정 키로 알림 발송
+    then(notificationService)
+        .should()
+        .notifyCustomer(
+            eq(1L), eq("orderRefund"), eq(NotificationCategory.ORDER), any(), any(), eq("/orders"));
+  }
+
+  @Test
+  void 준비완료_시_소비자에게_알림_발송() {
+    // given — PREPARING 주문
+    Store store = OrderFixture.aStore();
+    Order order =
+        OrderFixture.anOrderWithStatus(OrderFixture.aCustomer(), store, OrderStatus.PREPARING);
+    ReflectionTestUtils.setField(order, "id", 42L);
+    given(orderRepository.findById(42L)).willReturn(Optional.of(order));
+    given(orderRepository.save(any(Order.class))).willReturn(order);
+    given(orderMapper.toSellerResponse(any(Order.class)))
+        .willReturn(OrderFixture.aSellerOrderResponse(42L));
+
+    // when
+    orderService.readyOrder(2L, 42L);
+
+    // then
+    then(notificationService)
+        .should()
+        .notifyCustomer(
+            eq(1L), eq("orderRefund"), eq(NotificationCategory.ORDER), any(), any(), eq("/orders"));
+  }
+
+  @Test
+  void 픽업완료_시_소비자에게_알림_발송() {
+    // given — READY 주문
+    Store store = OrderFixture.aStore();
+    Order order =
+        OrderFixture.anOrderWithStatus(OrderFixture.aCustomer(), store, OrderStatus.READY);
+    ReflectionTestUtils.setField(order, "id", 42L);
+    given(orderRepository.findById(42L)).willReturn(Optional.of(order));
+    given(orderRepository.save(any(Order.class))).willReturn(order);
+    given(orderMapper.toSellerResponse(any(Order.class)))
+        .willReturn(OrderFixture.aSellerOrderResponse(42L));
+
+    // when
+    orderService.completeOrder(2L, 42L);
+
+    // then
+    then(notificationService)
+        .should()
+        .notifyCustomer(
+            eq(1L), eq("orderRefund"), eq(NotificationCategory.ORDER), any(), any(), eq("/orders"));
+  }
+
+  @Test
+  void 주문_취소_시_사장에게_알림_발송() {
+    // given — PENDING 주문, store.seller.id=2
+    Store store = OrderFixture.aStore();
+    Order order = OrderFixture.anOrder(OrderFixture.aCustomer(), store);
+    ReflectionTestUtils.setField(order, "id", 42L);
+    given(orderRepository.findById(42L)).willReturn(Optional.of(order));
+    given(orderRepository.save(any(Order.class))).willReturn(order);
+    given(orderMapper.toResponse(any(Order.class))).willReturn(OrderFixture.anOrderResponse(42L));
+    given(paymentRepository.findByOrderId(42L)).willReturn(Optional.empty());
+
+    // when
+    orderService.cancelOrder(CUSTOMER_ID, 42L);
+
+    // then — 사장(id=2)에게 orderCancel 설정 키로 알림 발송
+    then(notificationService)
+        .should()
+        .notifySeller(
+            eq(2L), eq("orderCancel"), eq(NotificationCategory.ORDER), any(), any(), eq("/orders"));
+  }
+
+  @Test
+  void 주문_거절_시_소비자에게_알림_발송() {
+    // given — PENDING 주문, customer.id=1
+    Store store = OrderFixture.aStore();
+    Order order = OrderFixture.anOrder(OrderFixture.aCustomer(), store);
+    ReflectionTestUtils.setField(order, "id", 42L);
+    given(orderRepository.findById(42L)).willReturn(Optional.of(order));
+    given(orderRepository.save(any(Order.class))).willReturn(order);
+    given(orderMapper.toSellerResponse(any(Order.class)))
+        .willReturn(OrderFixture.aSellerOrderResponse(42L));
+    given(paymentRepository.findByOrderId(42L)).willReturn(Optional.empty());
+
+    // when
+    orderService.rejectOrder(2L, 42L);
+
+    // then
+    then(notificationService)
+        .should()
+        .notifyCustomer(
+            eq(1L), eq("orderRefund"), eq(NotificationCategory.ORDER), any(), any(), eq("/orders"));
   }
 }

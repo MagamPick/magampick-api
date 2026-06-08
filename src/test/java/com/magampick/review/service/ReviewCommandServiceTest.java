@@ -3,12 +3,15 @@ package com.magampick.review.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
 import com.magampick.customer.domain.Customer;
 import com.magampick.customer.repository.CustomerRepository;
 import com.magampick.global.exception.BusinessException;
+import com.magampick.notification.domain.NotificationCategory;
+import com.magampick.notification.service.NotificationService;
 import com.magampick.order.domain.Order;
 import com.magampick.order.domain.OrderStatus;
 import com.magampick.order.repository.OrderRepository;
@@ -48,6 +51,7 @@ class ReviewCommandServiceTest {
   @Mock CustomerRepository customerRepository;
   @Mock SellerRepository sellerRepository;
   @Mock ReviewMapper reviewMapper;
+  @Mock NotificationService notificationService;
 
   @InjectMocks ReviewCommandService reviewCommandService;
 
@@ -410,5 +414,71 @@ class ReviewCommandServiceTest {
         List.of(),
         List.of(),
         null);
+  }
+
+  // ── 알림 발송 ────────────────────────────────────────────────────────────────
+
+  @Test
+  void 리뷰_작성_시_사장에게_알림_발송() {
+    // given — store.seller.id=SELLER_ID(2L), customer.nickname="테스터"
+    Customer customer = buildCustomer(CUSTOMER_ID);
+    Store store = buildStore(SELLER_ID);
+    Order order = buildOrder(ORDER_ID, customer, store, OrderStatus.COMPLETED);
+    CreateReviewRequest req =
+        new CreateReviewRequest(5, "맛있어요", Set.of(ReviewTag.FRESH), List.of());
+    Review review = buildReview(REVIEW_ID, customer, order, store);
+    MyReviewResponse expected = buildMyReviewResponse(REVIEW_ID);
+
+    given(orderRepository.findById(ORDER_ID)).willReturn(Optional.of(order));
+    given(reviewRepository.findByOrderId(ORDER_ID)).willReturn(Optional.empty());
+    given(customerRepository.findById(CUSTOMER_ID)).willReturn(Optional.of(customer));
+    given(reviewRepository.save(any())).willReturn(review);
+    given(reviewMapper.toMyReviewResponse(review)).willReturn(expected);
+
+    // when
+    reviewCommandService.createReview(CUSTOMER_ID, ORDER_ID, req);
+
+    // then — 사장(id=SELLER_ID)에게 newReview 설정 키로 알림 발송
+    then(notificationService)
+        .should()
+        .notifySeller(
+            eq(SELLER_ID),
+            eq("newReview"),
+            eq(NotificationCategory.REVIEW),
+            any(),
+            any(),
+            eq("/reviews"));
+  }
+
+  @Test
+  void 답글_작성_시_소비자에게_알림_발송() {
+    // given — review.customer.id=CUSTOMER_ID(1L)
+    Seller seller = buildSeller(SELLER_ID);
+    Customer customer = buildCustomer(CUSTOMER_ID);
+    Store store = buildStore(SELLER_ID);
+    Order order = buildOrder(ORDER_ID, customer, store, OrderStatus.COMPLETED);
+    Review review = buildReview(REVIEW_ID, customer, order, store);
+    ReviewReplyRequest req = new ReviewReplyRequest("감사합니다!");
+    StoreReviewResponse expected = buildStoreReviewResponse(REVIEW_ID);
+
+    given(sellerRepository.findById(SELLER_ID)).willReturn(Optional.of(seller));
+    given(reviewRepository.findById(REVIEW_ID)).willReturn(Optional.of(review));
+    given(reviewReplyRepository.existsByReviewId(REVIEW_ID)).willReturn(false);
+    given(reviewReplyRepository.save(any())).willReturn(null);
+    given(reviewMapper.toResponse(review)).willReturn(expected);
+
+    // when
+    reviewCommandService.replyToReview(SELLER_ID, REVIEW_ID, req);
+
+    // then — 소비자(id=CUSTOMER_ID)에게 reviewReply 설정 키로 알림 발송
+    then(notificationService)
+        .should()
+        .notifyCustomer(
+            eq(CUSTOMER_ID),
+            eq("reviewReply"),
+            eq(NotificationCategory.REVIEW),
+            any(),
+            any(),
+            eq("/my/reviews"));
   }
 }
