@@ -157,6 +157,71 @@ public class CouponService {
   }
 
   /**
+   * 체크아웃 시 쿠폰 사용 처리. 만료 확인 후 원자적 USABLE→USED 전이 (동시 사용 경쟁 조건 방지).
+   *
+   * @param userCouponId 사용할 UserCoupon ID
+   * @throws BusinessException COUPON_NOT_FOUND / COUPON_NOT_AVAILABLE
+   */
+  @Transactional
+  public void use(Long userCouponId) {
+    UserCoupon uc =
+        userCouponRepository
+            .findById(userCouponId)
+            .orElseThrow(() -> new BusinessException(CouponErrorCode.COUPON_NOT_FOUND));
+    if (uc.isExpiredAt(LocalDate.now(clock))) {
+      throw new BusinessException(CouponErrorCode.COUPON_NOT_AVAILABLE);
+    }
+    int updated = userCouponRepository.markUsed(userCouponId, LocalDateTime.now(clock));
+    if (updated == 0) { // 동시 사용 / 이미 USED
+      throw new BusinessException(CouponErrorCode.COUPON_NOT_AVAILABLE);
+    }
+  }
+
+  /**
+   * 취소/환불 시 쿠폰 복원. 만료된 쿠폰(expiresAt 경과)은 복원하지 않는다. isExpiredAt 은 USABLE 상태에서만 true 를 반환하므로, USED
+   * 상태의 만료 여부는 expiresAt 직접 비교.
+   *
+   * @param userCouponId 복원할 UserCoupon ID
+   * @throws BusinessException COUPON_NOT_FOUND
+   */
+  @Transactional
+  public void restore(Long userCouponId) {
+    UserCoupon uc =
+        userCouponRepository
+            .findById(userCouponId)
+            .orElseThrow(() -> new BusinessException(CouponErrorCode.COUPON_NOT_FOUND));
+    if (uc.getExpiresAt().isBefore(LocalDate.now(clock))) {
+      return; // 만료된 쿠폰은 복원 X
+    }
+    if (uc.getStatus() == CouponStatus.USED) {
+      uc.restore();
+    }
+  }
+
+  /**
+   * 체크아웃 쿠폰 검증 조회. coupon 페치 포함. 타인 쿠폰 / 사용 불가 쿠폰은 예외.
+   *
+   * @param userCouponId UserCoupon ID
+   * @param customerId 요청자 소비자 ID
+   * @return 검증된 UserCoupon (coupon 로드 완료)
+   * @throws BusinessException COUPON_NOT_FOUND / COUPON_NOT_AVAILABLE
+   */
+  @Transactional(readOnly = true)
+  public UserCoupon getUsableForOrder(Long userCouponId, Long customerId) {
+    UserCoupon uc =
+        userCouponRepository
+            .findByIdWithCoupon(userCouponId)
+            .orElseThrow(() -> new BusinessException(CouponErrorCode.COUPON_NOT_FOUND));
+    if (!uc.getCustomer().getId().equals(customerId)) {
+      throw new BusinessException(CouponErrorCode.COUPON_NOT_AVAILABLE);
+    }
+    if (uc.getStatus() != CouponStatus.USABLE || uc.isExpiredAt(LocalDate.now(clock))) {
+      throw new BusinessException(CouponErrorCode.COUPON_NOT_AVAILABLE);
+    }
+    return uc;
+  }
+
+  /**
    * 가입 축하 쿠폰 자동 발급. SIGNUP 마스터가 없으면 경고 후 건너뜀.
    *
    * @param customer 이미 저장된 소비자 엔티티

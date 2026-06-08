@@ -1,5 +1,6 @@
 package com.magampick.payment.service;
 
+import com.magampick.coupon.service.CouponService;
 import com.magampick.global.exception.BusinessException;
 import com.magampick.order.domain.Order;
 import com.magampick.order.domain.OrderStatus;
@@ -11,6 +12,7 @@ import com.magampick.payment.domain.PaymentStatus;
 import com.magampick.payment.dto.TossConfirmRequest;
 import com.magampick.payment.exception.PaymentErrorCode;
 import com.magampick.payment.repository.PaymentRepository;
+import com.magampick.point.service.PointService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -26,6 +28,8 @@ public class TossConfirmService {
   private final PaymentRepository paymentRepository;
   private final PaymentGateway paymentGateway;
   private final OrderMapper orderMapper;
+  private final CouponService couponService;
+  private final PointService pointService;
 
   @Transactional
   public OrderResponse confirmPayment(Long customerId, TossConfirmRequest request) {
@@ -42,20 +46,26 @@ public class TossConfirmService {
       throw new BusinessException(PaymentErrorCode.PAYMENT_STATUS_MISMATCH);
     }
 
-    if (order.getTotalPrice().compareTo(request.amount()) != 0) {
+    if (order.getFinalAmount().compareTo(request.amount()) != 0) {
       throw new BusinessException(PaymentErrorCode.PAYMENT_AMOUNT_MISMATCH);
     }
 
     PaymentCommand command =
         new PaymentCommand(
-            request.paymentKey(), "order-" + order.getId(), order.getTotalPrice(), "toss");
+            request.paymentKey(), "order-" + order.getId(), order.getFinalAmount(), "toss");
     PaymentApproval approval = paymentGateway.approve(command);
 
     if (approval.status() != PaymentStatus.APPROVED) {
       throw new BusinessException(PaymentErrorCode.PAYMENT_GATEWAY_ERROR);
     }
 
+    if (order.getUserCouponId() != null) couponService.use(order.getUserCouponId());
+    if (order.getPointUsed() != null && order.getPointUsed() > 0)
+      pointService.use(order, order.getPointUsed());
     order.activate();
+    // markUsed(@Modifying clearAutomatically=true) 가 EntityManager 를 비워 order 가 detached 되므로
+    // 명시적 save 로 PENDING 상태를 DB 에 반영한다.
+    orderRepository.save(order);
 
     Payment payment =
         Payment.builder()

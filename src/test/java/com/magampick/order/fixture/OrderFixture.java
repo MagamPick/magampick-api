@@ -173,6 +173,8 @@ public class OrderFixture {
         null,
         "toss",
         true,
+        null,
+        null,
         null);
   }
 
@@ -184,6 +186,8 @@ public class OrderFixture {
         null,
         "toss",
         true,
+        null,
+        null,
         null);
   }
 
@@ -198,6 +202,8 @@ public class OrderFixture {
         null,
         "toss",
         true,
+        null,
+        null,
         null);
   }
 
@@ -213,7 +219,9 @@ public class OrderFixture {
         base.memo(),
         base.paymentMethod(),
         base.paymentAgreed(),
-        new AmountsRequest(normalTotal, discountTotal, payTotal));
+        new AmountsRequest(normalTotal, discountTotal, payTotal, null, null, null, null),
+        base.userCouponId(),
+        base.pointToUse());
   }
 
   public static CreateOrderRequest withPickup(CreateOrderRequest base, PickupRequest pickup) {
@@ -224,7 +232,9 @@ public class OrderFixture {
         base.memo(),
         base.paymentMethod(),
         base.paymentAgreed(),
-        base.amounts());
+        base.amounts(),
+        base.userCouponId(),
+        base.pointToUse());
   }
 
   public static CreateOrderRequest withPaymentAgreed(CreateOrderRequest base, Boolean agreed) {
@@ -235,7 +245,9 @@ public class OrderFixture {
         base.memo(),
         base.paymentMethod(),
         agreed,
-        base.amounts());
+        base.amounts(),
+        base.userCouponId(),
+        base.pointToUse());
   }
 
   // ── Order 엔티티 ─────────────────────────────────────────────────────────────
@@ -254,6 +266,29 @@ public class OrderFixture {
         .pickupCode("3827")
         .normalTotal(new BigDecimal("9000"))
         .discountTotal(new BigDecimal("3000"))
+        .finalAmount(new BigDecimal("6000"))
+        .build();
+  }
+
+  /**
+   * 쿠폰(1000) + 포인트(500) 적용된 Order 픽스처. totalPrice=6000, finalAmount=4500, userCouponId=99,
+   * earnedPoints=45.
+   */
+  public static Order anOrderWithBenefits(Customer customer, Store store) {
+    return Order.builder()
+        .customer(customer)
+        .store(store)
+        .status(OrderStatus.PENDING)
+        .totalPrice(new BigDecimal("6000"))
+        .pickupType(PickupType.ASAP)
+        .pickupCode("3827")
+        .normalTotal(new BigDecimal("9000"))
+        .discountTotal(new BigDecimal("3000"))
+        .couponDiscount(new BigDecimal("1000"))
+        .pointUsed(500L)
+        .earnedPoints(45L)
+        .finalAmount(new BigDecimal("4500"))
+        .userCouponId(99L)
         .build();
   }
 

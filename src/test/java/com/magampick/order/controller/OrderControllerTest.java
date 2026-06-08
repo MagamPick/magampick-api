@@ -59,6 +59,8 @@ class OrderControllerTest {
             null,
             "toss",
             true,
+            null,
+            null,
             null);
     return objectMapper.writeValueAsString(req);
   }
@@ -206,6 +208,8 @@ class OrderControllerTest {
             null,
             "kakao",
             true,
+            null,
+            null,
             null);
 
     mockMvc
@@ -229,6 +233,8 @@ class OrderControllerTest {
             null,
             "toss",
             true,
+            null,
+            null,
             null);
 
     mockMvc
@@ -253,6 +259,8 @@ class OrderControllerTest {
             longMemo,
             "toss",
             true,
+            null,
+            null,
             null);
 
     mockMvc

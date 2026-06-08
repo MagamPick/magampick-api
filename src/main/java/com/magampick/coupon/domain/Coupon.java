@@ -9,6 +9,8 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import lombok.AccessLevel;
 import lombok.Builder;
@@ -63,6 +65,39 @@ public class Coupon extends BaseEntity {
 
   @Column(name = "active", nullable = false)
   private boolean active;
+
+  /**
+   * 주문에 쿠폰 적용 가능 여부. menuSubtotal > 0 이고 minOrder 이상인 경우에만 가능.
+   *
+   * @param menuSubtotal 메뉴 소계 (쿠폰 할인 전 금액)
+   * @return 적용 가능하면 true
+   */
+  public boolean isApplicableTo(BigDecimal menuSubtotal) {
+    return menuSubtotal.signum() > 0 && menuSubtotal.compareTo(BigDecimal.valueOf(minOrder)) >= 0;
+  }
+
+  /**
+   * 쿠폰 할인 금액 계산.
+   *
+   * <ul>
+   *   <li>RATE: menuSubtotal × discountValue / 100 (내림, 1원 미만 버림)
+   *   <li>AMOUNT: min(discountValue, menuSubtotal)
+   * </ul>
+   *
+   * @param menuSubtotal 메뉴 소계 (쿠폰 할인 전 금액)
+   * @return 할인 금액
+   */
+  public BigDecimal calcDiscount(BigDecimal menuSubtotal) {
+    if (discountType == CouponDiscountType.RATE) {
+      // discountValue > 100 이라도 menuSubtotal 을 초과하지 않도록 클램프
+      return menuSubtotal
+          .multiply(BigDecimal.valueOf(discountValue))
+          .divide(BigDecimal.valueOf(100), 0, RoundingMode.FLOOR)
+          .min(menuSubtotal);
+    }
+    // AMOUNT
+    return BigDecimal.valueOf(discountValue).min(menuSubtotal);
+  }
 
   @Builder
   private Coupon(
