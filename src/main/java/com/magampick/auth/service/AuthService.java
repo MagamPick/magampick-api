@@ -31,6 +31,8 @@ import com.magampick.customer.repository.CustomerRepository;
 import com.magampick.global.exception.BusinessException;
 import com.magampick.global.exception.CommonErrorCode;
 import com.magampick.global.security.Role;
+import com.magampick.notification.service.CustomerNotificationSettingService;
+import com.magampick.notification.service.SellerNotificationSettingService;
 import com.magampick.phone.service.PhoneVerificationService;
 import com.magampick.seller.domain.Seller;
 import com.magampick.seller.exception.SellerErrorCode;
@@ -73,6 +75,8 @@ public class AuthService {
   private final StoreService storeService;
   private final TransactionTemplate transactionTemplate;
   private final CouponService couponService;
+  private final CustomerNotificationSettingService customerNotificationSettingService;
+  private final SellerNotificationSettingService sellerNotificationSettingService;
 
   public EmailAvailabilityResponse checkEmailAvailability(Role role, String email) {
     boolean exists =
@@ -117,6 +121,7 @@ public class AuthService {
     termService.recordAgreements(customer, request.agreedTermIds());
     addressService.create(customer.getId(), request.address());
     couponService.grantSignupCoupon(customer);
+    customerNotificationSettingService.createDefault(customer.getId());
 
     log.info("소비자 회원가입 완료. customerId={}", customer.getId());
     return refreshTokenService.issueTokens(customer.getId(), Role.CUSTOMER);
@@ -161,6 +166,7 @@ public class AuthService {
                         .build());
             termService.recordSellerAgreements(seller, request.agreedTermIds());
             storeService.createStore(seller, prepared);
+            sellerNotificationSettingService.createDefault(seller.getId());
 
             log.info("사장 회원가입 완료. sellerId={}", seller.getId());
             return refreshTokenService.issueTokens(seller.getId(), Role.SELLER);
@@ -241,6 +247,7 @@ public class AuthService {
     termService.recordAgreements(customer, request.agreedTermIds());
     addressService.create(customer.getId(), request.address());
     couponService.grantSignupCoupon(customer);
+    customerNotificationSettingService.createDefault(customer.getId());
 
     log.info("카카오 신규 회원 가입 완료. customerId={}", customer.getId());
     return refreshTokenService.issueTokens(customer.getId(), Role.CUSTOMER);
