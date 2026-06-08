@@ -65,6 +65,9 @@ public class ClearanceItem extends BaseEntity {
   @Column(name = "status", nullable = false, length = 20)
   private ClearanceItemStatus status;
 
+  @Column(name = "closing_alert_sent_at")
+  private LocalDateTime closingAlertSentAt;
+
   @Builder
   private ClearanceItem(
       Store store,
@@ -111,5 +114,10 @@ public class ClearanceItem extends BaseEntity {
 
   public void close() {
     this.status = ClearanceItemStatus.CLOSED;
+  }
+
+  /** 마감 임박 알림 발송 완료 표시. */
+  public void markClosingAlertSent(LocalDateTime now) {
+    this.closingAlertSentAt = now;
   }
 }
