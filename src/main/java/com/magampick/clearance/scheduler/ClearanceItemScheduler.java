@@ -1,6 +1,7 @@
 package com.magampick.clearance.scheduler;
 
 import com.magampick.clearance.service.ClearanceItemService;
+import com.magampick.clearance.service.ClearanceNotificationService;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +17,7 @@ public class ClearanceItemScheduler {
   private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
   private final ClearanceItemService clearanceItemService;
+  private final ClearanceNotificationService clearanceNotificationService;
 
   @Scheduled(cron = "0 */5 * * * *")
   public void autoCloseExpiredItems() {
@@ -23,5 +25,10 @@ public class ClearanceItemScheduler {
     if (count > 0) {
       log.info("자동 마감 처리됨. count={}", count);
     }
+  }
+
+  @Scheduled(cron = "0 */5 * * * *")
+  public void sendClosingAlerts() {
+    clearanceNotificationService.sendClosingAlerts(LocalDateTime.now(KST));
   }
 }

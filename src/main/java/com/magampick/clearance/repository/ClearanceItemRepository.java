@@ -50,6 +50,19 @@ public interface ClearanceItemRepository extends JpaRepository<ClearanceItem, Lo
   int closeExpiredItems(@Param("now") LocalDateTime now);
 
   /**
+   * 마감 임박 알림 대상 조회. OPEN 상태이고 closingAlertSentAt 이 없으며 pickupEndAt 이 [from, to] 범위인 떨이. 스케줄러에서
+   * 주기적으로 호출하여 60분 전 알림 발송 대상을 선별한다.
+   *
+   * @param status {@link ClearanceItemStatus#OPEN}
+   * @param from pickupEndAt 하한 (now + 55분)
+   * @param to pickupEndAt 상한 (now + 65분)
+   * @return 알림 발송 대상 떨이 목록 (store 초기화 포함)
+   */
+  @EntityGraph(attributePaths = "store")
+  List<ClearanceItem> findAllByStatusAndClosingAlertSentAtIsNullAndPickupEndAtBetween(
+      ClearanceItemStatus status, LocalDateTime from, LocalDateTime to);
+
+  /**
    * 재고 조건부 차감 — 동시성 안전. remaining_quantity >= qty 인 경우에만 차감 실행. 재고 소진(remaining=0) 시 status 를
    * SOLD_OUT 으로 전이. 영향 행 = 0 이면 재고 부족(OUT_OF_STOCK).
    *

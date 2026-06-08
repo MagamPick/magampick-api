@@ -5,6 +5,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
 import com.magampick.clearance.service.ClearanceItemService;
+import com.magampick.clearance.service.ClearanceNotificationService;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -16,6 +17,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class ClearanceItemSchedulerTest {
 
   @Mock ClearanceItemService clearanceItemService;
+  @Mock ClearanceNotificationService clearanceNotificationService;
   @InjectMocks ClearanceItemScheduler clearanceItemScheduler;
 
   @Test

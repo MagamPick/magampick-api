@@ -40,6 +40,7 @@ public class ClearanceItemService {
   private final ProductRepository productRepository;
   private final StoreRepository storeRepository;
   private final ClearanceItemMapper clearanceItemMapper;
+  private final ClearanceNotificationService clearanceNotificationService;
 
   @Transactional
   public ClearanceItemResponse registerClearanceItem(
@@ -97,6 +98,7 @@ public class ClearanceItemService {
         request.productId(),
         storeId,
         sellerId);
+    clearanceNotificationService.notifyNewClearanceItem(item);
     return clearanceItemMapper.toResponse(item);
   }
 

@@ -41,6 +41,15 @@ public interface FavoriteRepository extends JpaRepository<Favorite, Long> {
       @Param("cid") Long customerId, @Param("lat") double lat, @Param("lng") double lng);
 
   /**
+   * 특정 매장을 즐겨찾기한 소비자 ID 목록 반환. 떨이 등록·임박 알림 발송 대상 계산용.
+   *
+   * @param storeId 매장 ID
+   * @return 즐겨찾기한 소비자 ID 목록
+   */
+  @Query("SELECT f.customer.id FROM Favorite f WHERE f.store.id = :storeId")
+  List<Long> findCustomerIdsByStoreId(@Param("storeId") Long storeId);
+
+  /**
    * 소비자 단골 배치 조회 — N+1 방지. 후보 storeIds 중 customerId 의 즐겨찾기인 store_id 목록 반환.
    *
    * @param customerId 소비자 ID

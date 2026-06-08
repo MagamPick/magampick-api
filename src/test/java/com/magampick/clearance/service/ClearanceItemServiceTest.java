@@ -51,6 +51,7 @@ class ClearanceItemServiceTest {
   @Mock ProductRepository productRepository;
   @Mock StoreRepository storeRepository;
   @Mock ClearanceItemMapper clearanceItemMapper;
+  @Mock ClearanceNotificationService clearanceNotificationService;
   @InjectMocks ClearanceItemService clearanceItemService;
 
   private static final Long SELLER_ID = 1L;
@@ -134,6 +135,34 @@ class ClearanceItemServiceTest {
     assertThat(response.id()).isEqualTo(CLEARANCE_ITEM_ID);
     assertThat(response.status()).isEqualTo(ClearanceItemStatus.OPEN);
     then(clearanceItemRepository).should().saveAndFlush(any(ClearanceItem.class));
+  }
+
+  @Test
+  void 떨이_등록_성공_시_알림_발송_호출됨() {
+    // given
+    Store store = store();
+    Product prod = product(ProductStatus.ON_SALE);
+    ClearanceItemCreateRequest request = ClearanceItemFixture.aCreateRequest(PRODUCT_ID);
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
+        .willReturn(Optional.of(prod));
+    given(clearanceItemRepository.existsByProductIdAndStatus(PRODUCT_ID, ClearanceItemStatus.OPEN))
+        .willReturn(false);
+    given(clearanceItemRepository.saveAndFlush(any(ClearanceItem.class)))
+        .willAnswer(
+            inv -> {
+              ClearanceItem item = inv.getArgument(0);
+              ReflectionTestUtils.setField(item, "id", CLEARANCE_ITEM_ID);
+              return item;
+            });
+    given(clearanceItemMapper.toResponse(any(ClearanceItem.class)))
+        .willReturn(ClearanceItemFixture.aResponse(CLEARANCE_ITEM_ID));
+
+    // when
+    clearanceItemService.registerClearanceItem(SELLER_ID, STORE_ID, request);
+
+    // then — 알림 서비스 호출 확인
+    then(clearanceNotificationService).should().notifyNewClearanceItem(any(ClearanceItem.class));
   }
 
   @Test
