@@ -18,7 +18,7 @@ public class BenefitExpiryScheduler {
   private final PointService pointService;
   private final CouponService couponService;
 
-  /** 매일 04:00 KST — 포인트 소멸 + 쿠폰 소멸. 각 배치는 독립 실행 — 한쪽 실패가 다른 쪽을 막지 않음. */
+  /** 매일 04:00 KST — 포인트 소멸 + 쿠폰 소멸 + 소멸 예정 알림. 각 단계는 독립 실행 — 한쪽 실패가 다른 쪽을 막지 않음. */
   @Scheduled(cron = "0 0 4 * * *", zone = "Asia/Seoul")
   public void expireBenefits() {
     try {
@@ -31,6 +31,15 @@ public class BenefitExpiryScheduler {
     } catch (Exception e) {
       log.error("쿠폰 소멸 배치 실패", e);
     }
-    // TODO(Phase 7): 소멸 예정 알림(포인트 30일 전 / 쿠폰 7일 전) — notification 도메인 구현 후 트리거 연결
+    try {
+      pointService.notifyExpiringAccruals();
+    } catch (Exception e) {
+      log.error("포인트 소멸 예정 알림 배치 실패", e);
+    }
+    try {
+      couponService.notifyExpiringCoupons();
+    } catch (Exception e) {
+      log.error("쿠폰 소멸 예정 알림 배치 실패", e);
+    }
   }
 }

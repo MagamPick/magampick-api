@@ -1,5 +1,6 @@
 package com.magampick.coupon.repository;
 
+import com.magampick.coupon.domain.CouponStatus;
 import com.magampick.coupon.domain.UserCoupon;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -65,4 +66,22 @@ public interface UserCouponRepository extends JpaRepository<UserCoupon, Long> {
           + "where uc.status = com.magampick.coupon.domain.CouponStatus.USABLE "
           + "and uc.expiresAt < :today")
   int expireUsableBefore(@Param("today") LocalDate today);
+
+  /**
+   * 만료 7일 전 알림 대상 USABLE 쿠폰 조회. expiresAt 이 [from, to] 범위이고 아직 알림 미발송인 쿠폰.
+   *
+   * @param status 조회할 상태 (USABLE)
+   * @param from 기준 시작 (inclusive)
+   * @param to 기준 종료 (inclusive)
+   * @return 알림 대상 UserCoupon 목록
+   */
+  @Query(
+      "select uc from UserCoupon uc join fetch uc.coupon join fetch uc.customer "
+          + "where uc.status = :status "
+          + "and uc.expiresAt between :from and :to "
+          + "and uc.expiryAlertSentAt is null")
+  List<UserCoupon> findExpiringForAlert(
+      @Param("status") CouponStatus status,
+      @Param("from") LocalDate from,
+      @Param("to") LocalDate to);
 }

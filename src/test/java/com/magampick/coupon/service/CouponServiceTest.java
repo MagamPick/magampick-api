@@ -25,6 +25,8 @@ import com.magampick.coupon.repository.UserCouponRepository;
 import com.magampick.customer.domain.Customer;
 import com.magampick.customer.repository.CustomerRepository;
 import com.magampick.global.exception.BusinessException;
+import com.magampick.notification.domain.NotificationCategory;
+import com.magampick.notification.service.NotificationService;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -47,6 +49,7 @@ class CouponServiceTest {
   @Mock UserCouponRepository userCouponRepository;
   @Mock CustomerRepository customerRepository;
   @Mock CouponMapper couponMapper;
+  @Mock NotificationService notificationService;
 
   // 2026-06-08 KST 고정 Clock
   private final Clock fixedClock =
@@ -171,6 +174,16 @@ class CouponServiceTest {
     // then
     assertThat(result).isEqualTo(expectedResponse);
     then(userCouponRepository).should().saveAndFlush(any(UserCoupon.class));
+    // 발급 알림 발송됨
+    then(notificationService)
+        .should()
+        .notifyCustomer(
+            eq(CUSTOMER_ID),
+            eq("eventBenefit"),
+            eq(NotificationCategory.BENEFIT),
+            any(String.class),
+            any(String.class),
+            any(String.class));
   }
 
   @Test
@@ -437,8 +450,17 @@ class CouponServiceTest {
     // when
     couponService.grantSignupCoupon(customer);
 
-    // then: UserCoupon 저장됨
+    // then: UserCoupon 저장됨 + 발급 알림
     then(userCouponRepository).should().save(any(UserCoupon.class));
+    then(notificationService)
+        .should()
+        .notifyCustomer(
+            eq(CUSTOMER_ID),
+            eq("eventBenefit"),
+            eq(NotificationCategory.BENEFIT),
+            any(String.class),
+            any(String.class),
+            any(String.class));
   }
 
   @Test
@@ -469,5 +491,52 @@ class CouponServiceTest {
     // then
     assertThat(result).isEqualTo(3);
     then(userCouponRepository).should().expireUsableBefore(any(LocalDate.class));
+  }
+
+  // ── notifyExpiringCoupons ────────────────────────────────────────────────────
+
+  @Test
+  void 소멸예정알림_7일이내_쿠폰_발송() {
+    // given
+    injectClock();
+    Customer customer = customer();
+    Coupon coupon = CouponFixture.aSignupCoupon();
+    UserCoupon uc = CouponFixture.aUsableUserCoupon(customer, coupon);
+
+    given(
+            userCouponRepository.findExpiringForAlert(
+                eq(CouponStatus.USABLE), any(LocalDate.class), any(LocalDate.class)))
+        .willReturn(List.of(uc));
+
+    // when
+    couponService.notifyExpiringCoupons();
+
+    // then: 알림 발송 + sentAt 마킹
+    then(notificationService)
+        .should()
+        .notifyCustomer(
+            eq(CUSTOMER_ID),
+            eq("eventBenefit"),
+            eq(NotificationCategory.BENEFIT),
+            any(String.class),
+            any(String.class),
+            any(String.class));
+    assertThat(uc.getExpiryAlertSentAt()).isNotNull();
+  }
+
+  @Test
+  void 소멸예정알림_대상없으면_발송안함() {
+    // given
+    injectClock();
+    given(
+            userCouponRepository.findExpiringForAlert(
+                any(), any(LocalDate.class), any(LocalDate.class)))
+        .willReturn(List.of());
+
+    // when
+    couponService.notifyExpiringCoupons();
+
+    // then
+    then(notificationService).shouldHaveNoInteractions();
   }
 }

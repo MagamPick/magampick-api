@@ -55,6 +55,14 @@ public class UserCoupon extends BaseEntity {
   @Column(name = "used_at")
   private LocalDateTime usedAt;
 
+  /** 만료 7일 전 알림 발송 시각. 발송 전 null. */
+  @Column(name = "expiry_alert_sent_at")
+  private LocalDateTime expiryAlertSentAt;
+
+  public void markExpiryAlertSent(LocalDateTime now) {
+    this.expiryAlertSentAt = now;
+  }
+
   /** 만료 방어판정: USABLE 인데 기준일 이전에 만료됐는가. */
   public boolean isExpiredAt(LocalDate date) {
     return status == CouponStatus.USABLE && expiresAt.isBefore(date);

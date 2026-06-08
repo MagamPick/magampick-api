@@ -1,6 +1,8 @@
 package com.magampick.point.service;
 
 import com.magampick.global.exception.BusinessException;
+import com.magampick.notification.domain.NotificationCategory;
+import com.magampick.notification.service.NotificationService;
 import com.magampick.order.domain.Order;
 import com.magampick.point.domain.PointAccrual;
 import com.magampick.point.domain.PointAccrualStatus;
@@ -15,7 +17,10 @@ import com.magampick.point.repository.PointAccrualRepository;
 import com.magampick.point.repository.PointTransactionRepository;
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -31,6 +36,7 @@ public class PointService {
   private final PointAccrualRepository pointAccrualRepository;
   private final PointTransactionRepository pointTransactionRepository;
   private final PointTransactionMapper pointTransactionMapper;
+  private final NotificationService notificationService;
   private final Clock clock;
 
   /**
@@ -198,6 +204,48 @@ public class PointService {
     }
     log.info("포인트 소멸 배치 완료. 처리 lot 수={}", lots.size());
     return lots.size();
+  }
+
+  /**
+   * 소멸 30일 전 알림 발송. ACTIVE lot 중 now~now+30일 만료이고 미발송인 lot 을 고객별로 합산해 알림 1건.
+   *
+   * <p>알림 1건 실패가 다른 고객에게 영향을 주지 않도록 고객 단위로 try-catch.
+   */
+  @Transactional
+  public void notifyExpiringAccruals() {
+    LocalDateTime now = LocalDateTime.now(clock);
+    LocalDateTime thirtyDaysLater = now.plusDays(30);
+    List<PointAccrual> lots =
+        pointAccrualRepository.findExpiringForAlert(
+            PointAccrualStatus.ACTIVE, now, thirtyDaysLater);
+    if (lots.isEmpty()) {
+      return;
+    }
+
+    // 고객별 합산 (LinkedHashMap — 삽입 순서 유지)
+    Map<Long, Long> sumByCustomer = new LinkedHashMap<>();
+    Map<Long, List<PointAccrual>> lotsByCustomer = new LinkedHashMap<>();
+    for (PointAccrual lot : lots) {
+      Long cid = lot.getCustomer().getId();
+      sumByCustomer.merge(cid, lot.getRemainingAmount(), Long::sum);
+      lotsByCustomer.computeIfAbsent(cid, k -> new ArrayList<>()).add(lot);
+    }
+
+    for (Map.Entry<Long, Long> entry : sumByCustomer.entrySet()) {
+      Long cid = entry.getKey();
+      try {
+        notificationService.notifyCustomer(
+            cid,
+            "eventBenefit",
+            NotificationCategory.BENEFIT,
+            "포인트가 곧 소멸돼요",
+            entry.getValue() + "P이 30일 내에 만료됩니다. 지금 사용해보세요!",
+            "/points");
+        lotsByCustomer.get(cid).forEach(lot -> lot.markExpiryAlertSent(now));
+      } catch (Exception e) {
+        log.warn("포인트 소멸 예정 알림 발송 실패. customerId={}", cid, e);
+      }
+    }
   }
 
   /** 새 ACTIVE 포인트 lot + 거래 내역 공통 저장. earn/restore 에서 재사용. */

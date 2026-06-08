@@ -42,4 +42,27 @@ class BenefitExpirySchedulerTest {
     // then — 쿠폰 소멸은 여전히 호출됨
     then(couponService).should().expireCoupons();
   }
+
+  @Test
+  void 소멸배치_알림_위임() {
+    // when
+    scheduler.expireBenefits();
+
+    // then: 알림 메서드도 위임됨
+    then(pointService).should().notifyExpiringAccruals();
+    then(couponService).should().notifyExpiringCoupons();
+  }
+
+  @Test
+  void 소멸알림_실패해도_다른단계_실행됨() {
+    // given
+    given(pointService.expireAccruals()).willThrow(new RuntimeException("소멸 오류"));
+
+    // when
+    scheduler.expireBenefits();
+
+    // then: 알림 단계도 실행됨
+    then(pointService).should().notifyExpiringAccruals();
+    then(couponService).should().notifyExpiringCoupons();
+  }
 }
