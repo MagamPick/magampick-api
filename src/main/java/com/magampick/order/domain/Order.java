@@ -100,6 +100,26 @@ public class Order extends BaseEntity {
   @Column(name = "discount_total", precision = 12, scale = 0)
   private BigDecimal discountTotal;
 
+  /** 쿠폰 할인 금액. 쿠폰 미사용 시 null. */
+  @Column(name = "coupon_discount", precision = 12, scale = 0)
+  private BigDecimal couponDiscount;
+
+  /** 포인트 사용 금액. 포인트 미사용 시 null. */
+  @Column(name = "point_used")
+  private Long pointUsed;
+
+  /** 주문 완료 시 적립된 포인트. 미적립 시 null. */
+  @Column(name = "earned_points")
+  private Long earnedPoints;
+
+  /** 실결제액 = totalPrice - couponDiscount - pointUsed. 혜택 미적용 시 null. */
+  @Column(name = "final_amount", precision = 12, scale = 0)
+  private BigDecimal finalAmount;
+
+  /** 사용된 UserCoupon ID. 쿠폰 미사용 시 null. (@ManyToOne 대신 plain Long 으로 순환 의존 방지.) */
+  @Column(name = "user_coupon_id")
+  private Long userCouponId;
+
   @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
   private List<OrderItem> orderItems = new ArrayList<>();
 
@@ -114,7 +134,12 @@ public class Order extends BaseEntity {
       String pickupCode,
       String memo,
       BigDecimal normalTotal,
-      BigDecimal discountTotal) {
+      BigDecimal discountTotal,
+      BigDecimal couponDiscount,
+      Long pointUsed,
+      Long earnedPoints,
+      BigDecimal finalAmount,
+      Long userCouponId) {
     this.customer = customer;
     this.store = store;
     this.status = status != null ? status : OrderStatus.PENDING;
@@ -125,6 +150,11 @@ public class Order extends BaseEntity {
     this.memo = memo;
     this.normalTotal = normalTotal;
     this.discountTotal = discountTotal;
+    this.couponDiscount = couponDiscount;
+    this.pointUsed = pointUsed;
+    this.earnedPoints = earnedPoints;
+    this.finalAmount = finalAmount;
+    this.userCouponId = userCouponId;
   }
 
   public boolean isDeleted() {

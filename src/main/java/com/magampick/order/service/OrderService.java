@@ -4,6 +4,10 @@ import com.magampick.clearance.domain.ClearanceItem;
 import com.magampick.clearance.domain.ClearanceItemStatus;
 import com.magampick.clearance.exception.ClearanceItemErrorCode;
 import com.magampick.clearance.repository.ClearanceItemRepository;
+import com.magampick.coupon.domain.Coupon;
+import com.magampick.coupon.domain.UserCoupon;
+import com.magampick.coupon.exception.CouponErrorCode;
+import com.magampick.coupon.service.CouponService;
 import com.magampick.customer.domain.Customer;
 import com.magampick.customer.repository.CustomerRepository;
 import com.magampick.global.exception.BusinessException;
@@ -22,6 +26,7 @@ import com.magampick.order.repository.OrderRepository;
 import com.magampick.payment.repository.PaymentRepository;
 import com.magampick.payment.service.PaymentCancellationCommand;
 import com.magampick.payment.service.PaymentGateway;
+import com.magampick.point.service.PointService;
 import com.magampick.product.domain.Product;
 import com.magampick.product.domain.ProductStatus;
 import com.magampick.product.exception.ProductErrorCode;
@@ -70,6 +75,8 @@ public class OrderService {
   private final OrderMapper orderMapper;
   private final RefundRepository refundRepository;
   private final RefundMapper refundMapper;
+  private final CouponService couponService;
+  private final PointService pointService;
   private final Clock clock;
 
   /**
@@ -110,6 +117,7 @@ public class OrderService {
     List<ResolvedItem> resolvedItems = new ArrayList<>();
     BigDecimal normalTotal = BigDecimal.ZERO;
     BigDecimal discountTotal = BigDecimal.ZERO;
+    BigDecimal menuSubtotal = BigDecimal.ZERO;
     LocalDateTime now = LocalDateTime.now(clock);
 
     for (CreateOrderRequest.OrderItemRequest itemReq : itemReqs) {
@@ -156,6 +164,7 @@ public class OrderService {
 
         BigDecimal regular = product.getRegularPrice();
         int qty = itemReq.quantity();
+        menuSubtotal = menuSubtotal.add(regular.multiply(BigDecimal.valueOf(qty)));
         normalTotal = normalTotal.add(regular.multiply(BigDecimal.valueOf(qty)));
 
         resolvedItems.add(
@@ -172,6 +181,29 @@ public class OrderService {
     }
 
     BigDecimal payTotal = normalTotal.subtract(discountTotal);
+
+    // ── 4A. 쿠폰 / 포인트 혜택 계산 ────────────────────────────────────────────
+    BigDecimal couponDiscount = BigDecimal.ZERO;
+    Long userCouponId = request.userCouponId();
+    if (userCouponId != null) {
+      UserCoupon uc = couponService.getUsableForOrder(userCouponId, customerId);
+      Coupon coupon = uc.getCoupon();
+      if (!coupon.isApplicableTo(menuSubtotal)) {
+        throw new BusinessException(CouponErrorCode.COUPON_NOT_AVAILABLE);
+      }
+      couponDiscount = coupon.calcDiscount(menuSubtotal);
+    }
+    BigDecimal afterCoupon = payTotal.subtract(couponDiscount);
+    // 포인트 (요청 있을 때만 잔액 조회)
+    long pointUsed = 0L;
+    long requested = request.pointToUse() != null ? request.pointToUse() : 0L;
+    if (requested > 0) {
+      long balance = pointService.getSummary(customerId).balance();
+      long cap = Math.min(balance, afterCoupon.longValueExact()); // afterCoupon >= 0
+      pointUsed = Math.max(0L, Math.min(requested, cap));
+    }
+    BigDecimal finalAmount = afterCoupon.subtract(BigDecimal.valueOf(pointUsed));
+    long earnedPoints = finalAmount.longValueExact() / 100; // floor (>=0)
 
     // ── 4. 금액 교차검증 ───────────────────────────────────────────────────────
     if (request.amounts() != null) {
@@ -214,6 +246,11 @@ public class OrderService {
             .memo(request.memo())
             .normalTotal(normalTotal)
             .discountTotal(discountTotal)
+            .couponDiscount(couponDiscount.signum() > 0 ? couponDiscount : null)
+            .pointUsed(pointUsed > 0 ? pointUsed : null)
+            .earnedPoints(earnedPoints > 0 ? earnedPoints : null)
+            .finalAmount(finalAmount)
+            .userCouponId(userCouponId)
             .build();
 
     for (ResolvedItem item : resolvedItems) {
@@ -248,13 +285,14 @@ public class OrderService {
     String orderName = buildOrderName(resolvedItems);
 
     log.info(
-        "주문 임시 생성됨. orderId={}, customerId={}, storeId={}, payTotal={}",
+        "주문 임시 생성됨. orderId={}, customerId={}, storeId={}, payTotal={}, finalAmount={}",
         savedOrder.getId(),
         customerId,
         store.getId(),
-        payTotal);
+        payTotal,
+        finalAmount);
 
-    return new PrepareOrderResponse(savedOrder.getId(), tossOrderId, payTotal, orderName);
+    return new PrepareOrderResponse(savedOrder.getId(), tossOrderId, finalAmount, orderName);
   }
 
   private String buildOrderName(List<ResolvedItem> items) {
@@ -409,6 +447,7 @@ public class OrderService {
     }
     refundPayment(orderId, "고객 취소");
     order.cancel(LocalDateTime.now(clock));
+    restoreBenefits(order);
     Order saved = orderRepository.save(order);
     return orderMapper.toResponse(saved);
   }
@@ -434,6 +473,7 @@ public class OrderService {
     }
     refundPayment(orderId, "사장 거절");
     order.reject(LocalDateTime.now(clock));
+    restoreBenefits(order);
     Order saved = orderRepository.save(order);
     return orderMapper.toSellerResponse(saved);
   }
@@ -458,6 +498,8 @@ public class OrderService {
       throw new BusinessException(OrderErrorCode.INVALID_ORDER_TRANSITION);
     }
     order.complete(LocalDateTime.now(clock));
+    if (order.getEarnedPoints() != null && order.getEarnedPoints() > 0)
+      pointService.earn(order, order.getEarnedPoints());
     Order saved = orderRepository.save(order);
     return orderMapper.toSellerResponse(saved);
   }
@@ -472,6 +514,13 @@ public class OrderService {
     order.noShow();
     Order saved = orderRepository.save(order);
     return orderMapper.toSellerResponse(saved);
+  }
+
+  /** 결제 시 차감된 쿠폰/포인트 복원 (취소·거절 공통). */
+  private void restoreBenefits(Order order) {
+    if (order.getUserCouponId() != null) couponService.restore(order.getUserCouponId());
+    if (order.getPointUsed() != null && order.getPointUsed() > 0)
+      pointService.restore(order, order.getPointUsed());
   }
 
   /** 결제 취소(환불) 헬퍼. Payment 가 있으면 PG 취소 → Payment.cancel() 저장. */

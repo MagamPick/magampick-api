@@ -3,10 +3,14 @@ package com.magampick.refund.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 
+import com.magampick.coupon.service.CouponService;
 import com.magampick.global.exception.BusinessException;
 import com.magampick.order.domain.Order;
 import com.magampick.order.domain.OrderStatus;
@@ -14,6 +18,7 @@ import com.magampick.order.dto.OrderResponse;
 import com.magampick.order.fixture.OrderFixture;
 import com.magampick.order.mapper.OrderMapper;
 import com.magampick.order.repository.OrderRepository;
+import com.magampick.point.service.PointService;
 import com.magampick.refund.domain.Refund;
 import com.magampick.refund.domain.RefundStatus;
 import com.magampick.refund.dto.RefundInfoResponse;
@@ -47,6 +52,8 @@ class RefundServiceTest {
   @Mock StoreRepository storeRepository;
   @Mock OrderMapper orderMapper;
   @Mock RefundMapper refundMapper;
+  @Mock PointService pointService;
+  @Mock CouponService couponService;
   @Mock Clock clock;
 
   @InjectMocks RefundService refundService;
@@ -262,12 +269,12 @@ class RefundServiceTest {
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // 자동 승인 배치
+  // 자동 승인 — findAutoApproveTargetIds
   // ══════════════════════════════════════════════════════════════════════════
 
   @Test
-  void 자동승인_배치_만료건_처리() {
-    // given — requestedAt 이 3일 이상 지난 REQUESTED 환불 2건
+  void findAutoApproveTargetIds_반환() {
+    // given — REQUESTED + 4일 경과한 환불 2건
     Order order = RefundFixture.aCompletedOrder();
     Refund expired1 = RefundFixture.anExpiredRequestedRefund(order);
     Refund expired2 = RefundFixture.anExpiredRequestedRefund(order);
@@ -277,15 +284,103 @@ class RefundServiceTest {
             refundRepository.findAllByStatusAndRequestedAtBefore(
                 any(RefundStatus.class), any(LocalDateTime.class)))
         .willReturn(List.of(expired1, expired2));
-    given(refundRepository.saveAll(any())).willReturn(List.of(expired1, expired2));
 
     // when
-    refundService.autoApproveExpiredRefunds();
+    List<Long> ids = refundService.findAutoApproveTargetIds();
+
+    // then — anExpiredRequestedRefund 픽스처의 기본 id=2L, 두 번째는 3L 로 덮어씀
+    assertThat(ids).containsExactly(2L, 3L);
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 자동 승인 — approveAndReverse
+  // ══════════════════════════════════════════════════════════════════════════
+
+  @Test
+  void approveAndReverse_승인_혜택정리() {
+    // given — 쿠폰(id=10) + 포인트(300) 적용된 완료 주문
+    Order order = RefundFixture.aCompletedOrder();
+    ReflectionTestUtils.setField(order, "pointUsed", 300L);
+    ReflectionTestUtils.setField(order, "userCouponId", 10L);
+
+    Refund refund = RefundFixture.anExpiredRequestedRefund(order);
+    given(refundRepository.findById(2L)).willReturn(Optional.of(refund));
+    given(refundRepository.save(any(Refund.class))).willReturn(refund);
+
+    // when
+    refundService.approveAndReverse(2L);
 
     // then
-    assertThat(expired1.getStatus()).isEqualTo(RefundStatus.APPROVED);
-    assertThat(expired1.getResolvedAt()).isNotNull();
-    assertThat(expired2.getStatus()).isEqualTo(RefundStatus.APPROVED);
-    then(refundRepository).should().saveAll(any());
+    assertThat(refund.getStatus()).isEqualTo(RefundStatus.APPROVED);
+    assertThat(refund.getResolvedAt()).isNotNull();
+    then(refundRepository).should().save(refund);
+    then(pointService).should().clawback(order);
+    then(pointService).should().restore(eq(order), eq(300L));
+    then(couponService).should().restore(10L);
+  }
+
+  @Test
+  void approveAndReverse_이미처리면_skip() {
+    // given — 이미 APPROVED 상태인 환불
+    Order order = RefundFixture.aCompletedOrder();
+    Refund approved = RefundFixture.anApprovedRefund(order);
+    given(refundRepository.findById(REFUND_ID)).willReturn(Optional.of(approved));
+
+    // when
+    refundService.approveAndReverse(REFUND_ID);
+
+    // then — save / 혜택 정리 호출 없음
+    then(refundRepository).should(never()).save(any());
+    then(pointService).should(never()).clawback(any());
+    then(couponService).should(never()).restore(anyLong());
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 혜택 정리 (reverseBenefits)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  @Test
+  void 환불승인시_회수_복원_쿠폰복원_호출() {
+    // given: 쿠폰(id=99) + 포인트(500) 적용된 완료 주문
+    Order order = RefundFixture.aCompletedOrder();
+    ReflectionTestUtils.setField(order, "pointUsed", 500L);
+    ReflectionTestUtils.setField(order, "userCouponId", 99L);
+
+    Refund refund = RefundFixture.aRequestedRefund(order);
+    RefundResponse response = RefundFixture.aRefundResponse(REFUND_ID);
+
+    given(refundRepository.findById(REFUND_ID)).willReturn(Optional.of(refund));
+    given(refundRepository.save(any(Refund.class))).willReturn(refund);
+    given(refundMapper.toResponse(refund)).willReturn(response);
+
+    // when
+    refundService.approveRefund(SELLER_ID, REFUND_ID);
+
+    // then: clawback 먼저, 그 다음 restore, 그 다음 쿠폰 복원
+    then(pointService).should().clawback(order);
+    then(pointService).should().restore(eq(order), eq(500L));
+    then(couponService).should().restore(99L);
+  }
+
+  @Test
+  void 환불승인_혜택없는주문_clawback만_호출() {
+    // given: 쿠폰·포인트 미사용 주문 (userCouponId=null, pointUsed=null)
+    Order order = RefundFixture.aCompletedOrder();
+    // pointUsed=null, userCouponId=null (기본값)
+
+    Refund refund = RefundFixture.aRequestedRefund(order);
+    RefundResponse response = RefundFixture.aRefundResponse(REFUND_ID);
+
+    given(refundRepository.findById(REFUND_ID)).willReturn(Optional.of(refund));
+    given(refundRepository.save(any(Refund.class))).willReturn(refund);
+    given(refundMapper.toResponse(refund)).willReturn(response);
+
+    // when
+    refundService.approveRefund(SELLER_ID, REFUND_ID);
+
+    // then: clawback 호출됨, restore/couponRestore 는 호출 안 됨
+    then(pointService).should().clawback(order);
+    then(pointService).should(never()).restore(any(), anyLong());
+    then(couponService).should(never()).restore(anyLong());
   }
 }

@@ -24,6 +24,7 @@ import com.magampick.auth.oauth.OAuthUserInfo;
 import com.magampick.auth.repository.CustomerOAuthAccountRepository;
 import com.magampick.auth.repository.PasswordResetStore;
 import com.magampick.auth.repository.SocialAuthStore;
+import com.magampick.coupon.service.CouponService;
 import com.magampick.customer.domain.Customer;
 import com.magampick.customer.exception.CustomerErrorCode;
 import com.magampick.customer.repository.CustomerRepository;
@@ -73,6 +74,7 @@ public class AuthService {
   private final PasswordResetStore passwordResetStore;
   private final StoreService storeService;
   private final TransactionTemplate transactionTemplate;
+  private final CouponService couponService;
   private final CustomerNotificationSettingService customerNotificationSettingService;
   private final SellerNotificationSettingService sellerNotificationSettingService;
 
@@ -118,6 +120,7 @@ public class AuthService {
 
     termService.recordAgreements(customer, request.agreedTermIds());
     addressService.create(customer.getId(), request.address());
+    couponService.grantSignupCoupon(customer);
     customerNotificationSettingService.createDefault(customer.getId());
 
     log.info("소비자 회원가입 완료. customerId={}", customer.getId());
@@ -243,6 +246,7 @@ public class AuthService {
             .build());
     termService.recordAgreements(customer, request.agreedTermIds());
     addressService.create(customer.getId(), request.address());
+    couponService.grantSignupCoupon(customer);
     customerNotificationSettingService.createDefault(customer.getId());
 
     log.info("카카오 신규 회원 가입 완료. customerId={}", customer.getId());

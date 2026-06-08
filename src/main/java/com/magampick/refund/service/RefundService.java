@@ -1,5 +1,6 @@
 package com.magampick.refund.service;
 
+import com.magampick.coupon.service.CouponService;
 import com.magampick.global.exception.BusinessException;
 import com.magampick.order.domain.Order;
 import com.magampick.order.domain.OrderStatus;
@@ -7,6 +8,7 @@ import com.magampick.order.dto.OrderResponse;
 import com.magampick.order.exception.OrderErrorCode;
 import com.magampick.order.mapper.OrderMapper;
 import com.magampick.order.repository.OrderRepository;
+import com.magampick.point.service.PointService;
 import com.magampick.refund.domain.Refund;
 import com.magampick.refund.domain.RefundStatus;
 import com.magampick.refund.dto.RefundInfoResponse;
@@ -41,6 +43,8 @@ public class RefundService {
   private final StoreRepository storeRepository;
   private final OrderMapper orderMapper;
   private final RefundMapper refundMapper;
+  private final PointService pointService;
+  private final CouponService couponService;
   private final Clock clock;
 
   /**
@@ -116,6 +120,7 @@ public class RefundService {
 
     refund.approve(LocalDateTime.now(clock));
     Refund saved = refundRepository.save(refund);
+    reverseBenefits(refund.getOrder());
 
     log.info("환불 승인됨. refundId={}, sellerId={}", refundId, sellerId);
     return refundMapper.toResponse(saved);
@@ -142,24 +147,47 @@ public class RefundService {
     return refundMapper.toResponse(saved);
   }
 
-  /** 자동 승인 배치. requestedAt + 3일 이후인 REQUESTED 상태 환불 → APPROVED. 스케줄러에서 호출. */
-  @Transactional
-  public void autoApproveExpiredRefunds() {
+  /** 자동 승인 대상 환불 ID 목록 (requestedAt + 3일 경과한 REQUESTED). */
+  @Transactional(readOnly = true)
+  public List<Long> findAutoApproveTargetIds() {
     LocalDateTime threshold = LocalDateTime.now(clock).minusDays(REFUND_WINDOW_DAYS);
-    List<Refund> targets =
-        refundRepository.findAllByStatusAndRequestedAtBefore(RefundStatus.REQUESTED, threshold);
+    return refundRepository
+        .findAllByStatusAndRequestedAtBefore(RefundStatus.REQUESTED, threshold)
+        .stream()
+        .map(Refund::getId)
+        .toList();
+  }
 
-    if (targets.isEmpty()) {
-      return;
+  /** 단건 자동 승인 + 혜택 정리. 독립 트랜잭션(스케줄러가 건별 호출). */
+  @Transactional
+  public void approveAndReverse(Long refundId) {
+    Refund refund =
+        refundRepository
+            .findById(refundId)
+            .orElseThrow(() -> new BusinessException(RefundErrorCode.REFUND_NOT_FOUND));
+    if (refund.getStatus() != RefundStatus.REQUESTED) {
+      return; // 이미 처리됨 — skip
     }
+    refund.approve(LocalDateTime.now(clock));
+    refundRepository.save(refund);
+    reverseBenefits(refund.getOrder());
+    log.info("환불 자동 승인됨. refundId={}", refundId);
+  }
 
-    LocalDateTime now = LocalDateTime.now(clock);
-    for (Refund refund : targets) {
-      refund.approve(now);
+  /**
+   * 환불 승인 시 혜택 정리: 적립분 회수(먼저) → 사용 포인트 복원 → 쿠폰 복원.
+   *
+   * <p>clawback 을 먼저 실행하는 이유: findByOrderId 가 EARN lot 과 (restore 후 생길) RESTORE lot 을 모두 반환하므로,
+   * restore 로 새 lot 이 생기기 전에 clawback 을 완료해야 EARN lot 만 대상이 된다.
+   */
+  private void reverseBenefits(Order order) {
+    pointService.clawback(order);
+    if (order.getPointUsed() != null && order.getPointUsed() > 0) {
+      pointService.restore(order, order.getPointUsed());
     }
-    refundRepository.saveAll(targets);
-
-    log.info("환불 자동 승인 배치 완료. 처리 건수={}", targets.size());
+    if (order.getUserCouponId() != null) {
+      couponService.restore(order.getUserCouponId());
+    }
   }
 
   /** 사장 전용: 환불 조회 + 본인 매장 검증. 공통 헬퍼. */

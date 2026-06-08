@@ -97,6 +97,8 @@ class OrderCheckoutIntegrationTest {
             "빵 나오면 바로 주세요",
             "toss",
             true,
+            null,
+            null,
             null);
 
     // ── 1단계: 주문 생성 → AWAITING_PAYMENT ────────────────────────────────────
@@ -165,6 +167,8 @@ class OrderCheckoutIntegrationTest {
             null,
             "toss",
             true,
+            null,
+            null,
             null);
 
     mockMvc
