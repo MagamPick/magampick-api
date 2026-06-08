@@ -141,7 +141,7 @@
 | 포인트 사용 — 최소 사용 단위 미정 | benefits | 미착수 | - |
 | 포인트 내역 조회 — 잔액 + 내역(전체/적립/사용 탭) 조회. 원장(`point_accruals`/`point_transactions`) 스키마 선반영, 쓰기 엔진(적립/사용/소멸)은 후속 PR | benefits | 완료 | [노션](https://app.notion.com/p/3696e59c28e681b8962fde45d32b79f9) (이번 PR) |
 | 포인트 소멸 — 마지막 사용 후 1년 | benefits | 미착수 | - |
-| 쿠폰함 조회 — 보유/만료 분리 (`coupons`/`user_coupons`) | benefits | 미착수 | - |
+| 쿠폰함 조회 — 보유 쿠폰 상태별(사용가능/완료/만료) 조회 + 만료 방어판정 (`coupons`/`user_coupons`) | benefits | 완료 | [노션](https://app.notion.com/p/3696e59c28e68155a423c42692662fef) (이번 PR) |
 | 쿠폰 사용 — 마감 임박 상품 제외 | benefits | 미착수 | - |
 | 쿠폰 소멸 — 유효기간 만료 | benefits | 미착수 | - |
 
@@ -174,8 +174,8 @@
 | 신고 리뷰 처리 — 검토 및 삭제 | operations | 미착수 | - |
 | 정산 처리 — 사장별 수익 − 수수료 (`settlements`) | operations | 미착수 | - |
 | 정산 내역 조회 (사장) — 기간별 | operations | 미착수 | - |
-| 쿠폰 발급 — 이벤트/조건 기반 | operations | 미착수 | - |
-| 이벤트 생성/관리 — 대상/기간/수량 | operations | 미착수 | - |
+| 쿠폰 발급 — 이벤트 claim(선착순·1인1회) + 가입 축하 쿠폰 자동 지급(가입훅) + 최소 관리자 이벤트 생성 API | operations | 완료 | [노션](https://app.notion.com/p/3696e59c28e681c69eebc6e51ed17622) (이번 PR) |
+| 이벤트 생성/관리 — 대상/기간/수량 (최소 생성 API는 쿠폰 발급 PR에 포함, 전체 관리 CRUD는 후속) | operations | 미착수 | - |
 | 공지사항 작성 — 즉시/예약 발송 (`announcements`) | operations | 미착수 | - |
 | 공지사항 조회 | operations | 미착수 | - |
 | 고객센터 문의 — 유형 선택, 답변 알림 (`inquiries`) | operations | 미착수 | - |

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.verify;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
@@ -34,6 +35,7 @@ import com.magampick.auth.oauth.OAuthUserInfo;
 import com.magampick.auth.repository.CustomerOAuthAccountRepository;
 import com.magampick.auth.repository.PasswordResetStore;
 import com.magampick.auth.repository.SocialAuthStore;
+import com.magampick.coupon.service.CouponService;
 import com.magampick.customer.domain.Customer;
 import com.magampick.customer.exception.CustomerErrorCode;
 import com.magampick.customer.repository.CustomerRepository;
@@ -85,6 +87,7 @@ class AuthServiceTest {
   @Mock PasswordResetStore passwordResetStore;
   @Mock StoreService storeService;
   @Mock TransactionTemplate transactionTemplate;
+  @Mock CouponService couponService;
 
   @InjectMocks AuthService authService;
 
@@ -221,6 +224,7 @@ class AuthServiceTest {
     assertThat(captor.getValue().getPhoneVerifiedAt()).isNotNull();
     verify(termService).recordAgreements(savedCustomer, request.agreedTermIds());
     verify(addressService).create(10L, request.address());
+    then(couponService).should().grantSignupCoupon(any(Customer.class));
   }
 
   @Test
@@ -580,6 +584,7 @@ class AuthServiceTest {
     verify(customerOAuthAccountRepository).save(any());
     verify(termService).recordAgreements(saved, request.agreedTermIds());
     verify(addressService).create(40L, request.address());
+    then(couponService).should().grantSignupCoupon(any(Customer.class));
   }
 
   @Test
