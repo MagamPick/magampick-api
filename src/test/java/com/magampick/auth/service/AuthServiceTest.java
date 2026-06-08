@@ -40,6 +40,8 @@ import com.magampick.customer.repository.CustomerRepository;
 import com.magampick.global.common.GeometryUtil;
 import com.magampick.global.exception.BusinessException;
 import com.magampick.global.security.Role;
+import com.magampick.notification.service.CustomerNotificationSettingService;
+import com.magampick.notification.service.SellerNotificationSettingService;
 import com.magampick.phone.exception.PhoneVerificationErrorCode;
 import com.magampick.phone.service.PhoneVerificationService;
 import com.magampick.seller.domain.Seller;
@@ -85,6 +87,8 @@ class AuthServiceTest {
   @Mock PasswordResetStore passwordResetStore;
   @Mock StoreService storeService;
   @Mock TransactionTemplate transactionTemplate;
+  @Mock CustomerNotificationSettingService customerNotificationSettingService;
+  @Mock SellerNotificationSettingService sellerNotificationSettingService;
 
   @InjectMocks AuthService authService;
 
