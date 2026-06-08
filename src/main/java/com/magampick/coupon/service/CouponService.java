@@ -15,6 +15,8 @@ import com.magampick.coupon.repository.UserCouponRepository;
 import com.magampick.customer.domain.Customer;
 import com.magampick.customer.repository.CustomerRepository;
 import com.magampick.global.exception.BusinessException;
+import com.magampick.notification.domain.NotificationCategory;
+import com.magampick.notification.service.NotificationService;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -37,6 +39,7 @@ public class CouponService {
   private final UserCouponRepository userCouponRepository;
   private final CustomerRepository customerRepository;
   private final CouponMapper couponMapper;
+  private final NotificationService notificationService;
   private final Clock clock;
 
   /**
@@ -125,6 +128,7 @@ public class CouponService {
     }
 
     log.info("쿠폰 발급됨. customerId={}, couponId={}", customerId, couponId);
+    notifyIssued(customerId, coupon.getLabel(), userCoupon.getExpiresAt());
     return couponMapper.toResponse(userCoupon, CouponStatus.USABLE);
   }
 
@@ -234,6 +238,52 @@ public class CouponService {
   }
 
   /**
+   * 만료 7일 전 알림 발송. USABLE 쿠폰 중 today~today+7일 만료이고 미발송인 쿠폰에 알림 1건씩.
+   *
+   * <p>알림 1건 실패가 다른 쿠폰에 영향을 주지 않도록 쿠폰 단위로 try-catch.
+   */
+  @Transactional
+  public void notifyExpiringCoupons() {
+    LocalDate today = LocalDate.now(clock);
+    LocalDate sevenDaysLater = today.plusDays(7);
+    List<UserCoupon> targets =
+        userCouponRepository.findExpiringForAlert(CouponStatus.USABLE, today, sevenDaysLater);
+    if (targets.isEmpty()) {
+      return;
+    }
+    LocalDateTime now = LocalDateTime.now(clock);
+    for (UserCoupon uc : targets) {
+      try {
+        notificationService.notifyCustomer(
+            uc.getCustomer().getId(),
+            "eventBenefit",
+            NotificationCategory.BENEFIT,
+            "쿠폰이 곧 만료돼요",
+            "'" + uc.getCoupon().getLabel() + "' 쿠폰이 7일 내에 만료됩니다. 지금 사용해보세요!",
+            "/coupons");
+        uc.markExpiryAlertSent(now);
+      } catch (Exception e) {
+        log.warn("쿠폰 소멸 예정 알림 발송 실패. userCouponId={}", uc.getId(), e);
+      }
+    }
+  }
+
+  /** 쿠폰 발급 알림 공통 발송. FCM 실패는 로그만. */
+  private void notifyIssued(Long customerId, String couponLabel, LocalDate expiresAt) {
+    try {
+      notificationService.notifyCustomer(
+          customerId,
+          "eventBenefit",
+          NotificationCategory.BENEFIT,
+          "쿠폰이 발급됐어요",
+          "'" + couponLabel + "' 쿠폰이 발급됐습니다. " + expiresAt + "까지 사용 가능해요!",
+          "/coupons");
+    } catch (Exception e) {
+      log.warn("쿠폰 발급 알림 발송 실패. customerId={}", customerId, e);
+    }
+  }
+
+  /**
    * 가입 축하 쿠폰 자동 발급. SIGNUP 마스터가 없으면 경고 후 건너뜀.
    *
    * @param customer 이미 저장된 소비자 엔티티
@@ -253,6 +303,7 @@ public class CouponService {
                       .expiresAt(expiresAt)
                       .issuedAt(LocalDateTime.now(clock))
                       .build());
+              notifyIssued(customer.getId(), master.getLabel(), expiresAt);
             },
             () -> log.warn("가입 축하 쿠폰 마스터 없음 — 발급 건너뜀. customerId={}", customer.getId()));
   }

@@ -60,6 +60,14 @@ public class PointAccrual extends BaseEntity {
   @Column(name = "status", nullable = false, length = 20)
   private PointAccrualStatus status;
 
+  /** 소멸 30일 전 알림 발송 시각. 발송 전 null. */
+  @Column(name = "expiry_alert_sent_at")
+  private LocalDateTime expiryAlertSentAt;
+
+  public void markExpiryAlertSent(LocalDateTime now) {
+    this.expiryAlertSentAt = now;
+  }
+
   /**
    * FIFO 차감. 호출자는 amount ≤ remainingAmount 를 보장해야 한다. remainingAmount 가 0 이 되면 EXHAUSTED 로 전이한다.
    *

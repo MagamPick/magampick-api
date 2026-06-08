@@ -49,4 +49,22 @@ public interface PointAccrualRepository extends JpaRepository<PointAccrual, Long
    * @return 소멸 대상 적립 lot 목록
    */
   List<PointAccrual> findByStatusAndExpiresAtBefore(PointAccrualStatus status, LocalDateTime now);
+
+  /**
+   * 소멸 30일 전 알림 대상 ACTIVE lot 조회. expiresAt 이 [from, to] 범위이고 아직 알림 미발송인 lot.
+   *
+   * @param status 조회할 상태 (ACTIVE)
+   * @param from 기준 시작 (inclusive)
+   * @param to 기준 종료 (inclusive)
+   * @return 알림 대상 lot 목록
+   */
+  @Query(
+      "select a from PointAccrual a join fetch a.customer "
+          + "where a.status = :status "
+          + "and a.expiresAt between :from and :to "
+          + "and a.expiryAlertSentAt is null")
+  List<PointAccrual> findExpiringForAlert(
+      @Param("status") PointAccrualStatus status,
+      @Param("from") LocalDateTime from,
+      @Param("to") LocalDateTime to);
 }

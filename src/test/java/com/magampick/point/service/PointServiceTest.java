@@ -6,12 +6,15 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 
 import com.magampick.customer.domain.Customer;
 import com.magampick.global.exception.BusinessException;
+import com.magampick.notification.domain.NotificationCategory;
+import com.magampick.notification.service.NotificationService;
 import com.magampick.order.domain.Order;
 import com.magampick.point.domain.PointAccrual;
 import com.magampick.point.domain.PointAccrualStatus;
@@ -45,6 +48,7 @@ class PointServiceTest {
   @Mock PointAccrualRepository pointAccrualRepository;
   @Mock PointTransactionRepository pointTransactionRepository;
   @Mock PointTransactionMapper pointTransactionMapper;
+  @Mock NotificationService notificationService;
 
   // 2026-06-08 KST 고정 Clock
   private final Clock fixedClock =
@@ -508,6 +512,85 @@ class PointServiceTest {
     then(pointTransactionRepository).should().save(txCaptor.capture());
     assertThat(txCaptor.getValue().getReason()).isEqualTo(PointReason.EXPIRE);
     assertThat(txCaptor.getValue().getAmount()).isEqualTo(500L);
+  }
+
+  // ── 소멸 예정 알림(notifyExpiringAccruals) ──────────────────────────────────────
+
+  @Test
+  void 소멸예정알림_30일이내_lot_고객별합산_알림발송() {
+    // given
+    injectClock();
+    Customer customer = customer();
+    LocalDateTime now = LocalDateTime.now(fixedClock);
+
+    PointAccrual lot1 = buildAccrual(customer, 500L, now.minusDays(335));
+    PointAccrual lot2 = buildAccrual(customer, 300L, now.minusDays(334));
+
+    given(
+            pointAccrualRepository.findExpiringForAlert(
+                eq(PointAccrualStatus.ACTIVE), any(LocalDateTime.class), any(LocalDateTime.class)))
+        .willReturn(List.of(lot1, lot2));
+
+    // when
+    pointService.notifyExpiringAccruals();
+
+    // then: 고객 1명에 대해 알림 1회, 합산 800P
+    then(notificationService)
+        .should()
+        .notifyCustomer(
+            eq(CUSTOMER_ID),
+            eq("eventBenefit"),
+            eq(NotificationCategory.BENEFIT),
+            any(String.class),
+            any(String.class),
+            any(String.class));
+    // lot 둘 다 sentAt 마킹됨
+    assertThat(lot1.getExpiryAlertSentAt()).isNotNull();
+    assertThat(lot2.getExpiryAlertSentAt()).isNotNull();
+  }
+
+  @Test
+  void 소멸예정알림_대상없으면_발송안함() {
+    // given
+    injectClock();
+    given(
+            pointAccrualRepository.findExpiringForAlert(
+                any(), any(LocalDateTime.class), any(LocalDateTime.class)))
+        .willReturn(List.of());
+
+    // when
+    pointService.notifyExpiringAccruals();
+
+    // then
+    then(notificationService).shouldHaveNoInteractions();
+  }
+
+  @Test
+  void 소멸예정알림_알림실패해도_다른고객_계속_진행() {
+    // given
+    injectClock();
+    Customer customer1 = customer(); // id=1
+    Customer customer2 =
+        Customer.builder().email("c2@ex.com").passwordHash("h").nickname("고객2").build();
+    ReflectionTestUtils.setField(customer2, "id", 2L);
+
+    LocalDateTime now = LocalDateTime.now(fixedClock);
+    PointAccrual lot1 = buildAccrual(customer1, 500L, now.minusDays(335));
+    PointAccrual lot2 = buildAccrual(customer2, 200L, now.minusDays(335));
+
+    given(
+            pointAccrualRepository.findExpiringForAlert(
+                any(), any(LocalDateTime.class), any(LocalDateTime.class)))
+        .willReturn(List.of(lot1, lot2));
+    doThrow(new RuntimeException("FCM 오류"))
+        .when(notificationService)
+        .notifyCustomer(eq(CUSTOMER_ID), any(), any(), any(), any(), any());
+
+    // when — 예외 전파 없음
+    pointService.notifyExpiringAccruals();
+
+    // then: 고객2는 알림 시도됨
+    then(notificationService).should().notifyCustomer(eq(2L), any(), any(), any(), any(), any());
   }
 
   // ── helpers ──────────────────────────────────────────────────────────────────
