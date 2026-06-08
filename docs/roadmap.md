@@ -140,10 +140,10 @@
 | 포인트 적립 — 픽업완료 시 실결제 현금 1% floor 적립 (건별 lot, 유효 1년) | benefits | 완료 | [노션](https://app.notion.com/p/3696e59c28e68138973eeab5f7718252) (이번 PR) |
 | 포인트 사용 — 결제 시 FIFO 차감, 한도 min(잔액, 쿠폰 적용 후) | benefits | 완료 | [노션](https://app.notion.com/p/3696e59c28e6816891b8d42bce92aa40) (이번 PR) |
 | 포인트 내역 조회 — 잔액 + 내역(전체/적립/사용 탭) 조회. 원장(`point_accruals`/`point_transactions`) 스키마 선반영, 쓰기 엔진(적립/사용/소멸)은 후속 PR | benefits | 완료 | [노션](https://app.notion.com/p/3696e59c28e681b8962fde45d32b79f9) (이번 PR) |
-| 포인트 소멸 — 마지막 사용 후 1년 | benefits | 미착수 | - |
+| 포인트 소멸 — 적립일+1년 경과 ACTIVE lot 자동 소멸 (일배치) + 픽업후 환불 시 적립분 회수(clawback) | benefits | 완료 | [노션](https://app.notion.com/p/3696e59c28e6816e8343c47c9d6b0cd7) (이번 PR) |
 | 쿠폰함 조회 — 보유 쿠폰 상태별(사용가능/완료/만료) 조회 + 만료 방어판정 (`coupons`/`user_coupons`) | benefits | 완료 | [노션](https://app.notion.com/p/3696e59c28e68155a423c42692662fef) (이번 PR) |
 | 쿠폰 사용 — 결제 시 1주문 1쿠폰, 일반상품(떨이 제외) 할인, 정산은 플랫폼 보전(`final_amount` 분리) | benefits | 완료 | [노션](https://app.notion.com/p/3696e59c28e6814082b2db84f53fb0d0) (이번 PR) |
-| 쿠폰 소멸 — 유효기간 만료 | benefits | 미착수 | - |
+| 쿠폰 소멸 — 만료일 경과 USABLE→EXPIRED 자동 전이 (일배치) + 픽업후 환불 시 미만료면 복원 | benefits | 완료 | [노션](https://app.notion.com/p/3696e59c28e681439e7dc599f53932e2) (이번 PR) |
 
 - 포인트 적립률·최소 사용 단위 미정 (`product.md` Pending Decisions) → `/issue` 선행.
 

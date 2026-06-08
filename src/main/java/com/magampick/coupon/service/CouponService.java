@@ -222,6 +222,18 @@ public class CouponService {
   }
 
   /**
+   * 만료일 경과 USABLE 쿠폰 소멸 배치. expiresAt < today 인 USABLE 쿠폰을 EXPIRED 로 일괄 전이.
+   *
+   * @return 처리된 쿠폰 수
+   */
+  @Transactional
+  public int expireCoupons() {
+    int n = userCouponRepository.expireUsableBefore(LocalDate.now(clock));
+    log.info("쿠폰 소멸 배치 완료. 처리 건수={}", n);
+    return n;
+  }
+
+  /**
    * 가입 축하 쿠폰 자동 발급. SIGNUP 마스터가 없으면 경고 후 건너뜀.
    *
    * @param customer 이미 저장된 소비자 엔티티

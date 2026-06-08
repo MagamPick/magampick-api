@@ -72,6 +72,12 @@ public class PointAccrual extends BaseEntity {
     }
   }
 
+  /** 유효기간 만료 소멸. remainingAmount 를 0 으로 설정하고 EXPIRED 로 전이한다. */
+  public void expire() {
+    this.remainingAmount = 0L;
+    this.status = PointAccrualStatus.EXPIRED;
+  }
+
   @Builder
   private PointAccrual(
       Customer customer,

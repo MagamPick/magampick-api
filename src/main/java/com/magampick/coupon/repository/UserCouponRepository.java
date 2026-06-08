@@ -1,6 +1,7 @@
 package com.magampick.coupon.repository;
 
 import com.magampick.coupon.domain.UserCoupon;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -51,4 +52,17 @@ public interface UserCouponRepository extends JpaRepository<UserCoupon, Long> {
           + " uc.usedAt = :now"
           + " where uc.id = :id and uc.status = com.magampick.coupon.domain.CouponStatus.USABLE")
   int markUsed(@Param("id") Long id, @Param("now") LocalDateTime now);
+
+  /**
+   * 만료일이 경과한 USABLE 쿠폰을 EXPIRED 로 일괄 전이. 소멸 배치에서 사용.
+   *
+   * @param today 기준 날짜 — expiresAt 이 today 이전인 USABLE 쿠폰만 처리
+   * @return 업데이트된 행 수
+   */
+  @Modifying(clearAutomatically = true)
+  @Query(
+      "update UserCoupon uc set uc.status = com.magampick.coupon.domain.CouponStatus.EXPIRED "
+          + "where uc.status = com.magampick.coupon.domain.CouponStatus.USABLE "
+          + "and uc.expiresAt < :today")
+  int expireUsableBefore(@Param("today") LocalDate today);
 }
