@@ -2,6 +2,8 @@ package com.magampick.refund.service;
 
 import com.magampick.coupon.service.CouponService;
 import com.magampick.global.exception.BusinessException;
+import com.magampick.notification.domain.NotificationCategory;
+import com.magampick.notification.service.NotificationService;
 import com.magampick.order.domain.Order;
 import com.magampick.order.domain.OrderStatus;
 import com.magampick.order.dto.OrderResponse;
@@ -45,6 +47,7 @@ public class RefundService {
   private final RefundMapper refundMapper;
   private final PointService pointService;
   private final CouponService couponService;
+  private final NotificationService notificationService;
   private final Clock clock;
 
   /**
@@ -122,6 +125,14 @@ public class RefundService {
     Refund saved = refundRepository.save(refund);
     reverseBenefits(refund.getOrder());
 
+    notificationService.notifyCustomer(
+        refund.getOrder().getCustomer().getId(),
+        "orderRefund",
+        NotificationCategory.ORDER,
+        "환불이 완료되었어요",
+        refund.getOrder().getStore().getName() + " 주문 환불이 완료되었어요.",
+        "/orders");
+
     log.info("환불 승인됨. refundId={}, sellerId={}", refundId, sellerId);
     return refundMapper.toResponse(saved);
   }
@@ -142,6 +153,14 @@ public class RefundService {
 
     refund.reject(request.rejectReason(), LocalDateTime.now(clock));
     Refund saved = refundRepository.save(refund);
+
+    notificationService.notifyCustomer(
+        refund.getOrder().getCustomer().getId(),
+        "orderRefund",
+        NotificationCategory.ORDER,
+        "환불이 거부되었어요",
+        refund.getRejectReason(),
+        "/orders");
 
     log.info("환불 거부됨. refundId={}, sellerId={}", refundId, sellerId);
     return refundMapper.toResponse(saved);
@@ -171,6 +190,15 @@ public class RefundService {
     refund.approve(LocalDateTime.now(clock));
     refundRepository.save(refund);
     reverseBenefits(refund.getOrder());
+
+    notificationService.notifyCustomer(
+        refund.getOrder().getCustomer().getId(),
+        "orderRefund",
+        NotificationCategory.ORDER,
+        "환불이 완료되었어요",
+        refund.getOrder().getStore().getName() + " 주문 환불이 완료되었어요.",
+        "/orders");
+
     log.info("환불 자동 승인됨. refundId={}", refundId);
   }
 

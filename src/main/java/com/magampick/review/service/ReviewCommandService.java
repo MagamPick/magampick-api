@@ -3,6 +3,8 @@ package com.magampick.review.service;
 import com.magampick.customer.domain.Customer;
 import com.magampick.customer.repository.CustomerRepository;
 import com.magampick.global.exception.BusinessException;
+import com.magampick.notification.domain.NotificationCategory;
+import com.magampick.notification.service.NotificationService;
 import com.magampick.order.domain.Order;
 import com.magampick.order.domain.OrderStatus;
 import com.magampick.order.repository.OrderRepository;
@@ -36,6 +38,7 @@ public class ReviewCommandService {
   private final CustomerRepository customerRepository;
   private final SellerRepository sellerRepository;
   private final ReviewMapper reviewMapper;
+  private final NotificationService notificationService;
 
   /** 리뷰 작성. */
   @Transactional
@@ -87,6 +90,13 @@ public class ReviewCommandService {
     }
 
     Review saved = reviewRepository.save(review);
+    notificationService.notifySeller(
+        order.getStore().getSeller().getId(),
+        "newReview",
+        NotificationCategory.REVIEW,
+        "새 리뷰가 등록되었어요",
+        customer.getNickname() + "님이 별점 " + request.rating() + "점 리뷰를 남겼어요.",
+        "/reviews");
     return reviewMapper.toMyReviewResponse(saved);
   }
 
@@ -174,6 +184,14 @@ public class ReviewCommandService {
     ReviewReply reply =
         ReviewReply.builder().review(review).seller(seller).content(request.content()).build();
     reviewReplyRepository.save(reply);
+
+    notificationService.notifyCustomer(
+        review.getCustomer().getId(),
+        "reviewReply",
+        NotificationCategory.REVIEW,
+        "사장님이 리뷰에 답글을 남겼어요",
+        request.content().substring(0, Math.min(50, request.content().length())),
+        "/my/reviews");
 
     return reviewMapper.toResponse(review);
   }

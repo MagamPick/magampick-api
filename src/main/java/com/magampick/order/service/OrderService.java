@@ -11,6 +11,8 @@ import com.magampick.coupon.service.CouponService;
 import com.magampick.customer.domain.Customer;
 import com.magampick.customer.repository.CustomerRepository;
 import com.magampick.global.exception.BusinessException;
+import com.magampick.notification.domain.NotificationCategory;
+import com.magampick.notification.service.NotificationService;
 import com.magampick.order.domain.ItemKind;
 import com.magampick.order.domain.Order;
 import com.magampick.order.domain.OrderItem;
@@ -77,6 +79,7 @@ public class OrderService {
   private final RefundMapper refundMapper;
   private final CouponService couponService;
   private final PointService pointService;
+  private final NotificationService notificationService;
   private final Clock clock;
 
   /**
@@ -449,6 +452,13 @@ public class OrderService {
     order.cancel(LocalDateTime.now(clock));
     restoreBenefits(order);
     Order saved = orderRepository.save(order);
+    notificationService.notifySeller(
+        order.getStore().getSeller().getId(),
+        "orderCancel",
+        NotificationCategory.ORDER,
+        "주문이 취소되었어요",
+        order.getCustomer().getNickname() + "님이 주문을 취소했어요.",
+        "/orders");
     return orderMapper.toResponse(saved);
   }
 
@@ -461,6 +471,13 @@ public class OrderService {
     }
     order.accept(LocalDateTime.now(clock));
     Order saved = orderRepository.save(order);
+    notificationService.notifyCustomer(
+        order.getCustomer().getId(),
+        "orderRefund",
+        NotificationCategory.ORDER,
+        "주문이 수락되었어요",
+        order.getStore().getName() + "에서 주문을 수락했어요.",
+        "/orders");
     return orderMapper.toSellerResponse(saved);
   }
 
@@ -475,6 +492,13 @@ public class OrderService {
     order.reject(LocalDateTime.now(clock));
     restoreBenefits(order);
     Order saved = orderRepository.save(order);
+    notificationService.notifyCustomer(
+        order.getCustomer().getId(),
+        "orderRefund",
+        NotificationCategory.ORDER,
+        "주문이 거절되었어요",
+        order.getStore().getName() + "에서 주문을 거절했어요.",
+        "/orders");
     return orderMapper.toSellerResponse(saved);
   }
 
@@ -487,6 +511,13 @@ public class OrderService {
     }
     order.markReady(LocalDateTime.now(clock));
     Order saved = orderRepository.save(order);
+    notificationService.notifyCustomer(
+        order.getCustomer().getId(),
+        "orderRefund",
+        NotificationCategory.ORDER,
+        "픽업 준비가 완료되었어요",
+        order.getStore().getName() + "에서 픽업 준비가 완료되었어요.",
+        "/orders");
     return orderMapper.toSellerResponse(saved);
   }
 
@@ -501,6 +532,13 @@ public class OrderService {
     if (order.getEarnedPoints() != null && order.getEarnedPoints() > 0)
       pointService.earn(order, order.getEarnedPoints());
     Order saved = orderRepository.save(order);
+    notificationService.notifyCustomer(
+        order.getCustomer().getId(),
+        "orderRefund",
+        NotificationCategory.ORDER,
+        "픽업이 완료되었어요",
+        order.getStore().getName() + " 픽업 완료.",
+        "/orders");
     return orderMapper.toSellerResponse(saved);
   }
 

@@ -12,6 +12,8 @@ import static org.mockito.Mockito.never;
 
 import com.magampick.coupon.service.CouponService;
 import com.magampick.global.exception.BusinessException;
+import com.magampick.notification.domain.NotificationCategory;
+import com.magampick.notification.service.NotificationService;
 import com.magampick.order.domain.Order;
 import com.magampick.order.domain.OrderStatus;
 import com.magampick.order.dto.OrderResponse;
@@ -54,6 +56,7 @@ class RefundServiceTest {
   @Mock RefundMapper refundMapper;
   @Mock PointService pointService;
   @Mock CouponService couponService;
+  @Mock NotificationService notificationService;
   @Mock Clock clock;
 
   @InjectMocks RefundService refundService;
@@ -382,5 +385,70 @@ class RefundServiceTest {
     then(pointService).should().clawback(order);
     then(pointService).should(never()).restore(any(), anyLong());
     then(couponService).should(never()).restore(anyLong());
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 알림 발송
+  // ══════════════════════════════════════════════════════════════════════════
+
+  @Test
+  void 환불_승인_시_소비자에게_알림_발송() {
+    // given — order.customer.id=1L (OrderFixture.aCustomer())
+    Order order = RefundFixture.aCompletedOrder();
+    Refund refund = RefundFixture.aRequestedRefund(order);
+    RefundResponse response = RefundFixture.aRefundResponse(REFUND_ID);
+
+    given(refundRepository.findById(REFUND_ID)).willReturn(Optional.of(refund));
+    given(refundRepository.save(any(Refund.class))).willReturn(refund);
+    given(refundMapper.toResponse(refund)).willReturn(response);
+
+    // when
+    refundService.approveRefund(SELLER_ID, REFUND_ID);
+
+    // then
+    then(notificationService)
+        .should()
+        .notifyCustomer(
+            eq(1L), eq("orderRefund"), eq(NotificationCategory.ORDER), any(), any(), eq("/orders"));
+  }
+
+  @Test
+  void 자동_환불_승인_시_소비자에게_알림_발송() {
+    // given
+    Order order = RefundFixture.aCompletedOrder();
+    Refund refund = RefundFixture.anExpiredRequestedRefund(order);
+    given(refundRepository.findById(2L)).willReturn(Optional.of(refund));
+    given(refundRepository.save(any(Refund.class))).willReturn(refund);
+
+    // when
+    refundService.approveAndReverse(2L);
+
+    // then — customer.id=1L
+    then(notificationService)
+        .should()
+        .notifyCustomer(
+            eq(1L), eq("orderRefund"), eq(NotificationCategory.ORDER), any(), any(), eq("/orders"));
+  }
+
+  @Test
+  void 환불_거부_시_소비자에게_알림_발송() {
+    // given
+    Order order = RefundFixture.aCompletedOrder();
+    Refund refund = RefundFixture.aRequestedRefund(order);
+    RefundResponse response = RefundFixture.aRefundResponse(REFUND_ID);
+    com.magampick.refund.dto.RefundRejectRequest rejectRequest = RefundFixture.aRejectRequest();
+
+    given(refundRepository.findById(REFUND_ID)).willReturn(Optional.of(refund));
+    given(refundRepository.save(any(Refund.class))).willReturn(refund);
+    given(refundMapper.toResponse(refund)).willReturn(response);
+
+    // when
+    refundService.rejectRefund(SELLER_ID, REFUND_ID, rejectRequest);
+
+    // then — customer.id=1L, body=거부사유
+    then(notificationService)
+        .should()
+        .notifyCustomer(
+            eq(1L), eq("orderRefund"), eq(NotificationCategory.ORDER), any(), any(), eq("/orders"));
   }
 }
