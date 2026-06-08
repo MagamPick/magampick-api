@@ -54,6 +54,9 @@ public class Refund extends BaseEntity {
   @Column(name = "resolved_at")
   private LocalDateTime resolvedAt;
 
+  @Column(name = "reminder_sent_at")
+  private LocalDateTime reminderSentAt;
+
   @Builder
   private Refund(Order order, String reason, LocalDateTime requestedAt) {
     this.order = order;
@@ -73,5 +76,10 @@ public class Refund extends BaseEntity {
     this.status = RefundStatus.REJECTED;
     this.rejectReason = rejectReason;
     this.resolvedAt = now;
+  }
+
+  /** 리마인드 발송 완료 표시. 중복 발송 방지용. */
+  public void markReminderSent(LocalDateTime now) {
+    this.reminderSentAt = now;
   }
 }

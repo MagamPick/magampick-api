@@ -18,6 +18,10 @@ public interface RefundRepository extends JpaRepository<Refund, Long> {
   /** 자동 승인 배치 — REQUESTED 상태 + requestedAt < before 인 모든 환불. */
   List<Refund> findAllByStatusAndRequestedAtBefore(RefundStatus status, LocalDateTime before);
 
+  /** 리마인드 배치 — REQUESTED + requestedAt < threshold + reminderSentAt IS NULL 인 환불. */
+  List<Refund> findAllByStatusAndRequestedAtBeforeAndReminderSentAtIsNull(
+      RefundStatus status, LocalDateTime threshold);
+
   /** 사장 매장 환불 목록 — storeId 기준, requestedAt 최신순. */
   List<Refund> findByOrderStoreIdOrderByRequestedAtDesc(Long storeId);
 }

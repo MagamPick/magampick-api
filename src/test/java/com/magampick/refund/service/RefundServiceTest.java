@@ -451,4 +451,124 @@ class RefundServiceTest {
         .notifyCustomer(
             eq(1L), eq("orderRefund"), eq(NotificationCategory.ORDER), any(), any(), eq("/orders"));
   }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 환불 요청 시 사장 알림
+  // ══════════════════════════════════════════════════════════════════════════
+
+  @Test
+  void 환불_요청_성공_시_사장에게_알림_발송() {
+    // given — store.seller.id = 2L (OrderFixture.aSeller())
+    Order order = RefundFixture.aCompletedOrder();
+    RefundRequestRequest request = RefundFixture.aRefundRequest();
+    Refund savedRefund = RefundFixture.aRequestedRefund(order);
+    RefundInfoResponse refundInfo = RefundFixture.aRefundInfoResponse();
+    OrderResponse base = OrderFixture.anOrderResponse(ORDER_ID);
+    OrderResponse withRefund = OrderFixture.anOrderResponse(ORDER_ID);
+
+    given(orderRepository.findById(ORDER_ID)).willReturn(Optional.of(order));
+    given(refundRepository.findByOrderId(ORDER_ID)).willReturn(Optional.empty());
+    given(refundRepository.save(any(Refund.class))).willReturn(savedRefund);
+    given(refundMapper.toInfoResponse(savedRefund)).willReturn(refundInfo);
+    given(orderMapper.toResponse(order)).willReturn(base);
+    given(orderMapper.withRefund(base, refundInfo)).willReturn(withRefund);
+
+    // when
+    refundService.requestRefund(CUSTOMER_ID, ORDER_ID, request);
+
+    // then — seller.id=2L 에게 notifySeller 호출
+    then(notificationService)
+        .should()
+        .notifySeller(
+            eq(2L),
+            eq("refundRequest"),
+            eq(NotificationCategory.REFUND),
+            any(),
+            any(),
+            eq("/refunds"));
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 리마인드 — findReminderTargets
+  // ══════════════════════════════════════════════════════════════════════════
+
+  @Test
+  void findReminderTargets_D2경과_REQUESTED_reminderSentAt없음_반환() {
+    // given — D+2 경과한 REQUESTED + reminderSentAt=null 환불 1건
+    Order order = RefundFixture.aCompletedOrder();
+    Refund target = RefundFixture.anExpiredRequestedRefund(order);
+
+    given(
+            refundRepository.findAllByStatusAndRequestedAtBeforeAndReminderSentAtIsNull(
+                any(RefundStatus.class), any(LocalDateTime.class)))
+        .willReturn(List.of(target));
+
+    // when
+    List<Refund> result = refundService.findReminderTargets();
+
+    // then
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0)).isSameAs(target);
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // 리마인드 — sendReminderAndMark
+  // ══════════════════════════════════════════════════════════════════════════
+
+  @Test
+  void sendReminderAndMark_발송_후_reminderSentAt_설정됨() {
+    // given — REQUESTED + reminderSentAt=null
+    Order order = RefundFixture.aCompletedOrder();
+    Refund refund = RefundFixture.anExpiredRequestedRefund(order);
+    given(refundRepository.findById(2L)).willReturn(Optional.of(refund));
+    given(refundRepository.save(any(Refund.class))).willReturn(refund);
+
+    // when
+    refundService.sendReminderAndMark(2L);
+
+    // then — notifySeller 호출 + reminderSentAt 설정됨 + save 호출
+    then(notificationService)
+        .should()
+        .notifySeller(
+            eq(2L),
+            eq("refundRequest"),
+            eq(NotificationCategory.REFUND),
+            any(),
+            any(),
+            eq("/refunds"));
+    assertThat(refund.getReminderSentAt()).isNotNull();
+    then(refundRepository).should().save(refund);
+  }
+
+  @Test
+  void sendReminderAndMark_이미발송됨_skip() {
+    // given — reminderSentAt 이 이미 있음
+    Order order = RefundFixture.aCompletedOrder();
+    Refund refund = RefundFixture.anExpiredRequestedRefund(order);
+    ReflectionTestUtils.setField(refund, "reminderSentAt", LocalDateTime.now().minusHours(1));
+    given(refundRepository.findById(2L)).willReturn(Optional.of(refund));
+
+    // when
+    refundService.sendReminderAndMark(2L);
+
+    // then — notifySeller / save 호출 없음
+    then(notificationService).shouldHaveNoInteractions();
+    then(refundRepository).should(never()).save(any());
+  }
+
+  @Test
+  void sendReminderAndMark_REQUESTED아닌상태_skip() {
+    // given — 이미 APPROVED 된 환불
+    Order order = RefundFixture.aCompletedOrder();
+    Refund approved = RefundFixture.anApprovedRefund(order);
+    ReflectionTestUtils.setField(approved, "id", 2L);
+    given(refundRepository.findById(2L)).willReturn(Optional.of(approved));
+
+    // when
+    refundService.sendReminderAndMark(2L);
+
+    // then — notifySeller / save 호출 없음
+    then(notificationService).shouldHaveNoInteractions();
+    then(refundRepository).should(never()).save(any());
+  }
 }
