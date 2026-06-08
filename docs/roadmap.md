@@ -139,7 +139,7 @@
 | 리뷰 신고 — 부적절 리뷰 → 관리자 검토 | reviews | 미착수 | - |
 | 포인트 적립 — 결제 시 자동 적립 (적립률 미정) | benefits | 미착수 | - |
 | 포인트 사용 — 최소 사용 단위 미정 | benefits | 미착수 | - |
-| 포인트 내역 조회 — 적립/사용/만료 | benefits | 미착수 | - |
+| 포인트 내역 조회 — 잔액 + 내역(전체/적립/사용 탭) 조회. 원장(`point_accruals`/`point_transactions`) 스키마 선반영, 쓰기 엔진(적립/사용/소멸)은 후속 PR | benefits | 완료 | [노션](https://app.notion.com/p/3696e59c28e681b8962fde45d32b79f9) (이번 PR) |
 | 포인트 소멸 — 마지막 사용 후 1년 | benefits | 미착수 | - |
 | 쿠폰함 조회 — 보유/만료 분리 (`coupons`/`user_coupons`) | benefits | 미착수 | - |
 | 쿠폰 사용 — 마감 임박 상품 제외 | benefits | 미착수 | - |
