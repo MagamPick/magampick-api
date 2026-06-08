@@ -27,7 +27,9 @@ public record CreateOrderRequest(
         @Pattern(regexp = "toss", message = "결제 수단은 toss만 지원합니다")
         String paymentMethod,
     @Schema(description = "결제 동의 여부 (true 필수)", example = "true") @NotNull Boolean paymentAgreed,
-    @Schema(description = "금액 교차검증 (선택 — 불일치 시 AMOUNT_MISMATCH)") @Valid AmountsRequest amounts) {
+    @Schema(description = "금액 교차검증 (선택 — 불일치 시 AMOUNT_MISMATCH)") @Valid AmountsRequest amounts,
+    @Schema(description = "사용할 쿠폰 UserCoupon ID (선택)", example = "5") Long userCouponId,
+    @Schema(description = "사용할 포인트 (선택, 0 이상)", example = "1000") @Min(0) Integer pointToUse) {
 
   @Schema(description = "주문 항목")
   public record OrderItemRequest(
@@ -48,5 +50,10 @@ public record CreateOrderRequest(
       @Schema(description = "정상가 합계", example = "9000") @NotNull BigDecimal normalTotal,
       @Schema(description = "할인 합계 (떨이 할인분)", example = "3000") @NotNull BigDecimal discountTotal,
       @Schema(description = "결제액 = normalTotal - discountTotal", example = "6000") @NotNull
-          BigDecimal payTotal) {}
+          BigDecimal payTotal,
+      @Schema(description = "쿠폰 할인 금액 (선택)", example = "2000") BigDecimal couponDiscount,
+      @Schema(description = "포인트 사용 금액 (선택)", example = "500") Long pointUsed,
+      @Schema(description = "실결제액 = payTotal - couponDiscount - pointUsed (선택)", example = "3500")
+          BigDecimal finalAmount,
+      @Schema(description = "주문 완료 시 적립 예정 포인트 (선택)", example = "35") Long earnedPoints) {}
 }

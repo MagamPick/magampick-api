@@ -3,6 +3,7 @@ package com.magampick.coupon.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
@@ -290,6 +291,134 @@ class CouponServiceTest {
         .isInstanceOf(BusinessException.class)
         .hasFieldOrPropertyWithValue("errorCode", CouponErrorCode.INVALID_DISCOUNT_RATE);
     then(couponRepository).should(never()).save(any());
+  }
+
+  // ── use ──────────────────────────────────────────────────────────────────────
+
+  @Test
+  void use_USABLE를_USED로() {
+    // given
+    injectClock();
+    Customer customer = customer();
+    Coupon coupon = CouponFixture.aSignupCoupon();
+    UserCoupon uc = CouponFixture.aUsableUserCoupon(customer, coupon);
+
+    given(userCouponRepository.findById(10L)).willReturn(Optional.of(uc));
+    given(userCouponRepository.markUsed(eq(10L), any())).willReturn(1);
+
+    // when — 예외 없이 정상 완료
+    couponService.use(10L);
+
+    // then: 원자적 UPDATE 1건 호출됨
+    then(userCouponRepository).should().markUsed(eq(10L), any());
+  }
+
+  @Test
+  void use_동시사용_마감_NOT_AVAILABLE() {
+    // given: markUsed 가 0 반환 = 동시 사용으로 이미 USED 전이됨
+    injectClock();
+    Customer customer = customer();
+    Coupon coupon = CouponFixture.aSignupCoupon();
+    UserCoupon uc = CouponFixture.aUsableUserCoupon(customer, coupon);
+
+    given(userCouponRepository.findById(10L)).willReturn(Optional.of(uc));
+    given(userCouponRepository.markUsed(eq(10L), any())).willReturn(0);
+
+    // when / then
+    assertThatThrownBy(() -> couponService.use(10L))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", CouponErrorCode.COUPON_NOT_AVAILABLE);
+  }
+
+  @Test
+  void use_만료면_NOT_AVAILABLE() {
+    // given
+    injectClock();
+    Customer customer = customer();
+    Coupon coupon = CouponFixture.aSignupCoupon();
+    UserCoupon expired = CouponFixture.anExpiredUserCoupon(customer, coupon);
+
+    given(userCouponRepository.findById(11L)).willReturn(Optional.of(expired));
+
+    // when / then
+    assertThatThrownBy(() -> couponService.use(11L))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", CouponErrorCode.COUPON_NOT_AVAILABLE);
+  }
+
+  // ── restore ───────────────────────────────────────────────────────────────────
+
+  @Test
+  void restore_USED를_USABLE로() {
+    // given
+    injectClock();
+    Customer customer = customer();
+    Coupon coupon = CouponFixture.aSignupCoupon();
+    UserCoupon uc = CouponFixture.aUsableUserCoupon(customer, coupon);
+    // 직접 USED 상태로 설정
+    ReflectionTestUtils.setField(uc, "status", CouponStatus.USED);
+
+    given(userCouponRepository.findById(10L)).willReturn(Optional.of(uc));
+
+    // when
+    couponService.restore(10L);
+
+    // then
+    assertThat(uc.getStatus()).isEqualTo(CouponStatus.USABLE);
+    assertThat(uc.getUsedAt()).isNull();
+  }
+
+  @Test
+  void restore_만료면_복원안함() {
+    // given
+    injectClock();
+    Customer customer = customer();
+    Coupon coupon = CouponFixture.aSignupCoupon();
+    UserCoupon expired = CouponFixture.anExpiredUserCoupon(customer, coupon);
+    ReflectionTestUtils.setField(expired, "status", CouponStatus.USED);
+
+    given(userCouponRepository.findById(11L)).willReturn(Optional.of(expired));
+
+    // when: 만료된 쿠폰 복원 시도 → 상태 변경 없음
+    couponService.restore(11L);
+
+    // then: 여전히 USED
+    assertThat(expired.getStatus()).isEqualTo(CouponStatus.USED);
+  }
+
+  // ── getUsableForOrder ─────────────────────────────────────────────────────────
+
+  @Test
+  void getUsableForOrder_타인쿠폰_NOT_AVAILABLE() {
+    // given
+    injectClock();
+    Customer customer = customer(); // CUSTOMER_ID = 1L
+    Coupon coupon = CouponFixture.aSignupCoupon();
+    UserCoupon uc = CouponFixture.aUsableUserCoupon(customer, coupon);
+
+    given(userCouponRepository.findByIdWithCoupon(10L)).willReturn(Optional.of(uc));
+
+    // when / then: customerId=999L 은 타인
+    assertThatThrownBy(() -> couponService.getUsableForOrder(10L, 999L))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", CouponErrorCode.COUPON_NOT_AVAILABLE);
+  }
+
+  @Test
+  void getUsableForOrder_성공() {
+    // given
+    injectClock();
+    Customer customer = customer(); // CUSTOMER_ID = 1L
+    Coupon coupon = CouponFixture.aSignupCoupon();
+    UserCoupon uc = CouponFixture.aUsableUserCoupon(customer, coupon);
+
+    given(userCouponRepository.findByIdWithCoupon(10L)).willReturn(Optional.of(uc));
+
+    // when
+    UserCoupon result = couponService.getUsableForOrder(10L, CUSTOMER_ID);
+
+    // then
+    assertThat(result).isEqualTo(uc);
   }
 
   // ── grantSignupCoupon ─────────────────────────────────────────────────────────

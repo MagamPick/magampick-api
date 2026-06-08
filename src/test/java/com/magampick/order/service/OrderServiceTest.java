@@ -9,12 +9,20 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 
 import com.magampick.clearance.exception.ClearanceItemErrorCode;
 import com.magampick.clearance.repository.ClearanceItemRepository;
+import com.magampick.coupon.domain.Coupon;
+import com.magampick.coupon.domain.CouponDiscountType;
+import com.magampick.coupon.domain.CouponKind;
+import com.magampick.coupon.domain.UserCoupon;
+import com.magampick.coupon.exception.CouponErrorCode;
+import com.magampick.coupon.service.CouponService;
 import com.magampick.customer.repository.CustomerRepository;
 import com.magampick.global.exception.BusinessException;
+import com.magampick.order.domain.ItemKind;
 import com.magampick.order.domain.Order;
 import com.magampick.order.domain.OrderStatus;
 import com.magampick.order.domain.PickupType;
@@ -32,6 +40,8 @@ import com.magampick.payment.repository.PaymentRepository;
 import com.magampick.payment.service.PaymentApproval;
 import com.magampick.payment.service.PaymentCancellation;
 import com.magampick.payment.service.PaymentGateway;
+import com.magampick.point.dto.PointSummaryResponse;
+import com.magampick.point.service.PointService;
 import com.magampick.product.exception.ProductErrorCode;
 import com.magampick.product.repository.ProductRepository;
 import com.magampick.refund.mapper.RefundMapper;
@@ -77,6 +87,8 @@ class OrderServiceTest {
   @Mock RefundRepository refundRepository;
   @Mock RefundMapper refundMapper;
   @Mock Clock clock;
+  @Mock CouponService couponService;
+  @Mock PointService pointService;
 
   @InjectMocks OrderService orderService;
 
@@ -101,6 +113,8 @@ class OrderServiceTest {
         orderMapper,
         refundRepository,
         refundMapper,
+        couponService,
+        pointService,
         fixedClock);
   }
 
@@ -1150,5 +1164,213 @@ class OrderServiceTest {
     assertThatThrownBy(() -> orderService.noShowOrder(999L, 42L))
         .isInstanceOf(BusinessException.class)
         .hasFieldOrPropertyWithValue("errorCode", OrderErrorCode.ORDER_FORBIDDEN);
+  }
+
+  // ── 쿠폰/포인트 혜택 ─────────────────────────────────────────────────────────
+
+  @Test
+  void 쿠폰_적용시_couponDiscount_저장() {
+    // given — MENU 상품(3500×1), AMOUNT 쿠폰 1000, minOrder 2000
+    Long userCouponId = 99L;
+    givenStoreOpen();
+    givenProduct();
+    given(customerRepository.getReferenceById(CUSTOMER_ID)).willReturn(OrderFixture.aCustomer());
+
+    UserCoupon uc = mock(UserCoupon.class);
+    Coupon coupon =
+        Coupon.builder()
+            .kind(CouponKind.EVENT)
+            .label("테스트쿠폰")
+            .discountType(CouponDiscountType.AMOUNT)
+            .discountValue(1000)
+            .minOrder(2000)
+            .validUntil(LocalDate.now().plusDays(30))
+            .active(true)
+            .build();
+    given(uc.getCoupon()).willReturn(coupon);
+    given(couponService.getUsableForOrder(userCouponId, CUSTOMER_ID)).willReturn(uc);
+
+    ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
+    given(orderRepository.save(orderCaptor.capture()))
+        .willReturn(OrderFixture.anOrder(OrderFixture.aCustomer(), OrderFixture.aStore()));
+
+    CreateOrderRequest req =
+        new CreateOrderRequest(
+            STORE_ID,
+            List.of(new CreateOrderRequest.OrderItemRequest(ItemKind.MENU, PRODUCT_ID, 1)),
+            new CreateOrderRequest.PickupRequest(PickupType.ASAP, null),
+            null,
+            "toss",
+            true,
+            null,
+            userCouponId,
+            null);
+
+    // when
+    PrepareOrderResponse response = orderService.createOrder(CUSTOMER_ID, req);
+
+    // then — menuSubtotal=3500, couponDiscount=1000, finalAmount=2500
+    Order saved = orderCaptor.getValue();
+    assertThat(saved.getCouponDiscount()).isEqualByComparingTo(new BigDecimal("1000"));
+    assertThat(saved.getFinalAmount()).isEqualByComparingTo(new BigDecimal("2500"));
+    assertThat(response.amount()).isEqualByComparingTo(new BigDecimal("2500"));
+  }
+
+  @Test
+  void 포인트_사용_한도_클램프() {
+    // given — 잔액 1000, 요청 5000 → pointUsed = min(5000, min(1000, 3500)) = 1000
+    givenStoreOpen();
+    givenProduct();
+    given(customerRepository.getReferenceById(CUSTOMER_ID)).willReturn(OrderFixture.aCustomer());
+    given(pointService.getSummary(CUSTOMER_ID)).willReturn(new PointSummaryResponse(1000L));
+
+    ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
+    given(orderRepository.save(orderCaptor.capture()))
+        .willReturn(OrderFixture.anOrder(OrderFixture.aCustomer(), OrderFixture.aStore()));
+
+    CreateOrderRequest req =
+        new CreateOrderRequest(
+            STORE_ID,
+            List.of(new CreateOrderRequest.OrderItemRequest(ItemKind.MENU, PRODUCT_ID, 1)),
+            new CreateOrderRequest.PickupRequest(PickupType.ASAP, null),
+            null,
+            "toss",
+            true,
+            null,
+            null,
+            5000);
+
+    // when
+    orderService.createOrder(CUSTOMER_ID, req);
+
+    // then — pointUsed=1000 (클램프됨), finalAmount=2500
+    Order saved = orderCaptor.getValue();
+    assertThat(saved.getPointUsed()).isEqualTo(1000L);
+    assertThat(saved.getFinalAmount()).isEqualByComparingTo(new BigDecimal("2500")); // 3500 - 1000
+  }
+
+  @Test
+  void 쿠폰_최소주문_미달_COUPON_NOT_AVAILABLE() {
+    // given — coupon minOrder=5000, menuSubtotal=3500 → isApplicableTo=false
+    Long userCouponId = 99L;
+    givenStoreOpen();
+    givenProduct();
+
+    UserCoupon uc = mock(UserCoupon.class);
+    Coupon coupon =
+        Coupon.builder()
+            .kind(CouponKind.EVENT)
+            .label("최소주문 쿠폰")
+            .discountType(CouponDiscountType.AMOUNT)
+            .discountValue(1000)
+            .minOrder(5000) // 5000 > menuSubtotal(3500)
+            .validUntil(LocalDate.now().plusDays(30))
+            .active(true)
+            .build();
+    given(uc.getCoupon()).willReturn(coupon);
+    given(couponService.getUsableForOrder(userCouponId, CUSTOMER_ID)).willReturn(uc);
+
+    CreateOrderRequest req =
+        new CreateOrderRequest(
+            STORE_ID,
+            List.of(new CreateOrderRequest.OrderItemRequest(ItemKind.MENU, PRODUCT_ID, 1)),
+            new CreateOrderRequest.PickupRequest(PickupType.ASAP, null),
+            null,
+            "toss",
+            true,
+            null,
+            userCouponId,
+            null);
+
+    // when / then
+    assertThatThrownBy(() -> orderService.createOrder(CUSTOMER_ID, req))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", CouponErrorCode.COUPON_NOT_AVAILABLE);
+  }
+
+  @Test
+  void 포인트_요청0이면_getSummary_미호출() {
+    // given — pointToUse=0 → getSummary 호출 안 됨
+    givenStoreOpen();
+    givenClearanceItem();
+    givenDecrementStockSucceeds();
+    givenOrderSaved();
+    given(customerRepository.getReferenceById(CUSTOMER_ID)).willReturn(OrderFixture.aCustomer());
+
+    CreateOrderRequest req =
+        new CreateOrderRequest(
+            STORE_ID,
+            List.of(new CreateOrderRequest.OrderItemRequest(ItemKind.DEAL, CI_ID, 2)),
+            new CreateOrderRequest.PickupRequest(PickupType.ASAP, null),
+            null,
+            "toss",
+            true,
+            null,
+            null,
+            0);
+
+    // when
+    orderService.createOrder(CUSTOMER_ID, req);
+
+    // then
+    then(pointService).should(never()).getSummary(anyLong());
+  }
+
+  @Test
+  void 취소시_쿠폰포인트_복원() {
+    // given — 쿠폰(99) + 포인트(500) 적용 PENDING 주문
+    Store store = OrderFixture.aStore();
+    Order order = OrderFixture.anOrderWithBenefits(OrderFixture.aCustomer(), store);
+    ReflectionTestUtils.setField(order, "id", 42L);
+    given(orderRepository.findById(42L)).willReturn(Optional.of(order));
+    given(orderRepository.save(any(Order.class))).willReturn(order);
+    given(orderMapper.toResponse(any(Order.class))).willReturn(OrderFixture.anOrderResponse(42L));
+    given(paymentRepository.findByOrderId(42L)).willReturn(Optional.empty());
+
+    // when
+    orderService.cancelOrder(CUSTOMER_ID, 42L);
+
+    // then
+    then(couponService).should().restore(99L);
+    then(pointService).should().restore(any(Order.class), eq(500L));
+  }
+
+  @Test
+  void 거절시_복원() {
+    // given — 쿠폰(99) + 포인트(500) 적용 PENDING 주문
+    Store store = OrderFixture.aStore();
+    Order order = OrderFixture.anOrderWithBenefits(OrderFixture.aCustomer(), store);
+    ReflectionTestUtils.setField(order, "id", 42L);
+    given(orderRepository.findById(42L)).willReturn(Optional.of(order));
+    given(orderRepository.save(any(Order.class))).willReturn(order);
+    given(orderMapper.toSellerResponse(any(Order.class)))
+        .willReturn(OrderFixture.aSellerOrderResponse(42L));
+    given(paymentRepository.findByOrderId(42L)).willReturn(Optional.empty());
+
+    // when
+    orderService.rejectOrder(2L, 42L); // seller.id=2 matches aStore().seller.id
+
+    // then
+    then(couponService).should().restore(99L);
+    then(pointService).should().restore(any(Order.class), eq(500L));
+  }
+
+  @Test
+  void 완료시_적립() {
+    // given — READY 주문 with earnedPoints=45
+    Store store = OrderFixture.aStore();
+    Order order = OrderFixture.anOrderWithBenefits(OrderFixture.aCustomer(), store);
+    ReflectionTestUtils.setField(order, "status", OrderStatus.READY);
+    ReflectionTestUtils.setField(order, "id", 42L);
+    given(orderRepository.findById(42L)).willReturn(Optional.of(order));
+    given(orderRepository.save(any(Order.class))).willReturn(order);
+    given(orderMapper.toSellerResponse(any(Order.class)))
+        .willReturn(OrderFixture.aSellerOrderResponse(42L));
+
+    // when
+    orderService.completeOrder(2L, 42L);
+
+    // then
+    then(pointService).should().earn(any(Order.class), eq(45L));
   }
 }

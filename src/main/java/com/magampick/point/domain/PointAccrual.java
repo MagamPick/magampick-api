@@ -60,6 +60,18 @@ public class PointAccrual extends BaseEntity {
   @Column(name = "status", nullable = false, length = 20)
   private PointAccrualStatus status;
 
+  /**
+   * FIFO 차감. 호출자는 amount ≤ remainingAmount 를 보장해야 한다. remainingAmount 가 0 이 되면 EXHAUSTED 로 전이한다.
+   *
+   * @param amount 차감할 포인트 (양수)
+   */
+  public void deduct(long amount) {
+    this.remainingAmount -= amount;
+    if (this.remainingAmount == 0) {
+      this.status = PointAccrualStatus.EXHAUSTED;
+    }
+  }
+
   @Builder
   private PointAccrual(
       Customer customer,

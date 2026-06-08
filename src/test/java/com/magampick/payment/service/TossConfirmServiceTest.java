@@ -3,9 +3,11 @@ package com.magampick.payment.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
+import com.magampick.coupon.service.CouponService;
 import com.magampick.global.exception.BusinessException;
 import com.magampick.order.domain.Order;
 import com.magampick.order.domain.OrderStatus;
@@ -18,6 +20,7 @@ import com.magampick.payment.domain.PaymentStatus;
 import com.magampick.payment.dto.TossConfirmRequest;
 import com.magampick.payment.exception.PaymentErrorCode;
 import com.magampick.payment.repository.PaymentRepository;
+import com.magampick.point.service.PointService;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -35,6 +38,8 @@ class TossConfirmServiceTest {
   @Mock PaymentRepository paymentRepository;
   @Mock PaymentGateway paymentGateway;
   @Mock OrderMapper orderMapper;
+  @Mock CouponService couponService;
+  @Mock PointService pointService;
 
   @InjectMocks TossConfirmService tossConfirmService;
 
@@ -134,6 +139,50 @@ class TossConfirmServiceTest {
             () ->
                 tossConfirmService.confirmPayment(
                     CUSTOMER_ID, new TossConfirmRequest(PAYMENT_KEY, ORDER_ID, wrongAmount)))
+        .isInstanceOf(BusinessException.class)
+        .extracting(e -> ((BusinessException) e).getErrorCode())
+        .isEqualTo(PaymentErrorCode.PAYMENT_AMOUNT_MISMATCH);
+  }
+
+  // ── 혜택 소비 ─────────────────────────────────────────────────────────────────
+
+  @Test
+  void 결제성공_finalAmount기준() {
+    // given — totalPrice=6000, finalAmount=4500 (쿠폰1000+포인트500) 주문
+    Order order = OrderFixture.anOrderWithBenefits(OrderFixture.aCustomer(), OrderFixture.aStore());
+    ReflectionTestUtils.setField(order, "id", ORDER_ID);
+    ReflectionTestUtils.setField(order, "status", OrderStatus.AWAITING_PAYMENT);
+    given(orderRepository.findById(ORDER_ID)).willReturn(Optional.of(order));
+    given(paymentGateway.approve(any()))
+        .willReturn(new PaymentApproval(PAYMENT_KEY, PaymentStatus.APPROVED, LocalDateTime.now()));
+    given(paymentRepository.save(any())).willReturn(null);
+    given(orderMapper.toResponse(any())).willReturn(OrderFixture.anOrderResponse(ORDER_ID));
+
+    BigDecimal finalAmount = new BigDecimal("4500"); // totalPrice=6000 과 다른 값
+    TossConfirmRequest req = new TossConfirmRequest(PAYMENT_KEY, ORDER_ID, finalAmount);
+
+    // when
+    tossConfirmService.confirmPayment(CUSTOMER_ID, req);
+
+    // then: finalAmount 기준으로 검증 통과 + 혜택 소비 호출됨
+    then(couponService).should().use(99L);
+    then(pointService).should().use(any(Order.class), eq(500L));
+  }
+
+  @Test
+  void 금액불일치_totalPrice가_아닌_finalAmount기준() {
+    // given — totalPrice=6000, finalAmount=4500 인 주문에 totalPrice(6000)를 요청 금액으로 보냄
+    // → finalAmount(4500) 기준 검증이면 불일치, totalPrice(6000) 기준이면 통과 (버그 재현)
+    Order order = OrderFixture.anOrderWithBenefits(OrderFixture.aCustomer(), OrderFixture.aStore());
+    ReflectionTestUtils.setField(order, "id", ORDER_ID);
+    ReflectionTestUtils.setField(order, "status", OrderStatus.AWAITING_PAYMENT);
+    given(orderRepository.findById(ORDER_ID)).willReturn(Optional.of(order));
+
+    BigDecimal totalPrice = new BigDecimal("6000"); // finalAmount=4500 과 다름
+    assertThatThrownBy(
+            () ->
+                tossConfirmService.confirmPayment(
+                    CUSTOMER_ID, new TossConfirmRequest(PAYMENT_KEY, ORDER_ID, totalPrice)))
         .isInstanceOf(BusinessException.class)
         .extracting(e -> ((BusinessException) e).getErrorCode())
         .isEqualTo(PaymentErrorCode.PAYMENT_AMOUNT_MISMATCH);

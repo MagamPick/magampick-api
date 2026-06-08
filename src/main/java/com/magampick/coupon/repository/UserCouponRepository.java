@@ -1,9 +1,12 @@
 package com.magampick.coupon.repository;
 
 import com.magampick.coupon.domain.UserCoupon;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -25,4 +28,27 @@ public interface UserCouponRepository extends JpaRepository<UserCoupon, Long> {
           + "where uc.customer.id = :customerId "
           + "and uc.coupon.kind = com.magampick.coupon.domain.CouponKind.EVENT")
   Set<Long> findClaimedCouponIdsByCustomerId(@Param("customerId") Long customerId);
+
+  /**
+   * ID 로 UserCoupon + coupon 페치 조인 조회. 쿠폰 사용/검증 시 N+1 방지.
+   *
+   * @param id UserCoupon ID
+   * @return UserCoupon (coupon 페치 포함)
+   */
+  @Query("select uc from UserCoupon uc join fetch uc.coupon where uc.id = :id")
+  Optional<UserCoupon> findByIdWithCoupon(@Param("id") Long id);
+
+  /**
+   * USABLE → USED 원자적 전이. status = USABLE 인 경우에만 업데이트 (동시 사용 경쟁 조건 방지).
+   *
+   * @param id UserCoupon ID
+   * @param now 사용 시각
+   * @return 업데이트된 행 수 (0 = 이미 USED 또는 존재하지 않음)
+   */
+  @Modifying(clearAutomatically = true)
+  @Query(
+      "update UserCoupon uc set uc.status = com.magampick.coupon.domain.CouponStatus.USED,"
+          + " uc.usedAt = :now"
+          + " where uc.id = :id and uc.status = com.magampick.coupon.domain.CouponStatus.USABLE")
+  int markUsed(@Param("id") Long id, @Param("now") LocalDateTime now);
 }
