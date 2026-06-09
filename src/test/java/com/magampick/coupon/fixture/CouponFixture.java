@@ -91,7 +91,8 @@ public class CouponFixture {
             .customer(customer)
             .coupon(coupon)
             .status(CouponStatus.USABLE)
-            .expiresAt(LocalDate.now().minusDays(1))
+            // 고정 날짜 — CouponServiceTest 의 고정 Clock(2026-06-08) 기준 과거. 실시간 now() 사용 시 날짜 경과로 깨짐
+            .expiresAt(LocalDate.of(2026, 6, 7))
             .issuedAt(LocalDateTime.now().minusDays(40))
             .build();
     ReflectionTestUtils.setField(uc, "id", 11L);
