@@ -125,6 +125,9 @@ class CheckoutBenefitsIntegrationTest {
                 .status(CouponStatus.USABLE)
                 .expiresAt(LocalDate.now().plusDays(30))
                 .issuedAt(LocalDateTime.now())
+                .discountType(coupon.getDiscountType())
+                .discountValue(coupon.getDiscountValue())
+                .minOrder(coupon.getMinOrder())
                 .build());
 
     // 포인트 1000P 적립 lot (수동 시드)
@@ -236,6 +239,9 @@ class CheckoutBenefitsIntegrationTest {
                 .status(CouponStatus.USABLE)
                 .expiresAt(LocalDate.now().plusDays(30))
                 .issuedAt(LocalDateTime.now())
+                .discountType(coupon.getDiscountType())
+                .discountValue(coupon.getDiscountValue())
+                .minOrder(coupon.getMinOrder())
                 .build());
 
     // 포인트 1000P 시드
@@ -346,6 +352,9 @@ class CheckoutBenefitsIntegrationTest {
                 .status(CouponStatus.USABLE)
                 .expiresAt(LocalDate.now().plusDays(30))
                 .issuedAt(LocalDateTime.now())
+                .discountType(coupon.getDiscountType())
+                .discountValue(coupon.getDiscountValue())
+                .minOrder(coupon.getMinOrder())
                 .build());
 
     // 포인트 1000P 시드
@@ -451,6 +460,9 @@ class CheckoutBenefitsIntegrationTest {
                 .status(CouponStatus.USABLE)
                 .expiresAt(LocalDate.now().plusDays(30))
                 .issuedAt(LocalDateTime.now())
+                .discountType(coupon.getDiscountType())
+                .discountValue(coupon.getDiscountValue())
+                .minOrder(coupon.getMinOrder())
                 .build());
 
     // 포인트 2000P 시드

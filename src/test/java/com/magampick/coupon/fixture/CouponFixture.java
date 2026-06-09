@@ -34,7 +34,7 @@ public class CouponFixture {
     return c;
   }
 
-  /** 이벤트 쿠폰 마스터 (한도 있음). */
+  /** 이벤트 쿠폰 마스터 (한도 있음). 노출 기간: 2026-06-01 ~ 2026-12-31 — 고정 Clock(2026-06-08) 기준 ONGOING. */
   public static Coupon anEventCoupon() {
     Coupon c =
         Coupon.builder()
@@ -43,16 +43,18 @@ public class CouponFixture {
             .discountType(CouponDiscountType.AMOUNT)
             .discountValue(3000)
             .minOrder(10000)
-            .validUntil(LocalDate.now().plusDays(30))
+            .validUntil(LocalDate.of(2026, 12, 31))
             .validityDays(null)
             .issueLimit(100)
             .active(true)
+            .displayStartAt(LocalDate.of(2026, 6, 1))
+            .displayEndAt(LocalDate.of(2026, 12, 31))
             .build();
     ReflectionTestUtils.setField(c, "id", 2L);
     return c;
   }
 
-  /** 이벤트 쿠폰 마스터 (한도 없음). */
+  /** 이벤트 쿠폰 마스터 (한도 없음). 노출 기간: 2026-06-01 ~ 2026-12-31 — 고정 Clock(2026-06-08) 기준 ONGOING. */
   public static Coupon anUnlimitedEventCoupon() {
     Coupon c =
         Coupon.builder()
@@ -61,16 +63,18 @@ public class CouponFixture {
             .discountType(CouponDiscountType.RATE)
             .discountValue(10)
             .minOrder(0)
-            .validUntil(LocalDate.now().plusDays(10))
+            .validUntil(LocalDate.of(2026, 12, 31))
             .validityDays(null)
             .issueLimit(null)
             .active(true)
+            .displayStartAt(LocalDate.of(2026, 6, 1))
+            .displayEndAt(LocalDate.of(2026, 12, 31))
             .build();
     ReflectionTestUtils.setField(c, "id", 3L);
     return c;
   }
 
-  /** USABLE UserCoupon 인스턴스 (미만료). */
+  /** USABLE UserCoupon 인스턴스 (미만료). discountType/discountValue/minOrder 는 coupon 마스터 값 스냅샷. */
   public static UserCoupon aUsableUserCoupon(Customer customer, Coupon coupon) {
     UserCoupon uc =
         UserCoupon.builder()
@@ -79,12 +83,15 @@ public class CouponFixture {
             .status(CouponStatus.USABLE)
             .expiresAt(LocalDate.now().plusDays(10))
             .issuedAt(LocalDateTime.now().minusDays(1))
+            .discountType(coupon.getDiscountType())
+            .discountValue(coupon.getDiscountValue())
+            .minOrder(coupon.getMinOrder())
             .build();
     ReflectionTestUtils.setField(uc, "id", 10L);
     return uc;
   }
 
-  /** USABLE UserCoupon 인스턴스 (만료일 경과). */
+  /** USABLE UserCoupon 인스턴스 (만료일 경과). discountType/discountValue/minOrder 는 coupon 마스터 값 스냅샷. */
   public static UserCoupon anExpiredUserCoupon(Customer customer, Coupon coupon) {
     UserCoupon uc =
         UserCoupon.builder()
@@ -94,6 +101,9 @@ public class CouponFixture {
             // 고정 날짜 — CouponServiceTest 의 고정 Clock(2026-06-08) 기준 과거. 실시간 now() 사용 시 날짜 경과로 깨짐
             .expiresAt(LocalDate.of(2026, 6, 7))
             .issuedAt(LocalDateTime.now().minusDays(40))
+            .discountType(coupon.getDiscountType())
+            .discountValue(coupon.getDiscountValue())
+            .minOrder(coupon.getMinOrder())
             .build();
     ReflectionTestUtils.setField(uc, "id", 11L);
     return uc;

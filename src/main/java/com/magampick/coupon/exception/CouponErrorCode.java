@@ -13,10 +13,9 @@ public enum CouponErrorCode implements BaseErrorCode {
   COUPON_NOT_AVAILABLE(HttpStatus.CONFLICT, "COUPON_NOT_AVAILABLE", "발급할 수 없는 쿠폰입니다"),
   COUPON_ALREADY_CLAIMED(HttpStatus.CONFLICT, "COUPON_ALREADY_CLAIMED", "이미 받은 쿠폰입니다"),
   COUPON_SOLD_OUT(HttpStatus.CONFLICT, "COUPON_SOLD_OUT", "마감된 쿠폰입니다"),
-  INVALID_DISCOUNT_RATE(
-      org.springframework.http.HttpStatus.BAD_REQUEST,
-      "INVALID_DISCOUNT_RATE",
-      "할인율은 1~100 사이여야 합니다"),
+  INVALID_DISCOUNT_RATE(HttpStatus.BAD_REQUEST, "INVALID_DISCOUNT_RATE", "할인율은 1~100 사이여야 합니다"),
+  INVALID_EVENT_PERIOD(
+      HttpStatus.BAD_REQUEST, "INVALID_EVENT_PERIOD", "이벤트 노출 종료일이 시작일보다 앞설 수 없습니다"),
   ;
 
   private final HttpStatus status;

@@ -89,6 +89,9 @@ class UserCouponRepositoryTest {
             .status(CouponStatus.USABLE)
             .expiresAt(LocalDate.now().plusDays(30))
             .issuedAt(issuedAt)
+            .discountType(coupon.getDiscountType())
+            .discountValue(coupon.getDiscountValue())
+            .minOrder(coupon.getMinOrder())
             .build());
   }
 
@@ -216,6 +219,9 @@ class UserCouponRepositoryTest {
                 .status(CouponStatus.USABLE)
                 .expiresAt(today.minusDays(1)) // 어제 = 만료
                 .issuedAt(LocalDateTime.now().minusDays(30))
+                .discountType(coupon1.getDiscountType())
+                .discountValue(coupon1.getDiscountValue())
+                .minOrder(coupon1.getMinOrder())
                 .build());
 
     // 유효한 USABLE (expiresAt = 미래)
@@ -227,6 +233,9 @@ class UserCouponRepositoryTest {
                 .status(CouponStatus.USABLE)
                 .expiresAt(today.plusDays(7)) // 미래 = 유효
                 .issuedAt(LocalDateTime.now().minusDays(1))
+                .discountType(coupon2.getDiscountType())
+                .discountValue(coupon2.getDiscountValue())
+                .minOrder(coupon2.getMinOrder())
                 .build());
 
     userCouponRepository.flush();

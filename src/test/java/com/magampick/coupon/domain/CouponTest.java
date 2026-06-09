@@ -9,6 +9,8 @@ import org.junit.jupiter.api.Test;
 /** Coupon 도메인 메서드 단위 테스트. */
 class CouponTest {
 
+  private static final LocalDate TODAY = LocalDate.of(2026, 6, 8); // 고정 기준일
+
   private Coupon buildRateCoupon(int ratePercent, int minOrder) {
     return Coupon.builder()
         .kind(CouponKind.EVENT)
@@ -17,6 +19,8 @@ class CouponTest {
         .discountValue(ratePercent)
         .minOrder(minOrder)
         .validUntil(LocalDate.now().plusDays(30))
+        .displayStartAt(TODAY.minusDays(7))
+        .displayEndAt(TODAY.plusDays(30))
         .active(true)
         .build();
   }
@@ -29,6 +33,8 @@ class CouponTest {
         .discountValue(amount)
         .minOrder(minOrder)
         .validUntil(LocalDate.now().plusDays(30))
+        .displayStartAt(TODAY.minusDays(7))
+        .displayEndAt(TODAY.plusDays(30))
         .active(true)
         .build();
   }
@@ -94,5 +100,123 @@ class CouponTest {
     Coupon coupon = buildRateCoupon(200, 0);
     BigDecimal discount = coupon.calcDiscount(new BigDecimal("5000"));
     assertThat(discount).isEqualByComparingTo(new BigDecimal("5000"));
+  }
+
+  // ── eventStatus ──────────────────────────────────────────────────────────────
+
+  @Test
+  void eventStatus_active_false이면_ENDED() {
+    Coupon coupon =
+        Coupon.builder()
+            .kind(CouponKind.EVENT)
+            .label("종료 쿠폰")
+            .discountType(CouponDiscountType.AMOUNT)
+            .discountValue(1000)
+            .minOrder(0)
+            .displayStartAt(TODAY.minusDays(10))
+            .displayEndAt(TODAY.plusDays(10))
+            .active(false) // inactive
+            .build();
+    assertThat(coupon.eventStatus(TODAY)).isEqualTo(EventStatus.ENDED);
+    assertThat(coupon.isOngoing(TODAY)).isFalse();
+  }
+
+  @Test
+  void eventStatus_today_before_displayStartAt이면_SCHEDULED() {
+    Coupon coupon =
+        Coupon.builder()
+            .kind(CouponKind.EVENT)
+            .label("예정 쿠폰")
+            .discountType(CouponDiscountType.AMOUNT)
+            .discountValue(1000)
+            .minOrder(0)
+            .displayStartAt(TODAY.plusDays(1)) // 내일부터
+            .displayEndAt(TODAY.plusDays(30))
+            .active(true)
+            .build();
+    assertThat(coupon.eventStatus(TODAY)).isEqualTo(EventStatus.SCHEDULED);
+    assertThat(coupon.isOngoing(TODAY)).isFalse();
+  }
+
+  @Test
+  void eventStatus_today_after_displayEndAt이면_ENDED() {
+    Coupon coupon =
+        Coupon.builder()
+            .kind(CouponKind.EVENT)
+            .label("종료 쿠폰")
+            .discountType(CouponDiscountType.AMOUNT)
+            .discountValue(1000)
+            .minOrder(0)
+            .displayStartAt(TODAY.minusDays(30))
+            .displayEndAt(TODAY.minusDays(1)) // 어제 종료
+            .active(true)
+            .build();
+    assertThat(coupon.eventStatus(TODAY)).isEqualTo(EventStatus.ENDED);
+    assertThat(coupon.isOngoing(TODAY)).isFalse();
+  }
+
+  @Test
+  void eventStatus_기간_내이면_ONGOING() {
+    Coupon coupon =
+        Coupon.builder()
+            .kind(CouponKind.EVENT)
+            .label("진행중 쿠폰")
+            .discountType(CouponDiscountType.AMOUNT)
+            .discountValue(1000)
+            .minOrder(0)
+            .displayStartAt(TODAY.minusDays(7))
+            .displayEndAt(TODAY.plusDays(7))
+            .active(true)
+            .build();
+    assertThat(coupon.eventStatus(TODAY)).isEqualTo(EventStatus.ONGOING);
+    assertThat(coupon.isOngoing(TODAY)).isTrue();
+  }
+
+  @Test
+  void eventStatus_displayStartAt_당일이면_ONGOING() {
+    Coupon coupon =
+        Coupon.builder()
+            .kind(CouponKind.EVENT)
+            .label("당일 시작 쿠폰")
+            .discountType(CouponDiscountType.AMOUNT)
+            .discountValue(1000)
+            .minOrder(0)
+            .displayStartAt(TODAY) // 오늘 시작
+            .displayEndAt(TODAY.plusDays(30))
+            .active(true)
+            .build();
+    assertThat(coupon.eventStatus(TODAY)).isEqualTo(EventStatus.ONGOING);
+  }
+
+  @Test
+  void eventStatus_displayEndAt_당일이면_ONGOING() {
+    Coupon coupon =
+        Coupon.builder()
+            .kind(CouponKind.EVENT)
+            .label("당일 종료 쿠폰")
+            .discountType(CouponDiscountType.AMOUNT)
+            .discountValue(1000)
+            .minOrder(0)
+            .displayStartAt(TODAY.minusDays(30))
+            .displayEndAt(TODAY) // 오늘 종료
+            .active(true)
+            .build();
+    assertThat(coupon.eventStatus(TODAY)).isEqualTo(EventStatus.ONGOING);
+  }
+
+  @Test
+  void eventStatus_displayStart_null이면_조건없이_시작() {
+    Coupon coupon =
+        Coupon.builder()
+            .kind(CouponKind.EVENT)
+            .label("시작일 없음")
+            .discountType(CouponDiscountType.AMOUNT)
+            .discountValue(1000)
+            .minOrder(0)
+            .displayStartAt(null) // null = 즉시 시작
+            .displayEndAt(TODAY.plusDays(10))
+            .active(true)
+            .build();
+    assertThat(coupon.eventStatus(TODAY)).isEqualTo(EventStatus.ONGOING);
   }
 }

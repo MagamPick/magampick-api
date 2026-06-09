@@ -4,7 +4,6 @@ import com.magampick.clearance.domain.ClearanceItem;
 import com.magampick.clearance.domain.ClearanceItemStatus;
 import com.magampick.clearance.exception.ClearanceItemErrorCode;
 import com.magampick.clearance.repository.ClearanceItemRepository;
-import com.magampick.coupon.domain.Coupon;
 import com.magampick.coupon.domain.UserCoupon;
 import com.magampick.coupon.exception.CouponErrorCode;
 import com.magampick.coupon.service.CouponService;
@@ -190,11 +189,10 @@ public class OrderService {
     Long userCouponId = request.userCouponId();
     if (userCouponId != null) {
       UserCoupon uc = couponService.getUsableForOrder(userCouponId, customerId);
-      Coupon coupon = uc.getCoupon();
-      if (!coupon.isApplicableTo(menuSubtotal)) {
+      if (!uc.isApplicableTo(menuSubtotal)) {
         throw new BusinessException(CouponErrorCode.COUPON_NOT_AVAILABLE);
       }
-      couponDiscount = coupon.calcDiscount(menuSubtotal);
+      couponDiscount = uc.calcDiscount(menuSubtotal);
     }
     BigDecimal afterCoupon = payTotal.subtract(couponDiscount);
     // 포인트 (요청 있을 때만 잔액 조회)

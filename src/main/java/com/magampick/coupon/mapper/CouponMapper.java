@@ -3,13 +3,12 @@ package com.magampick.coupon.mapper;
 import com.magampick.coupon.domain.Coupon;
 import com.magampick.coupon.domain.CouponStatus;
 import com.magampick.coupon.domain.UserCoupon;
-import com.magampick.coupon.dto.AdminCouponResponse;
 import com.magampick.coupon.dto.CouponEventResponse;
 import com.magampick.coupon.dto.CouponResponse;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
-/** 쿠폰 도메인 MapStruct 매퍼. */
+/** 쿠폰 도메인 MapStruct 매퍼. AdminCouponResponse 는 CouponService.mapToAdminResponse 에서 직접 빌드. */
 @Mapper(componentModel = "spring")
 public interface CouponMapper {
 
@@ -40,12 +39,4 @@ public interface CouponMapper {
   @Mapping(target = "expiresAt", source = "coupon.validUntil")
   @Mapping(target = "claimed", source = "claimed")
   CouponEventResponse toEventResponse(Coupon coupon, boolean claimed);
-
-  /**
-   * Coupon 마스터 → AdminCouponResponse.
-   *
-   * <p>value = coupon.discountValue.
-   */
-  @Mapping(target = "value", source = "discountValue")
-  AdminCouponResponse toAdminResponse(Coupon coupon);
 }
