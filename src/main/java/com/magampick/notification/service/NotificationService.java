@@ -113,6 +113,35 @@ public class NotificationService {
   }
 
   /**
+   * 토글 무시 always-on 알림 (거래성). Notification 저장 + FCM 발송.
+   *
+   * <p>설정 검사 없이 무조건 DB 에 알림을 저장하고 FCM 을 발송한다. FCM 실패는 로그만 남기고 전파하지 않는다.
+   *
+   * @param ownerType 수신자 역할 (CUSTOMER 또는 SELLER)
+   * @param ownerId 수신자 ID
+   * @param category 알림 카테고리
+   * @param title 알림 제목
+   * @param body 알림 본문
+   * @param link 연결 링크
+   */
+  @Transactional
+  public void notifyAlways(
+      Role ownerType,
+      Long ownerId,
+      NotificationCategory category,
+      String title,
+      String body,
+      String link) {
+    notificationRepository.save(
+        Notification.create(ownerType, ownerId, category, title, body, link));
+    try {
+      sendToOwner(ownerType, ownerId, title, body);
+    } catch (Exception e) {
+      log.warn("always-on 알림 FCM 실패. ownerType={}, ownerId={}", ownerType, ownerId, e);
+    }
+  }
+
+  /**
    * 한 사용자의 모든 디바이스로 푸시 발송. 발송 후 죽은 토큰(UNREGISTERED/INVALID_ARGUMENT)은 정리한다.
    *
    * @return 발송 성공한 토큰 수

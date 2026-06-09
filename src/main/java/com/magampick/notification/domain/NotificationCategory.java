@@ -9,5 +9,6 @@ public enum NotificationCategory {
   SYSTEM,
   REFUND,
   SETTLEMENT,
-  NOTICE
+  NOTICE,
+  INQUIRY
 }
