@@ -14,9 +14,6 @@ import static org.mockito.Mockito.never;
 
 import com.magampick.clearance.exception.ClearanceItemErrorCode;
 import com.magampick.clearance.repository.ClearanceItemRepository;
-import com.magampick.coupon.domain.Coupon;
-import com.magampick.coupon.domain.CouponDiscountType;
-import com.magampick.coupon.domain.CouponKind;
 import com.magampick.coupon.domain.UserCoupon;
 import com.magampick.coupon.exception.CouponErrorCode;
 import com.magampick.coupon.service.CouponService;
@@ -1174,24 +1171,16 @@ class OrderServiceTest {
 
   @Test
   void 쿠폰_적용시_couponDiscount_저장() {
-    // given — MENU 상품(3500×1), AMOUNT 쿠폰 1000, minOrder 2000
+    // given — MENU 상품(3500×1), 스냅샷 AMOUNT 쿠폰 1000, minOrder 2000
     Long userCouponId = 99L;
     givenStoreOpen();
     givenProduct();
     given(customerRepository.getReferenceById(CUSTOMER_ID)).willReturn(OrderFixture.aCustomer());
 
+    // UserCoupon 스냅샷 기반 — isApplicableTo/calcDiscount 를 직접 Mock
     UserCoupon uc = mock(UserCoupon.class);
-    Coupon coupon =
-        Coupon.builder()
-            .kind(CouponKind.EVENT)
-            .label("테스트쿠폰")
-            .discountType(CouponDiscountType.AMOUNT)
-            .discountValue(1000)
-            .minOrder(2000)
-            .validUntil(LocalDate.now().plusDays(30))
-            .active(true)
-            .build();
-    given(uc.getCoupon()).willReturn(coupon);
+    given(uc.isApplicableTo(any(BigDecimal.class))).willReturn(true);
+    given(uc.calcDiscount(any(BigDecimal.class))).willReturn(new BigDecimal("1000"));
     given(couponService.getUsableForOrder(userCouponId, CUSTOMER_ID)).willReturn(uc);
 
     ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
@@ -1255,23 +1244,14 @@ class OrderServiceTest {
 
   @Test
   void 쿠폰_최소주문_미달_COUPON_NOT_AVAILABLE() {
-    // given — coupon minOrder=5000, menuSubtotal=3500 → isApplicableTo=false
+    // given — 스냅샷 minOrder=5000, menuSubtotal=3500 → isApplicableTo=false
     Long userCouponId = 99L;
     givenStoreOpen();
     givenProduct();
 
+    // UserCoupon 스냅샷 기반 — isApplicableTo false 반환
     UserCoupon uc = mock(UserCoupon.class);
-    Coupon coupon =
-        Coupon.builder()
-            .kind(CouponKind.EVENT)
-            .label("최소주문 쿠폰")
-            .discountType(CouponDiscountType.AMOUNT)
-            .discountValue(1000)
-            .minOrder(5000) // 5000 > menuSubtotal(3500)
-            .validUntil(LocalDate.now().plusDays(30))
-            .active(true)
-            .build();
-    given(uc.getCoupon()).willReturn(coupon);
+    given(uc.isApplicableTo(any(BigDecimal.class))).willReturn(false);
     given(couponService.getUsableForOrder(userCouponId, CUSTOMER_ID)).willReturn(uc);
 
     CreateOrderRequest req =

@@ -1,11 +1,13 @@
 package com.magampick.coupon.service;
 
 import com.magampick.coupon.domain.Coupon;
+import com.magampick.coupon.domain.CouponDiscountType;
 import com.magampick.coupon.domain.CouponKind;
 import com.magampick.coupon.domain.CouponStatus;
 import com.magampick.coupon.domain.UserCoupon;
 import com.magampick.coupon.dto.AdminCouponCreateRequest;
 import com.magampick.coupon.dto.AdminCouponResponse;
+import com.magampick.coupon.dto.AdminCouponUpdateRequest;
 import com.magampick.coupon.dto.CouponEventResponse;
 import com.magampick.coupon.dto.CouponResponse;
 import com.magampick.coupon.exception.CouponErrorCode;
@@ -28,7 +30,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 쿠폰 발급·조회 서비스. */
+/** 쿠폰 발급·조회·이벤트 관리 서비스. */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -62,28 +64,31 @@ public class CouponService {
   }
 
   /**
-   * 이벤트 쿠폰 목록 조회. 소비자의 기 수령 쿠폰 ID 집합으로 claimed 플래그를 설정한다.
+   * 소비자용 이벤트 쿠폰 목록 조회. 진행중(ONGOING) 쿠폰만 노출. 소비자의 기 수령 쿠폰 ID 집합으로 claimed 플래그를 설정한다.
    *
    * @param customerId 소비자 ID
-   * @return 활성 이벤트 쿠폰 목록
+   * @return 진행중 이벤트 쿠폰 목록
    */
   public List<CouponEventResponse> getEvents(Long customerId) {
     Set<Long> claimedIds = userCouponRepository.findClaimedCouponIdsByCustomerId(customerId);
+    LocalDate today = LocalDate.now(clock);
     List<Coupon> events = couponRepository.findByKindAndActiveTrue(CouponKind.EVENT);
     return events.stream()
+        .filter(coupon -> coupon.isOngoing(today))
         .map(coupon -> couponMapper.toEventResponse(coupon, claimedIds.contains(coupon.getId())))
         .toList();
   }
 
   /**
-   * 이벤트 쿠폰 발급 (선착순 + 1인 1회).
+   * 이벤트 쿠폰 발급 (선착순 + 1인 1회). 진행중(ONGOING) 쿠폰만 발급 가능.
    *
    * <ol>
    *   <li>쿠폰 존재 확인
    *   <li>EVENT + 활성 확인
+   *   <li>진행중(isOngoing) 확인
    *   <li>1인 1회 중복 확인
    *   <li>선착순 원자 카운트 증가 (issueLimit 초과 시 0 반환)
-   *   <li>UserCoupon 저장 후 반환
+   *   <li>UserCoupon 저장 (할인 스냅샷 포함) 후 반환
    * </ol>
    *
    * @param customerId 소비자 ID
@@ -98,6 +103,10 @@ public class CouponService {
             .orElseThrow(() -> new BusinessException(CouponErrorCode.COUPON_NOT_FOUND));
 
     if (coupon.getKind() != CouponKind.EVENT || !coupon.isActive()) {
+      throw new BusinessException(CouponErrorCode.COUPON_NOT_AVAILABLE);
+    }
+    LocalDate today = LocalDate.now(clock);
+    if (!coupon.isOngoing(today)) {
       throw new BusinessException(CouponErrorCode.COUPON_NOT_AVAILABLE);
     }
     if (userCouponRepository.existsByCustomerIdAndCouponId(customerId, couponId)) {
@@ -122,6 +131,9 @@ public class CouponService {
                   .status(CouponStatus.USABLE)
                   .expiresAt(expiresAt)
                   .issuedAt(LocalDateTime.now(clock))
+                  .discountType(coupon.getDiscountType())
+                  .discountValue(coupon.getDiscountValue())
+                  .minOrder(coupon.getMinOrder())
                   .build());
     } catch (DataIntegrityViolationException e) {
       throw new BusinessException(CouponErrorCode.COUPON_ALREADY_CLAIMED);
@@ -133,16 +145,18 @@ public class CouponService {
   }
 
   /**
-   * 관리자 이벤트 쿠폰 생성. RATE 할인이면 value 1~100 범위 검증.
+   * 관리자 이벤트 쿠폰 생성. RATE 할인이면 value 1~100 범위 검증. displayStartAt <= displayEndAt 검증.
    *
    * @param req 쿠폰 생성 요청
    * @return 생성된 쿠폰 마스터
    */
   @Transactional
   public AdminCouponResponse createEvent(AdminCouponCreateRequest req) {
-    if (req.discountType() == com.magampick.coupon.domain.CouponDiscountType.RATE
-        && (req.value() < 1 || req.value() > 100)) {
+    if (req.discountType() == CouponDiscountType.RATE && (req.value() < 1 || req.value() > 100)) {
       throw new BusinessException(CouponErrorCode.INVALID_DISCOUNT_RATE);
+    }
+    if (req.displayStartAt().isAfter(req.displayEndAt())) {
+      throw new BusinessException(CouponErrorCode.INVALID_EVENT_PERIOD);
     }
     Coupon coupon =
         couponRepository.save(
@@ -155,9 +169,91 @@ public class CouponService {
                 .validUntil(req.validUntil())
                 .validityDays(null)
                 .issueLimit(req.issueLimit())
+                .displayStartAt(req.displayStartAt())
+                .displayEndAt(req.displayEndAt())
                 .active(true)
                 .build());
-    return couponMapper.toAdminResponse(coupon);
+    return mapToAdminResponse(coupon, LocalDate.now(clock));
+  }
+
+  /**
+   * 관리자 이벤트 쿠폰 목록 조회 (전체, 상태 포함). kind=EVENT 전체를 생성 최신순으로 반환한다.
+   *
+   * @return 이벤트 쿠폰 목록 (상태 포함)
+   */
+  public List<AdminCouponResponse> listEvents() {
+    LocalDate today = LocalDate.now(clock);
+    return couponRepository.findByKindOrderByCreatedAtDesc(CouponKind.EVENT).stream()
+        .map(coupon -> mapToAdminResponse(coupon, today))
+        .toList();
+  }
+
+  /**
+   * 관리자 이벤트 쿠폰 부분 수정. null 필드는 수정하지 않는다. 이미 발급된 UserCoupon 의 스냅샷은 변경되지 않음 (소급 방지 자동 보장).
+   *
+   * @param couponId 수정할 쿠폰 마스터 ID
+   * @param req 부분 수정 요청
+   * @return 수정된 쿠폰 응답
+   * @throws BusinessException COUPON_NOT_FOUND / INVALID_DISCOUNT_RATE / INVALID_EVENT_PERIOD
+   */
+  @Transactional
+  public AdminCouponResponse updateEvent(Long couponId, AdminCouponUpdateRequest req) {
+    Coupon coupon =
+        couponRepository
+            .findById(couponId)
+            .orElseThrow(() -> new BusinessException(CouponErrorCode.COUPON_NOT_FOUND));
+    if (coupon.getKind() != CouponKind.EVENT) {
+      throw new BusinessException(CouponErrorCode.COUPON_NOT_FOUND);
+    }
+
+    // RATE 할인율 재검증 — 수정 후 적용될 타입/값 기준
+    CouponDiscountType effectiveType =
+        req.discountType() != null ? req.discountType() : coupon.getDiscountType();
+    int effectiveValue =
+        req.discountValue() != null ? req.discountValue() : coupon.getDiscountValue();
+    if (effectiveType == CouponDiscountType.RATE && (effectiveValue < 1 || effectiveValue > 100)) {
+      throw new BusinessException(CouponErrorCode.INVALID_DISCOUNT_RATE);
+    }
+
+    // 노출 기간 검증 — 수정 후 적용될 기간 기준
+    LocalDate effectiveStart =
+        req.displayStartAt() != null ? req.displayStartAt() : coupon.getDisplayStartAt();
+    LocalDate effectiveEnd =
+        req.displayEndAt() != null ? req.displayEndAt() : coupon.getDisplayEndAt();
+    if (effectiveStart != null && effectiveEnd != null && effectiveStart.isAfter(effectiveEnd)) {
+      throw new BusinessException(CouponErrorCode.INVALID_EVENT_PERIOD);
+    }
+
+    coupon.updateEvent(
+        req.label(),
+        req.discountType(),
+        req.discountValue(),
+        req.minOrder(),
+        req.validUntil(),
+        req.issueLimit(),
+        req.displayStartAt(),
+        req.displayEndAt());
+    return mapToAdminResponse(coupon, LocalDate.now(clock));
+  }
+
+  /**
+   * 관리자 이벤트 쿠폰 조기 종료. active=false → eventStatus=ENDED.
+   *
+   * @param couponId 종료할 쿠폰 마스터 ID
+   * @return 종료된 쿠폰 응답
+   * @throws BusinessException COUPON_NOT_FOUND
+   */
+  @Transactional
+  public AdminCouponResponse endEvent(Long couponId) {
+    Coupon coupon =
+        couponRepository
+            .findById(couponId)
+            .orElseThrow(() -> new BusinessException(CouponErrorCode.COUPON_NOT_FOUND));
+    if (coupon.getKind() != CouponKind.EVENT) {
+      throw new BusinessException(CouponErrorCode.COUPON_NOT_FOUND);
+    }
+    coupon.end();
+    return mapToAdminResponse(coupon, LocalDate.now(clock));
   }
 
   /**
@@ -284,7 +380,7 @@ public class CouponService {
   }
 
   /**
-   * 가입 축하 쿠폰 자동 발급. SIGNUP 마스터가 없으면 경고 후 건너뜀.
+   * 가입 축하 쿠폰 자동 발급. SIGNUP 마스터가 없으면 경고 후 건너뜀. 발급 시 할인 스냅샷 설정 (discountType/discountValue/minOrder).
    *
    * @param customer 이미 저장된 소비자 엔티티
    */
@@ -302,9 +398,36 @@ public class CouponService {
                       .status(CouponStatus.USABLE)
                       .expiresAt(expiresAt)
                       .issuedAt(LocalDateTime.now(clock))
+                      .discountType(master.getDiscountType())
+                      .discountValue(master.getDiscountValue())
+                      .minOrder(master.getMinOrder())
                       .build());
               notifyIssued(customer.getId(), master.getLabel(), expiresAt);
             },
             () -> log.warn("가입 축하 쿠폰 마스터 없음 — 발급 건너뜀. customerId={}", customer.getId()));
+  }
+
+  /**
+   * Coupon → AdminCouponResponse 변환 (today 기준 status 도출 포함). MapStruct 미사용 — status 는 today 파라미터
+   * 필요.
+   *
+   * @param coupon 쿠폰 마스터
+   * @param today 상태 도출 기준 날짜
+   * @return AdminCouponResponse
+   */
+  private AdminCouponResponse mapToAdminResponse(Coupon coupon, LocalDate today) {
+    return new AdminCouponResponse(
+        coupon.getId(),
+        coupon.getLabel(),
+        coupon.getDiscountType(),
+        coupon.getDiscountValue(),
+        coupon.getMinOrder(),
+        coupon.getValidUntil(),
+        coupon.getIssueLimit(),
+        coupon.getIssuedCount(),
+        coupon.isActive(),
+        coupon.getDisplayStartAt(),
+        coupon.getDisplayEndAt(),
+        coupon.eventStatus(today));
   }
 }

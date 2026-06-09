@@ -66,6 +66,14 @@ public class Coupon extends BaseEntity {
   @Column(name = "active", nullable = false)
   private boolean active;
 
+  /** 이벤트 노출 시작일 (EVENT 전용, nullable). */
+  @Column(name = "display_start_at")
+  private LocalDate displayStartAt;
+
+  /** 이벤트 노출 종료일 (EVENT 전용, nullable). */
+  @Column(name = "display_end_at")
+  private LocalDate displayEndAt;
+
   /**
    * 주문에 쿠폰 적용 가능 여부. menuSubtotal > 0 이고 minOrder 이상인 경우에만 가능.
    *
@@ -99,6 +107,65 @@ public class Coupon extends BaseEntity {
     return BigDecimal.valueOf(discountValue).min(menuSubtotal);
   }
 
+  /**
+   * EVENT 상태 도출. active=false → ENDED. 그 외 today 기준 기간 비교. (SIGNUP 엔 의미 없음)
+   *
+   * @param today 기준 날짜
+   * @return 이벤트 상태
+   */
+  public EventStatus eventStatus(LocalDate today) {
+    if (!active) return EventStatus.ENDED;
+    if (displayStartAt != null && today.isBefore(displayStartAt)) return EventStatus.SCHEDULED;
+    if (displayEndAt != null && today.isAfter(displayEndAt)) return EventStatus.ENDED;
+    return EventStatus.ONGOING;
+  }
+
+  /**
+   * 소비자 노출/클레임 가능 = 진행중.
+   *
+   * @param today 기준 날짜
+   * @return 진행중이면 true
+   */
+  public boolean isOngoing(LocalDate today) {
+    return eventStatus(today) == EventStatus.ONGOING;
+  }
+
+  /**
+   * 노출 기간/필드 부분 수정 — null 인자는 무시(변경 없음).
+   *
+   * @param label 쿠폰 이름
+   * @param discountType 할인 방식
+   * @param discountValue 할인 값
+   * @param minOrder 최소 주문 금액
+   * @param validUntil 고정 만료일
+   * @param issueLimit 발급 한도
+   * @param displayStartAt 이벤트 노출 시작일
+   * @param displayEndAt 이벤트 노출 종료일
+   */
+  public void updateEvent(
+      String label,
+      CouponDiscountType discountType,
+      Integer discountValue,
+      Integer minOrder,
+      LocalDate validUntil,
+      Integer issueLimit,
+      LocalDate displayStartAt,
+      LocalDate displayEndAt) {
+    if (label != null) this.label = label;
+    if (discountType != null) this.discountType = discountType;
+    if (discountValue != null) this.discountValue = discountValue;
+    if (minOrder != null) this.minOrder = minOrder;
+    if (validUntil != null) this.validUntil = validUntil;
+    if (issueLimit != null) this.issueLimit = issueLimit;
+    if (displayStartAt != null) this.displayStartAt = displayStartAt;
+    if (displayEndAt != null) this.displayEndAt = displayEndAt;
+  }
+
+  /** 조기 종료. active=false → eventStatus=ENDED. */
+  public void end() {
+    this.active = false;
+  }
+
   @Builder
   private Coupon(
       CouponKind kind,
@@ -109,7 +176,9 @@ public class Coupon extends BaseEntity {
       LocalDate validUntil,
       Integer validityDays,
       Integer issueLimit,
-      Boolean active) {
+      Boolean active,
+      LocalDate displayStartAt,
+      LocalDate displayEndAt) {
     this.kind = kind;
     this.label = label;
     this.discountType = discountType;
@@ -120,5 +189,7 @@ public class Coupon extends BaseEntity {
     this.issueLimit = issueLimit;
     this.issuedCount = 0;
     this.active = active != null ? active : true;
+    this.displayStartAt = displayStartAt;
+    this.displayEndAt = displayEndAt;
   }
 }

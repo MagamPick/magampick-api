@@ -13,6 +13,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import lombok.AccessLevel;
@@ -59,6 +61,19 @@ public class UserCoupon extends BaseEntity {
   @Column(name = "expiry_alert_sent_at")
   private LocalDateTime expiryAlertSentAt;
 
+  /** 발급 시점 할인 방식 스냅샷 (소급 방지). */
+  @Enumerated(EnumType.STRING)
+  @Column(name = "discount_type", nullable = false, length = 20)
+  private CouponDiscountType discountType;
+
+  /** 발급 시점 할인 값 스냅샷 (소급 방지). */
+  @Column(name = "discount_value", nullable = false)
+  private int discountValue;
+
+  /** 발급 시점 최소 주문 금액 스냅샷 (소급 방지). */
+  @Column(name = "min_order", nullable = false)
+  private int minOrder;
+
   public void markExpiryAlertSent(LocalDateTime now) {
     this.expiryAlertSentAt = now;
   }
@@ -84,17 +99,54 @@ public class UserCoupon extends BaseEntity {
     this.usedAt = null;
   }
 
+  /**
+   * 스냅샷 기반 주문 적용 가능 여부. menuSubtotal > 0 이고 발급 시점 minOrder 이상인 경우에만 가능.
+   *
+   * @param menuSubtotal 메뉴 소계 (쿠폰 할인 전 금액)
+   * @return 적용 가능하면 true
+   */
+  public boolean isApplicableTo(BigDecimal menuSubtotal) {
+    return menuSubtotal.signum() > 0 && menuSubtotal.compareTo(BigDecimal.valueOf(minOrder)) >= 0;
+  }
+
+  /**
+   * 스냅샷 기반 할인 금액 계산. 발급 시점 discountType/discountValue 사용 (마스터 수정 소급 방지).
+   *
+   * <ul>
+   *   <li>RATE: menuSubtotal × discountValue / 100 (내림, 1원 미만 버림)
+   *   <li>AMOUNT: min(discountValue, menuSubtotal)
+   * </ul>
+   *
+   * @param menuSubtotal 메뉴 소계 (쿠폰 할인 전 금액)
+   * @return 할인 금액
+   */
+  public BigDecimal calcDiscount(BigDecimal menuSubtotal) {
+    if (discountType == CouponDiscountType.RATE) {
+      return menuSubtotal
+          .multiply(BigDecimal.valueOf(discountValue))
+          .divide(BigDecimal.valueOf(100), 0, RoundingMode.FLOOR)
+          .min(menuSubtotal);
+    }
+    return BigDecimal.valueOf(discountValue).min(menuSubtotal);
+  }
+
   @Builder
   private UserCoupon(
       Customer customer,
       Coupon coupon,
       CouponStatus status,
       LocalDate expiresAt,
-      LocalDateTime issuedAt) {
+      LocalDateTime issuedAt,
+      CouponDiscountType discountType,
+      int discountValue,
+      int minOrder) {
     this.customer = customer;
     this.coupon = coupon;
     this.status = status != null ? status : CouponStatus.USABLE;
     this.expiresAt = expiresAt;
     this.issuedAt = issuedAt;
+    this.discountType = discountType;
+    this.discountValue = discountValue;
+    this.minOrder = minOrder;
   }
 }

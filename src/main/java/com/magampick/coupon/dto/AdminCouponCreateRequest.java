@@ -16,4 +16,6 @@ public record AdminCouponCreateRequest(
     @Schema(description = "할인 값 (RATE=1~100%, AMOUNT=원)") @Positive int value,
     @Schema(description = "최소 주문 금액") @PositiveOrZero int minOrder,
     @Schema(description = "고정 만료일") @NotNull @FutureOrPresent LocalDate validUntil,
-    @Schema(description = "발급 한도 (null = 무제한)") @Positive Integer issueLimit) {}
+    @Schema(description = "발급 한도 (null = 무제한)") @Positive Integer issueLimit,
+    @Schema(description = "이벤트 노출 시작일") @NotNull @FutureOrPresent LocalDate displayStartAt,
+    @Schema(description = "이벤트 노출 종료일") @NotNull @FutureOrPresent LocalDate displayEndAt) {}

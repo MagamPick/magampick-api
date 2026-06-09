@@ -15,6 +15,9 @@ public interface CouponRepository extends JpaRepository<Coupon, Long> {
   /** 특정 kind 의 활성 쿠폰 목록 (EVENT 이벤트 목록 조회용). */
   List<Coupon> findByKindAndActiveTrue(CouponKind kind);
 
+  /** 특정 kind 의 전체 쿠폰 목록 (관리자 이벤트 전체 조회용, 생성 최신순). */
+  List<Coupon> findByKindOrderByCreatedAtDesc(CouponKind kind);
+
   /** 특정 kind 의 활성 쿠폰 첫 번째 (SIGNUP 마스터 단건 조회용 — id 오름차순으로 결정적 조회). */
   Optional<Coupon> findFirstByKindAndActiveTrueOrderByIdAsc(CouponKind kind);
 
