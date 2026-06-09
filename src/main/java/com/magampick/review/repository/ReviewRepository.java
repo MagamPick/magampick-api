@@ -66,4 +66,21 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
 
   /** 소비자 본인 리뷰 목록 최신순 (soft-delete 제외). */
   List<Review> findByCustomerIdAndDeletedAtIsNullOrderByCreatedAtDesc(Long customerId);
+
+  /**
+   * 통계용 리뷰 목록 — reviewReply + tags JOIN FETCH, createdAt [start, end) 범위.
+   *
+   * <p>reviewReply(OneToOne) + tags(ElementCollection) 즉시 로딩으로 N+1 방지.
+   */
+  @Query(
+      "SELECT DISTINCT r FROM Review r "
+          + "LEFT JOIN FETCH r.reviewReply "
+          + "LEFT JOIN FETCH r.tags "
+          + "WHERE r.store.id = :storeId "
+          + "AND r.deletedAt IS NULL "
+          + "AND r.createdAt >= :start AND r.createdAt < :end")
+  List<Review> findForAnalytics(
+      @Param("storeId") Long storeId,
+      @Param("start") java.time.LocalDateTime start,
+      @Param("end") java.time.LocalDateTime end);
 }
