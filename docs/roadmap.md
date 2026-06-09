@@ -177,8 +177,8 @@
 | 정산 내역 조회 (사장) — 기간별 | operations | 미착수 | - |
 | 쿠폰 발급 — 이벤트 claim(선착순·1인1회) + 가입 축하 쿠폰 자동 지급(가입훅) + 최소 관리자 이벤트 생성 API | operations | 완료 | [노션](https://app.notion.com/p/3696e59c28e681c69eebc6e51ed17622) (이번 PR) |
 | 이벤트 생성/관리 — 대상/기간/수량 (최소 생성 API는 쿠폰 발급 PR에 포함, 전체 관리 CRUD는 후속) | operations | 미착수 | - |
-| 공지사항 작성 — 즉시/예약 발송 (`announcements`) | operations | 미착수 | - |
-| 공지사항 조회 | operations | 미착수 | - |
+| 공지사항 작성 — 즉시 발행, 태그·핀, 수정·삭제 (`announcements`) | operations | 완료 | [노션](https://app.notion.com/p/3696e59c28e68157947fc73484439566) (이번 PR) |
+| 공지사항 조회 — 핀 우선·최신순 글로벌 목록 | operations | 완료 | [노션](https://app.notion.com/p/3696e59c28e6817c9684d42d286da48d) (이번 PR) |
 | 고객센터 문의 — 유형 선택, 답변 알림 (`inquiries`) | operations | 미착수 | - |
 | 문의 답변 | operations | 미착수 | - |
 | 약관 관리 — 버전 관리, 변경 고지 | operations | 미착수 | - |
