@@ -57,6 +57,9 @@ public class SecurityConfig {
   /** GET /api/v1/products/{id} — 단일 세그먼트, ROLE_CUSTOMER (인가 auth.md §9). */
   private static final String CUSTOMER_PRODUCT_DETAIL_PATH = "/api/v1/products/*";
 
+  /** GET /api/v1/search, /api/v1/search/** — 검색·자동완성, ROLE_CUSTOMER (Phase 9). */
+  private static final String[] CUSTOMER_SEARCH_PATHS = {"/api/v1/search", "/api/v1/search/**"};
+
   private static final String[] PUBLIC_GET_PATHS = {
     "/api/v1/stores/**", "/api/v1/clearance-items/**", "/api/v1/terms/**"
   };
@@ -93,6 +96,10 @@ public class SecurityConfig {
                     .requestMatchers(HttpMethod.GET, CUSTOMER_DEAL_DETAIL_PATH)
                     .hasRole("CUSTOMER")
                     .requestMatchers(HttpMethod.GET, CUSTOMER_PRODUCT_DETAIL_PATH)
+                    .hasRole("CUSTOMER")
+                    // GET /api/v1/search (검색) / /api/v1/search/** (자동완성 등) — ROLE_CUSTOMER (Phase
+                    // 9)
+                    .requestMatchers(HttpMethod.GET, CUSTOMER_SEARCH_PATHS)
                     .hasRole("CUSTOMER")
                     .requestMatchers(HttpMethod.GET, PUBLIC_GET_PATHS)
                     .permitAll()

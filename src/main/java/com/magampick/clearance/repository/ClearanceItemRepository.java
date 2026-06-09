@@ -145,4 +145,57 @@ public interface ClearanceItemRepository extends JpaRepository<ClearanceItem, Lo
       """)
   List<Object[]> findActiveDealSummaryByStoreIds(
       @Param("storeIds") Collection<Long> storeIds, @Param("status") ClearanceItemStatus status);
+
+  /**
+   * Phase 9 검색: 지정 매장 ID 내 OPEN 떨이 이름 ILIKE 부분일치 검색. id, storeId, name, imageUrl(product),
+   * regularPrice, salePrice, pickupEndAt 반환.
+   *
+   * @param storeIds 후보 매장 ID 목록
+   * @param q 검색 키워드
+   * @return {@link DealSearchCandidate} projection 목록
+   */
+  @Query(
+      value =
+          """
+          SELECT c.id          AS id,
+                 c.store_id    AS storeId,
+                 c.name        AS name,
+                 p.image_url   AS imageUrl,
+                 c.regular_price AS regularPrice,
+                 c.sale_price  AS salePrice,
+                 c.pickup_end_at AS pickupEndAt
+          FROM clearance_items c
+          LEFT JOIN products p ON p.id = c.product_id
+          WHERE c.status = 'OPEN'
+            AND c.store_id IN :storeIds
+            AND c.name ILIKE '%' || :q || '%' ESCAPE '\\'
+          """,
+      nativeQuery = true)
+  List<DealSearchCandidate> searchOpenDealsByStoreIds(
+      @Param("storeIds") Collection<Long> storeIds, @Param("q") String q);
+
+  /**
+   * Phase 9 자동완성: 지정 매장 ID 내 OPEN 떨이 이름 word_similarity 제안. 유사도 내림차순 정렬.
+   *
+   * @param storeIds 후보 매장 ID 목록
+   * @param q 자동완성 입력어
+   * @param threshold word_similarity 임계값
+   * @return {@link DealNameSuggestion} projection 목록 (유사도 내림차순)
+   */
+  @Query(
+      value =
+          """
+          SELECT c.name AS name,
+                 word_similarity(:q, c.name) AS similarity
+          FROM clearance_items c
+          WHERE c.status = 'OPEN'
+            AND c.store_id IN :storeIds
+            AND word_similarity(:q, c.name) >= :threshold
+          ORDER BY word_similarity(:q, c.name) DESC
+          """,
+      nativeQuery = true)
+  List<DealNameSuggestion> suggestDealNamesByStoreIds(
+      @Param("storeIds") Collection<Long> storeIds,
+      @Param("q") String q,
+      @Param("threshold") double threshold);
 }
