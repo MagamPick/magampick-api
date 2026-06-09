@@ -191,7 +191,7 @@ public class StoreQueryService {
    *
    * <p>score = (5.0 - distanceKm) + rating + (activeDealCount > 0 ? 1.5 : 0.0)
    */
-  static double recommendedScore(double distanceKm, double rating, long activeDealCount) {
+  public static double recommendedScore(double distanceKm, double rating, long activeDealCount) {
     return (5.0 - distanceKm) + rating + (activeDealCount > 0 ? 1.5 : 0.0);
   }
 

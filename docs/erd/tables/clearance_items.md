@@ -27,6 +27,7 @@
 - `idx_clearance_items_product_id` (`product_id`)
 - `uq_clearance_items_product_open` UNIQUE (`product_id`) WHERE `status = 'OPEN'` — 한 상품당 OPEN 1개 제한
 - `idx_clearance_items_status_pickup_end_at` (`status`, `pickup_end_at`) — 자동 마감 스케줄러 쿼리용
+- `idx_clearance_items_name_trgm` GIN (`name` gin_trgm_ops) — Phase 9 검색: ILIKE 부분 일치 및 word_similarity 자동완성 가속
 
 ## 제약
 

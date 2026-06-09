@@ -95,4 +95,68 @@ public interface StoreRepository extends JpaRepository<Store, Long> {
       nativeQuery = true)
   List<StoreCandidate> findOpenStoresWithin5km(
       @Param("lat") double lat, @Param("lng") double lng, @Param("today") String today);
+
+  /**
+   * Phase 9 검색: 노출 세트(5km·OPEN·오늘영업) 조건 + 매장명 ILIKE 부분일치. 검색 결과 매장 ID 목록 반환.
+   *
+   * @param lat origin 위도
+   * @param lng origin 경도
+   * @param today DayOfWeek.name()
+   * @param q 검색 키워드 (SQL ILIKE '%q%' 매칭)
+   * @return 조건을 만족하는 매장 ID 목록
+   */
+  @Query(
+      value =
+          """
+          SELECT s.id
+          FROM stores s
+          WHERE s.deleted_at IS NULL
+            AND s.operation_status = 'OPEN'
+            AND ST_DWithin(s.location, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography, 5000)
+            AND EXISTS (
+                SELECT 1 FROM store_business_hours h
+                WHERE h.store_id = s.id AND h.day_of_week = :today
+            )
+            AND s.name ILIKE '%' || :q || '%' ESCAPE '\\'
+          """,
+      nativeQuery = true)
+  List<Long> findStoreIdsWithin5kmMatchingName(
+      @Param("lat") double lat,
+      @Param("lng") double lng,
+      @Param("today") String today,
+      @Param("q") String q);
+
+  /**
+   * Phase 9 자동완성: 노출 세트 조건 + word_similarity 임계값 이상 매장명 제안. 유사도 내림차순 정렬.
+   *
+   * @param lat origin 위도
+   * @param lng origin 경도
+   * @param today DayOfWeek.name()
+   * @param q 자동완성 입력어
+   * @param threshold word_similarity 임계값 (0.3 권장)
+   * @return 이름 + 유사도 projection 목록 (유사도 내림차순)
+   */
+  @Query(
+      value =
+          """
+          SELECT s.name AS name,
+                 word_similarity(:q, s.name) AS similarity
+          FROM stores s
+          WHERE s.deleted_at IS NULL
+            AND s.operation_status = 'OPEN'
+            AND ST_DWithin(s.location, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography, 5000)
+            AND EXISTS (
+                SELECT 1 FROM store_business_hours h
+                WHERE h.store_id = s.id AND h.day_of_week = :today
+            )
+            AND word_similarity(:q, s.name) >= :threshold
+          ORDER BY word_similarity(:q, s.name) DESC
+          """,
+      nativeQuery = true)
+  List<StoreNameSuggestion> suggestStoreNamesWithin5km(
+      @Param("lat") double lat,
+      @Param("lng") double lng,
+      @Param("today") String today,
+      @Param("q") String q,
+      @Param("threshold") double threshold);
 }

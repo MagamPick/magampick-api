@@ -94,11 +94,12 @@
 | 상품 상세 조회 — 사진/가격/할인율/리뷰 | products | 완료 | [노션](https://app.notion.com/p/3696e59c28e68155bc71c114b70596cc) |
 | 지도 기반 매장 조회 — 카카오맵, 핀 표시 | stores | 완료 | [노션](https://app.notion.com/p/3696e59c28e6810b8a67e6feabeb59a0) |
 | 필터/정렬 — 거리/할인율/마감 임박 | stores | 미착수 | - |
-| 키워드 검색 — 매장명/상품명/해시태그 | stores | 미착수 | - |
-| 검색 기록 관리 — 최근 10개, 자동완성 | stores | 미착수 | - |
+| 키워드 검색 — 매장명·상품명 pg_trgm 부분일치 (5km·OPEN·오늘영업), 매장·상품 섹션 분리·5종 정렬 | stores | 완료 | [노션](https://app.notion.com/p/3696e59c28e6818985e3fb5bed27b4f5) |
+| 검색 자동완성 — pg_trgm word_similarity 유사 매장명·상품명 제안 (노출 범위 = 키워드 검색과 동일) | stores | 완료 | [노션](https://app.notion.com/p/3696e59c28e681aba60fe00126c3b9b5) |
+| 검색 기록 — 최근 검색어 저장/삭제 (FE localStorage·계정별, BE 무관) | - | FE 전용 | [노션](https://app.notion.com/p/3696e59c28e681d7ba63c72ccfe80325) |
 | 실시간 급상승 키워드 — 1시간 내 검색량 기준 | stores | 미착수 | - |
 
-- 검색 기록·급상승 키워드는 ERD 미반영 (`erd/overview.md` 미정 사항) → `/issue` 로 테이블 결정 선행.
+- 검색 기록은 FE localStorage(계정별)로 결정 — BE 테이블 없음. 실시간 급상승 키워드는 백로그(ERD 미반영).
 
 ## 계층 5 — 주문
 

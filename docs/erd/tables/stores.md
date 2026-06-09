@@ -31,6 +31,7 @@
 - `idx_stores_seller_id` (`seller_id`)
 - `idx_stores_operation_status` (`operation_status`)
 - `idx_stores_location` GIST (`location`)
+- `idx_stores_name_trgm` GIN (`name` gin_trgm_ops) — Phase 9 검색: ILIKE 부분 일치 및 word_similarity 자동완성 가속
 
 ## 제약
 

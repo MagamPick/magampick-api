@@ -22,6 +22,7 @@
 - `products_pkey` (`id`)
 - `idx_products_store_id` (`store_id`)
 - `uq_products_store_name_active` UNIQUE (`store_id`, `name`) WHERE `deleted_at IS NULL` — 삭제된 상품과 동명 재등록 허용
+- `idx_products_name_trgm` GIN (`name` gin_trgm_ops) — Phase 9 검색: ILIKE 부분 일치 및 word_similarity 자동완성 가속
 
 ## 제약
 
