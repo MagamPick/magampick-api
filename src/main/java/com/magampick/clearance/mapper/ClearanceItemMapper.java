@@ -18,6 +18,7 @@ public interface ClearanceItemMapper {
   @Mapping(target = "createdAt", source = "createdAt", qualifiedByName = "toKst")
   @Mapping(target = "pickupStartAt", source = "pickupStartAt", qualifiedByName = "toKst")
   @Mapping(target = "pickupEndAt", source = "pickupEndAt", qualifiedByName = "toKst")
+  @Mapping(target = "closeReason", source = "closeReason")
   ClearanceItemResponse toResponse(ClearanceItem item);
 
   @Named("toKst")

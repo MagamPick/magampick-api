@@ -65,6 +65,10 @@ public class ClearanceItem extends BaseEntity {
   @Column(name = "status", nullable = false, length = 20)
   private ClearanceItemStatus status;
 
+  @Enumerated(EnumType.STRING)
+  @Column(name = "close_reason", length = 30)
+  private ClearanceCloseReason closeReason;
+
   @Column(name = "closing_alert_sent_at")
   private LocalDateTime closingAlertSentAt;
 
@@ -107,8 +111,17 @@ public class ClearanceItem extends BaseEntity {
     if (pickupEndAt != null) this.pickupEndAt = pickupEndAt;
   }
 
+  /**
+   * @deprecated 테스트 셋업 전용. 프로덕션 코드는 {@link #close(ClearanceCloseReason)} 사용.
+   */
+  @Deprecated
   public void close() {
     this.status = ClearanceItemStatus.CLOSED;
+  }
+
+  public void close(ClearanceCloseReason reason) {
+    this.status = ClearanceItemStatus.CLOSED;
+    this.closeReason = reason;
   }
 
   /** 마감 임박 알림 발송 완료 표시. */

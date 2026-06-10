@@ -18,6 +18,8 @@ public enum ProductErrorCode implements BaseErrorCode {
   PRODUCT_IMAGE_UPLOAD_FAILED(
       HttpStatus.INTERNAL_SERVER_ERROR, "PRODUCT_IMAGE_UPLOAD_FAILED", "상품 이미지 업로드에 실패했습니다"),
   PRODUCT_NOT_ON_SALE(HttpStatus.CONFLICT, "PRODUCT_NOT_ON_SALE", "판매 중인 상품이 아닙니다"),
+  PRODUCT_HAS_ACTIVE_CLEARANCE(
+      HttpStatus.CONFLICT, "PRODUCT_HAS_ACTIVE_CLEARANCE", "진행 중인 떨이를 먼저 마감하세요"),
   ;
 
   private final HttpStatus status;

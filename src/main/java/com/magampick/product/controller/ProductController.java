@@ -114,7 +114,8 @@ public class ProductController {
     @ApiResponse(responseCode = "204", description = "삭제 성공"),
     @ApiResponse(responseCode = "401", description = "미인증"),
     @ApiResponse(responseCode = "403", description = "타인 매장 접근"),
-    @ApiResponse(responseCode = "404", description = "상품 없음")
+    @ApiResponse(responseCode = "404", description = "상품 없음"),
+    @ApiResponse(responseCode = "409", description = "진행 중인 떨이 존재")
   })
   public ResponseEntity<Void> delete(
       @AuthenticationPrincipal CustomUserDetails userDetails,

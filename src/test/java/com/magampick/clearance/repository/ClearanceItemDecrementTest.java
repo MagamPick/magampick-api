@@ -120,6 +120,8 @@ class ClearanceItemDecrementTest {
     ClearanceItem refreshed = clearanceItemRepository.findById(item.getId()).orElseThrow();
     assertThat(refreshed.getRemainingQuantity()).isEqualTo(0);
     assertThat(refreshed.getStatus()).isEqualTo(ClearanceItemStatus.SOLD_OUT);
+    assertThat(refreshed.getCloseReason())
+        .isEqualTo(com.magampick.clearance.domain.ClearanceCloseReason.SOLD_OUT);
   }
 
   @Test

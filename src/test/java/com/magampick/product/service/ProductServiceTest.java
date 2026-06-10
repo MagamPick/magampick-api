@@ -48,6 +48,7 @@ class ProductServiceTest {
   @Mock StoreRepository storeRepository;
   @Mock StorageService storageService;
   @Mock ProductMapper productMapper;
+  @Mock com.magampick.clearance.repository.ClearanceItemRepository clearanceItemRepository;
   @InjectMocks ProductService productService;
 
   private static final Long SELLER_ID = 1L;
@@ -420,6 +421,10 @@ class ProductServiceTest {
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.of(product));
+    given(
+            clearanceItemRepository.existsByProductIdAndStatus(
+                PRODUCT_ID, com.magampick.clearance.domain.ClearanceItemStatus.OPEN))
+        .willReturn(false);
 
     // when
     productService.deleteProduct(SELLER_ID, STORE_ID, PRODUCT_ID);
@@ -451,6 +456,26 @@ class ProductServiceTest {
     assertThatThrownBy(() -> productService.deleteProduct(SELLER_ID, STORE_ID, PRODUCT_ID))
         .isInstanceOf(BusinessException.class)
         .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.STORE_ACCESS_DENIED);
+  }
+
+  @Test
+  void 일반_상품_삭제_활성_떨이_존재_예외() {
+    // given
+    Store store = store();
+    Product product = ProductFixture.aProduct(store);
+    ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
+        .willReturn(Optional.of(product));
+    given(
+            clearanceItemRepository.existsByProductIdAndStatus(
+                PRODUCT_ID, com.magampick.clearance.domain.ClearanceItemStatus.OPEN))
+        .willReturn(true);
+
+    // when / then
+    assertThatThrownBy(() -> productService.deleteProduct(SELLER_ID, STORE_ID, PRODUCT_ID))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", ProductErrorCode.PRODUCT_HAS_ACTIVE_CLEARANCE);
   }
 
   // ── 품절 / 재입고 ──────────────────────────────────────────────────────────────

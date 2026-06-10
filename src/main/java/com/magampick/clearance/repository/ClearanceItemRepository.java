@@ -43,9 +43,11 @@ public interface ClearanceItemRepository extends JpaRepository<ClearanceItem, Lo
 
   Optional<ClearanceItem> findByIdAndStoreId(Long id, Long storeId);
 
-  @Modifying
+  @Modifying(clearAutomatically = true)
   @Query(
-      "UPDATE ClearanceItem c SET c.status = com.magampick.clearance.domain.ClearanceItemStatus.CLOSED"
+      "UPDATE ClearanceItem c"
+          + " SET c.status = com.magampick.clearance.domain.ClearanceItemStatus.CLOSED,"
+          + " c.closeReason = com.magampick.clearance.domain.ClearanceCloseReason.EXPIRED"
           + " WHERE c.status = com.magampick.clearance.domain.ClearanceItemStatus.OPEN AND c.pickupEndAt < :now")
   int closeExpiredItems(@Param("now") LocalDateTime now);
 
@@ -76,7 +78,10 @@ public interface ClearanceItemRepository extends JpaRepository<ClearanceItem, Lo
           + " SET c.remainingQuantity = c.remainingQuantity - :qty,"
           + " c.status = CASE WHEN c.remainingQuantity - :qty = 0"
           + " THEN com.magampick.clearance.domain.ClearanceItemStatus.SOLD_OUT"
-          + " ELSE c.status END"
+          + " ELSE c.status END,"
+          + " c.closeReason = CASE WHEN c.remainingQuantity - :qty = 0"
+          + " THEN com.magampick.clearance.domain.ClearanceCloseReason.SOLD_OUT"
+          + " ELSE c.closeReason END"
           + " WHERE c.id = :id AND c.remainingQuantity >= :qty")
   int decrementStock(@Param("id") Long id, @Param("qty") int qty);
 

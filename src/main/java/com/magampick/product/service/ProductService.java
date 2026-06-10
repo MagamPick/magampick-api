@@ -1,5 +1,7 @@
 package com.magampick.product.service;
 
+import com.magampick.clearance.domain.ClearanceItemStatus;
+import com.magampick.clearance.repository.ClearanceItemRepository;
 import com.magampick.global.exception.BusinessException;
 import com.magampick.global.response.PageResponse;
 import com.magampick.global.storage.StorageService;
@@ -39,6 +41,7 @@ public class ProductService {
   private final StoreRepository storeRepository;
   private final StorageService storageService;
   private final ProductMapper productMapper;
+  private final ClearanceItemRepository clearanceItemRepository;
 
   @Transactional
   public ProductResponse registerProduct(
@@ -136,6 +139,10 @@ public class ProductService {
         productRepository
             .findByIdAndStoreIdAndDeletedAtIsNull(productId, storeId)
             .orElseThrow(() -> new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND));
+
+    if (clearanceItemRepository.existsByProductIdAndStatus(productId, ClearanceItemStatus.OPEN)) {
+      throw new BusinessException(ProductErrorCode.PRODUCT_HAS_ACTIVE_CLEARANCE);
+    }
 
     product.softDelete();
     log.info("상품 삭제됨. productId={}, storeId={}, sellerId={}", productId, storeId, sellerId);

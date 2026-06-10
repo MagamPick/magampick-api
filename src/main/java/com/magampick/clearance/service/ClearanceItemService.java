@@ -1,5 +1,6 @@
 package com.magampick.clearance.service;
 
+import com.magampick.clearance.domain.ClearanceCloseReason;
 import com.magampick.clearance.domain.ClearanceItem;
 import com.magampick.clearance.domain.ClearanceItemStatus;
 import com.magampick.clearance.dto.ClearanceItemCreateRequest;
@@ -170,7 +171,7 @@ public class ClearanceItemService {
                 () -> new BusinessException(ClearanceItemErrorCode.CLEARANCE_ITEM_NOT_FOUND));
 
     if (item.getStatus() != ClearanceItemStatus.CLOSED) {
-      item.close();
+      item.close(ClearanceCloseReason.MANUAL);
       log.info(
           "마감 임박 상품 수동 마감됨. clearanceItemId={}, storeId={}, sellerId={}",
           clearanceItemId,

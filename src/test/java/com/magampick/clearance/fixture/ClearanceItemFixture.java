@@ -1,5 +1,6 @@
 package com.magampick.clearance.fixture;
 
+import com.magampick.clearance.domain.ClearanceCloseReason;
 import com.magampick.clearance.domain.ClearanceItem;
 import com.magampick.clearance.domain.ClearanceItemStatus;
 import com.magampick.clearance.dto.ClearanceItemCreateRequest;
@@ -51,6 +52,7 @@ public class ClearanceItemFixture {
         OffsetDateTime.of(todayAt(17, 0), ZoneOffset.ofHours(9)),
         OffsetDateTime.of(todayAt(21, 0), ZoneOffset.ofHours(9)),
         ClearanceItemStatus.OPEN,
+        null,
         OffsetDateTime.now(ZoneOffset.ofHours(9)));
   }
 
@@ -68,6 +70,7 @@ public class ClearanceItemFixture {
         OffsetDateTime.of(todayAt(17, 0), ZoneOffset.ofHours(9)),
         OffsetDateTime.of(todayAt(21, 0), ZoneOffset.ofHours(9)),
         ClearanceItemStatus.CLOSED,
+        ClearanceCloseReason.MANUAL,
         OffsetDateTime.now(ZoneOffset.ofHours(9)));
   }
 

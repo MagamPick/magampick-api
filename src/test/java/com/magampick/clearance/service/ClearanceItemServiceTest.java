@@ -553,6 +553,8 @@ class ClearanceItemServiceTest {
 
     // then
     assertThat(item.getStatus()).isEqualTo(ClearanceItemStatus.CLOSED);
+    assertThat(item.getCloseReason())
+        .isEqualTo(com.magampick.clearance.domain.ClearanceCloseReason.MANUAL);
     assertThat(response.status()).isEqualTo(ClearanceItemStatus.CLOSED);
   }
 

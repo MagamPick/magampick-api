@@ -316,6 +316,18 @@ class ProductControllerTest {
   }
 
   @Test
+  void DELETE_products_id_409_활성_떨이_존재() throws Exception {
+    willThrow(new BusinessException(ProductErrorCode.PRODUCT_HAS_ACTIVE_CLEARANCE))
+        .given(productService)
+        .deleteProduct(1L, 10L, 100L);
+
+    mockMvc
+        .perform(delete("/api/v1/seller/stores/10/products/100").with(user(SELLER_USER)))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.error.code").value("PRODUCT_HAS_ACTIVE_CLEARANCE"));
+  }
+
+  @Test
   void DELETE_products_id_401_미인증() throws Exception {
     mockMvc
         .perform(delete("/api/v1/seller/stores/10/products/100"))

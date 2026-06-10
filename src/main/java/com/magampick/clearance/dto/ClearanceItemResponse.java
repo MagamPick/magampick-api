@@ -1,5 +1,6 @@
 package com.magampick.clearance.dto;
 
+import com.magampick.clearance.domain.ClearanceCloseReason;
 import com.magampick.clearance.domain.ClearanceItemStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
@@ -19,4 +20,5 @@ public record ClearanceItemResponse(
     @Schema(description = "픽업 시작 시각") OffsetDateTime pickupStartAt,
     @Schema(description = "픽업 종료 시각") OffsetDateTime pickupEndAt,
     @Schema(description = "상품 상태") ClearanceItemStatus status,
+    @Schema(description = "마감 사유 (OPEN 상태이면 null)") ClearanceCloseReason closeReason,
     @Schema(description = "등록 시각") OffsetDateTime createdAt) {}
