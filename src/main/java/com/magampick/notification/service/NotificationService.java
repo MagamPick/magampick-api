@@ -62,10 +62,11 @@ public class NotificationService {
         };
     if (!enabled) return;
 
-    notificationRepository.save(
-        Notification.create(Role.CUSTOMER, customerId, category, title, body, link));
+    Notification saved =
+        notificationRepository.save(
+            Notification.create(Role.CUSTOMER, customerId, category, title, body, link));
     try {
-      sendToOwner(Role.CUSTOMER, customerId, title, body);
+      sendToOwner(Role.CUSTOMER, customerId, category, title, body, link, saved.getId());
     } catch (Exception e) {
       log.warn("소비자 FCM 발송 실패. customerId={}, title={}", customerId, title, e);
     }
@@ -103,10 +104,11 @@ public class NotificationService {
         };
     if (!enabled) return;
 
-    notificationRepository.save(
-        Notification.create(Role.SELLER, sellerId, category, title, body, link));
+    Notification saved =
+        notificationRepository.save(
+            Notification.create(Role.SELLER, sellerId, category, title, body, link));
     try {
-      sendToOwner(Role.SELLER, sellerId, title, body);
+      sendToOwner(Role.SELLER, sellerId, category, title, body, link, saved.getId());
     } catch (Exception e) {
       log.warn("사장 FCM 발송 실패. sellerId={}, title={}", sellerId, title, e);
     }
@@ -132,29 +134,43 @@ public class NotificationService {
       String title,
       String body,
       String link) {
-    notificationRepository.save(
-        Notification.create(ownerType, ownerId, category, title, body, link));
+    Notification saved =
+        notificationRepository.save(
+            Notification.create(ownerType, ownerId, category, title, body, link));
     try {
-      sendToOwner(ownerType, ownerId, title, body);
+      sendToOwner(ownerType, ownerId, category, title, body, link, saved.getId());
     } catch (Exception e) {
       log.warn("always-on 알림 FCM 실패. ownerType={}, ownerId={}", ownerType, ownerId, e);
     }
   }
 
   /**
-   * 한 사용자의 모든 디바이스로 푸시 발송. 발송 후 죽은 토큰(UNREGISTERED/INVALID_ARGUMENT)은 정리한다.
+   * 한 사용자의 모든 디바이스로 푸시 발송. data-only payload({@link FcmSender#dataOf})를 실어 보내고, 발송 후 죽은
+   * 토큰(UNREGISTERED/INVALID_ARGUMENT)은 정리한다.
    *
+   * @param category 알림 카테고리 — 프론트 라우팅 기준 (data payload)
+   * @param link 연결 링크 — 없으면 빈 문자열로 실림 (data payload)
+   * @param notificationId 저장된 알림 ID — 클릭 시 읽음 처리용 (data payload). 영속 전이면 null 가능
    * @return 발송 성공한 토큰 수
    */
   @Transactional
-  public int sendToOwner(Role ownerType, Long ownerId, String title, String body) {
+  public int sendToOwner(
+      Role ownerType,
+      Long ownerId,
+      NotificationCategory category,
+      String title,
+      String body,
+      String link,
+      Long notificationId) {
     List<PushToken> tokens = pushTokenRepository.findByOwnerTypeAndOwnerId(ownerType, ownerId);
     if (tokens.isEmpty()) {
       log.info("발송 대상 토큰 없음. ownerType={}, ownerId={}", ownerType, ownerId);
       return 0;
     }
     List<String> tokenValues = tokens.stream().map(PushToken::getToken).toList();
-    FcmSendResult result = fcmSender.sendEachToTokens(tokenValues, title, body);
+    FcmSendResult result =
+        fcmSender.sendEachToTokens(
+            tokenValues, FcmSender.dataOf(title, body, category, notificationId, link));
     if (!result.deadTokens().isEmpty()) {
       pushTokenRepository.deleteByTokenIn(result.deadTokens());
       log.info("죽은 FCM 토큰 정리됨. count={}", result.deadTokens().size());

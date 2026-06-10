@@ -1,6 +1,7 @@
 package com.magampick.notification.controller;
 
 import com.magampick.global.security.CustomUserDetails;
+import com.magampick.notification.domain.NotificationCategory;
 import com.magampick.notification.dto.DevPushEchoRequest;
 import com.magampick.notification.dto.DevPushMeRequest;
 import com.magampick.notification.dto.DevPushMeResponse;
@@ -39,7 +40,11 @@ public class DevPushController {
       summary = "[임시] 토큰 직접 발송",
       description = "body 의 token 으로 FCM 1건 발송. 저장 없이 Firebase 배선 검증용.")
   public DevPushResponse echo(@RequestBody @Valid DevPushEchoRequest request) {
-    String messageId = fcmSender.send(request.token(), request.title(), request.body());
+    String messageId =
+        fcmSender.send(
+            request.token(),
+            FcmSender.dataOf(
+                request.title(), request.body(), NotificationCategory.SYSTEM, null, null));
     return new DevPushResponse(messageId);
   }
 
@@ -50,7 +55,13 @@ public class DevPushController {
       @RequestBody @Valid DevPushMeRequest request) {
     int sentCount =
         notificationService.sendToOwner(
-            userDetails.getRole(), userDetails.getUserId(), request.title(), request.body());
+            userDetails.getRole(),
+            userDetails.getUserId(),
+            NotificationCategory.SYSTEM,
+            request.title(),
+            request.body(),
+            null,
+            null);
     return new DevPushMeResponse(sentCount);
   }
 }
