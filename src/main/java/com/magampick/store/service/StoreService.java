@@ -330,7 +330,7 @@ public class StoreService {
    */
   private void validateTodayLockIfOpen(
       Store store, List<StoreBusinessHour> prev, List<BusinessHourPayload> next) {
-    if (store.getOperationStatus() != OperationStatus.OPEN) {
+    if (!store.isOpen()) {
       return;
     }
     DayOfWeek today = todayDayOfWeek();

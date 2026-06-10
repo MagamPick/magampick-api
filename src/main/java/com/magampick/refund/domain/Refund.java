@@ -82,4 +82,9 @@ public class Refund extends BaseEntity {
   public void markReminderSent(LocalDateTime now) {
     this.reminderSentAt = now;
   }
+
+  /** 환불 요청(REQUESTED) 상태 판단. */
+  public boolean isRequested() {
+    return status == RefundStatus.REQUESTED;
+  }
 }

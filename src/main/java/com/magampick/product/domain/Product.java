@@ -104,4 +104,9 @@ public class Product extends BaseEntity {
     if (this.status == ProductStatus.ON_SALE) return;
     this.status = ProductStatus.ON_SALE;
   }
+
+  /** 판매 중(ON_SALE) 상태 판단. */
+  public boolean isOnSale() {
+    return status == ProductStatus.ON_SALE;
+  }
 }

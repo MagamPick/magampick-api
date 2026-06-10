@@ -1,7 +1,6 @@
 package com.magampick.clearance.service;
 
 import com.magampick.clearance.domain.ClearanceItem;
-import com.magampick.clearance.domain.ClearanceItemStatus;
 import com.magampick.clearance.dto.DealProductDetailResponse;
 import com.magampick.clearance.exception.ClearanceItemErrorCode;
 import com.magampick.clearance.repository.ClearanceItemRepository;
@@ -105,10 +104,10 @@ public class ClearanceItemDetailQueryService {
    * </ul>
    */
   private String resolveDealStatus(ClearanceItem item) {
-    if (item.getStatus() == ClearanceItemStatus.SOLD_OUT) {
+    if (item.isSoldOut()) {
       return "SOLD_OUT";
     }
-    if (item.getStatus() == ClearanceItemStatus.CLOSED) {
+    if (item.isClosed()) {
       return "EXPIRED";
     }
     // OPEN

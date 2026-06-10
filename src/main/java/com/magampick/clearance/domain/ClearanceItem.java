@@ -94,6 +94,21 @@ public class ClearanceItem extends BaseEntity {
     this.status = ClearanceItemStatus.OPEN;
   }
 
+  /** 판매 중(OPEN) 상태 판단. */
+  public boolean isOpen() {
+    return status == ClearanceItemStatus.OPEN;
+  }
+
+  /** 마감(CLOSED) 상태 판단. */
+  public boolean isClosed() {
+    return status == ClearanceItemStatus.CLOSED;
+  }
+
+  /** 품절(SOLD_OUT) 상태 판단. */
+  public boolean isSoldOut() {
+    return status == ClearanceItemStatus.SOLD_OUT;
+  }
+
   public BigDecimal getDiscountRate() {
     return BigDecimal.ONE
         .subtract(salePrice.divide(regularPrice, 4, RoundingMode.HALF_UP))

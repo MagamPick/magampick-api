@@ -102,7 +102,7 @@ public class CouponService {
             .findById(couponId)
             .orElseThrow(() -> new BusinessException(CouponErrorCode.COUPON_NOT_FOUND));
 
-    if (coupon.getKind() != CouponKind.EVENT || !coupon.isActive()) {
+    if (!coupon.isEvent() || !coupon.isActive()) {
       throw new BusinessException(CouponErrorCode.COUPON_NOT_AVAILABLE);
     }
     LocalDate today = LocalDate.now(clock);
@@ -202,7 +202,7 @@ public class CouponService {
         couponRepository
             .findById(couponId)
             .orElseThrow(() -> new BusinessException(CouponErrorCode.COUPON_NOT_FOUND));
-    if (coupon.getKind() != CouponKind.EVENT) {
+    if (!coupon.isEvent()) {
       throw new BusinessException(CouponErrorCode.COUPON_NOT_FOUND);
     }
 
@@ -249,7 +249,7 @@ public class CouponService {
         couponRepository
             .findById(couponId)
             .orElseThrow(() -> new BusinessException(CouponErrorCode.COUPON_NOT_FOUND));
-    if (coupon.getKind() != CouponKind.EVENT) {
+    if (!coupon.isEvent()) {
       throw new BusinessException(CouponErrorCode.COUPON_NOT_FOUND);
     }
     coupon.end();
