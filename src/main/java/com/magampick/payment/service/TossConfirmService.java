@@ -5,7 +5,6 @@ import com.magampick.global.exception.BusinessException;
 import com.magampick.notification.domain.NotificationCategory;
 import com.magampick.notification.service.NotificationService;
 import com.magampick.order.domain.Order;
-import com.magampick.order.domain.OrderStatus;
 import com.magampick.order.dto.OrderResponse;
 import com.magampick.order.mapper.OrderMapper;
 import com.magampick.order.repository.OrderRepository;
@@ -45,7 +44,7 @@ public class TossConfirmService {
       throw new BusinessException(PaymentErrorCode.PAYMENT_ORDER_FORBIDDEN);
     }
 
-    if (order.getStatus() != OrderStatus.AWAITING_PAYMENT) {
+    if (!order.isAwaitingPayment()) {
       throw new BusinessException(PaymentErrorCode.PAYMENT_STATUS_MISMATCH);
     }
 

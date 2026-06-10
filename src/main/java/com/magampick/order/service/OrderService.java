@@ -1,7 +1,6 @@
 package com.magampick.order.service;
 
 import com.magampick.clearance.domain.ClearanceItem;
-import com.magampick.clearance.domain.ClearanceItemStatus;
 import com.magampick.clearance.exception.ClearanceItemErrorCode;
 import com.magampick.clearance.repository.ClearanceItemRepository;
 import com.magampick.coupon.domain.UserCoupon;
@@ -29,12 +28,10 @@ import com.magampick.payment.service.PaymentCancellationCommand;
 import com.magampick.payment.service.PaymentGateway;
 import com.magampick.point.service.PointService;
 import com.magampick.product.domain.Product;
-import com.magampick.product.domain.ProductStatus;
 import com.magampick.product.exception.ProductErrorCode;
 import com.magampick.product.repository.ProductRepository;
 import com.magampick.refund.mapper.RefundMapper;
 import com.magampick.refund.repository.RefundRepository;
-import com.magampick.store.domain.OperationStatus;
 import com.magampick.store.domain.Store;
 import com.magampick.store.domain.StoreBusinessHour;
 import com.magampick.store.exception.StoreErrorCode;
@@ -99,7 +96,7 @@ public class OrderService {
             .findById(request.storeId())
             .orElseThrow(() -> new BusinessException(StoreErrorCode.STORE_NOT_FOUND));
 
-    if (store.getOperationStatus() != OperationStatus.OPEN) {
+    if (!store.isOpen()) {
       throw new BusinessException(StoreErrorCode.STORE_CLOSED);
     }
 
@@ -135,7 +132,7 @@ public class OrderService {
           throw new BusinessException(OrderErrorCode.MIXED_STORE);
         }
         // 판매 상태 확인 (OPEN + 마감 전)
-        if (ci.getStatus() != ClearanceItemStatus.OPEN || now.isAfter(ci.getPickupEndAt())) {
+        if (!ci.isOpen() || now.isAfter(ci.getPickupEndAt())) {
           throw new BusinessException(ClearanceItemErrorCode.CLEARANCE_CLOSED);
         }
 
@@ -160,7 +157,7 @@ public class OrderService {
           throw new BusinessException(OrderErrorCode.MIXED_STORE);
         }
         // 판매 상태 확인
-        if (product.getStatus() != ProductStatus.ON_SALE) {
+        if (!product.isOnSale()) {
           throw new BusinessException(ProductErrorCode.PRODUCT_NOT_ON_SALE);
         }
 
@@ -443,7 +440,7 @@ public class OrderService {
     if (!order.isOwnedBy(customerId)) {
       throw new BusinessException(OrderErrorCode.ORDER_FORBIDDEN);
     }
-    if (order.getStatus() != OrderStatus.PENDING) {
+    if (!order.isPending()) {
       throw new BusinessException(OrderErrorCode.INVALID_ORDER_TRANSITION);
     }
     refundPayment(orderId, "고객 취소");
@@ -464,7 +461,7 @@ public class OrderService {
   @Transactional
   public SellerOrderResponse acceptOrder(Long sellerId, Long orderId) {
     Order order = findOrderForSeller(sellerId, orderId);
-    if (order.getStatus() != OrderStatus.PENDING) {
+    if (!order.isPending()) {
       throw new BusinessException(OrderErrorCode.INVALID_ORDER_TRANSITION);
     }
     order.accept(LocalDateTime.now(clock));
@@ -483,7 +480,7 @@ public class OrderService {
   @Transactional
   public SellerOrderResponse rejectOrder(Long sellerId, Long orderId) {
     Order order = findOrderForSeller(sellerId, orderId);
-    if (order.getStatus() != OrderStatus.PENDING) {
+    if (!order.isPending()) {
       throw new BusinessException(OrderErrorCode.INVALID_ORDER_TRANSITION);
     }
     refundPayment(orderId, "사장 거절");
@@ -504,7 +501,7 @@ public class OrderService {
   @Transactional
   public SellerOrderResponse readyOrder(Long sellerId, Long orderId) {
     Order order = findOrderForSeller(sellerId, orderId);
-    if (order.getStatus() != OrderStatus.PREPARING) {
+    if (!order.isPreparing()) {
       throw new BusinessException(OrderErrorCode.INVALID_ORDER_TRANSITION);
     }
     order.markReady(LocalDateTime.now(clock));
@@ -523,7 +520,7 @@ public class OrderService {
   @Transactional
   public SellerOrderResponse completeOrder(Long sellerId, Long orderId) {
     Order order = findOrderForSeller(sellerId, orderId);
-    if (order.getStatus() != OrderStatus.READY) {
+    if (!order.isReady()) {
       throw new BusinessException(OrderErrorCode.INVALID_ORDER_TRANSITION);
     }
     order.complete(LocalDateTime.now(clock));
@@ -544,7 +541,7 @@ public class OrderService {
   @Transactional
   public SellerOrderResponse noShowOrder(Long sellerId, Long orderId) {
     Order order = findOrderForSeller(sellerId, orderId);
-    if (order.getStatus() != OrderStatus.READY) {
+    if (!order.isReady()) {
       throw new BusinessException(OrderErrorCode.INVALID_ORDER_TRANSITION);
     }
     order.noShow();

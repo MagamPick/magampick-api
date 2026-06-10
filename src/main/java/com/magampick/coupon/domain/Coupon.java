@@ -166,6 +166,11 @@ public class Coupon extends BaseEntity {
     this.active = false;
   }
 
+  /** 이벤트(EVENT) 쿠폰 종류 판단. */
+  public boolean isEvent() {
+    return kind == CouponKind.EVENT;
+  }
+
   @Builder
   private Coupon(
       CouponKind kind,

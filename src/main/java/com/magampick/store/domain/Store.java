@@ -114,6 +114,11 @@ public class Store extends BaseEntity {
     return seller.getId().equals(sellerId);
   }
 
+  /** 영업중(OPEN) 상태 판단. */
+  public boolean isOpen() {
+    return operationStatus == OperationStatus.OPEN;
+  }
+
   /** 영업 상태 변경. 전이 가능 여부 검증은 호출 측(Service) 책임. */
   public void changeOperationStatus(OperationStatus to) {
     this.operationStatus = to;

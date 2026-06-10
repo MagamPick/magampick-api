@@ -5,7 +5,6 @@ import com.magampick.global.exception.BusinessException;
 import com.magampick.notification.domain.NotificationCategory;
 import com.magampick.notification.service.NotificationService;
 import com.magampick.order.domain.Order;
-import com.magampick.order.domain.OrderStatus;
 import com.magampick.order.dto.OrderResponse;
 import com.magampick.order.exception.OrderErrorCode;
 import com.magampick.order.mapper.OrderMapper;
@@ -72,7 +71,7 @@ public class RefundService {
     }
 
     // ── COMPLETED 상태 확인 ──────────────────────────────────────────────────
-    if (order.getStatus() != OrderStatus.COMPLETED) {
+    if (!order.isCompleted()) {
       throw new BusinessException(RefundErrorCode.REFUND_NOT_COMPLETED_ORDER);
     }
 
@@ -127,7 +126,7 @@ public class RefundService {
   public RefundResponse approveRefund(Long sellerId, Long refundId) {
     Refund refund = findRefundForSeller(sellerId, refundId);
 
-    if (refund.getStatus() != RefundStatus.REQUESTED) {
+    if (!refund.isRequested()) {
       throw new BusinessException(RefundErrorCode.REFUND_ALREADY_PROCESSED);
     }
 
@@ -157,7 +156,7 @@ public class RefundService {
 
     Refund refund = findRefundForSeller(sellerId, refundId);
 
-    if (refund.getStatus() != RefundStatus.REQUESTED) {
+    if (!refund.isRequested()) {
       throw new BusinessException(RefundErrorCode.REFUND_ALREADY_PROCESSED);
     }
 
@@ -202,7 +201,7 @@ public class RefundService {
         refundRepository
             .findById(refundId)
             .orElseThrow(() -> new BusinessException(RefundErrorCode.REFUND_NOT_FOUND));
-    if (refund.getStatus() != RefundStatus.REQUESTED || refund.getReminderSentAt() != null) {
+    if (!refund.isRequested() || refund.getReminderSentAt() != null) {
       return; // 이미 처리됐거나 리마인드 발송 완료 — skip
     }
 
@@ -227,7 +226,7 @@ public class RefundService {
         refundRepository
             .findById(refundId)
             .orElseThrow(() -> new BusinessException(RefundErrorCode.REFUND_NOT_FOUND));
-    if (refund.getStatus() != RefundStatus.REQUESTED) {
+    if (!refund.isRequested()) {
       return; // 이미 처리됨 — skip
     }
     refund.approve(LocalDateTime.now(clock));

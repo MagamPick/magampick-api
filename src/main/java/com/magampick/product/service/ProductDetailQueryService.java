@@ -2,7 +2,6 @@ package com.magampick.product.service;
 
 import com.magampick.global.exception.BusinessException;
 import com.magampick.product.domain.Product;
-import com.magampick.product.domain.ProductStatus;
 import com.magampick.product.dto.MenuProductDetailResponse;
 import com.magampick.product.exception.ProductErrorCode;
 import com.magampick.product.repository.ProductRepository;
@@ -58,6 +57,6 @@ public class ProductDetailQueryService {
         0L,
         storePreview.closingTime(),
         product.getRegularPrice(),
-        product.getStatus() == ProductStatus.ON_SALE);
+        product.isOnSale());
   }
 }

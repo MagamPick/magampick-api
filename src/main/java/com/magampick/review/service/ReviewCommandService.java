@@ -6,7 +6,6 @@ import com.magampick.global.exception.BusinessException;
 import com.magampick.notification.domain.NotificationCategory;
 import com.magampick.notification.service.NotificationService;
 import com.magampick.order.domain.Order;
-import com.magampick.order.domain.OrderStatus;
 import com.magampick.order.repository.OrderRepository;
 import com.magampick.review.domain.Review;
 import com.magampick.review.domain.ReviewImage;
@@ -50,7 +49,7 @@ public class ReviewCommandService {
             .orElseThrow(() -> new BusinessException(ReviewErrorCode.REVIEW_NOT_FOUND));
 
     // COMPLETED 검증
-    if (order.getStatus() != OrderStatus.COMPLETED) {
+    if (!order.isCompleted()) {
       throw new BusinessException(ReviewErrorCode.REVIEW_NOT_ELIGIBLE);
     }
 

@@ -12,7 +12,6 @@ import com.magampick.clearance.repository.ClearanceItemRepository;
 import com.magampick.global.exception.BusinessException;
 import com.magampick.global.response.PageResponse;
 import com.magampick.product.domain.Product;
-import com.magampick.product.domain.ProductStatus;
 import com.magampick.product.exception.ProductErrorCode;
 import com.magampick.product.repository.ProductRepository;
 import com.magampick.store.domain.Store;
@@ -52,7 +51,7 @@ public class ClearanceItemService {
             .findByIdAndStoreIdAndDeletedAtIsNull(request.productId(), storeId)
             .orElseThrow(() -> new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND));
 
-    if (product.getStatus() != ProductStatus.ON_SALE) {
+    if (!product.isOnSale()) {
       throw new BusinessException(ClearanceItemErrorCode.CLEARANCE_ITEM_PRODUCT_NOT_ON_SALE);
     }
 
@@ -129,7 +128,7 @@ public class ClearanceItemService {
             .orElseThrow(
                 () -> new BusinessException(ClearanceItemErrorCode.CLEARANCE_ITEM_NOT_FOUND));
 
-    if (item.getStatus() != ClearanceItemStatus.OPEN) {
+    if (!item.isOpen()) {
       throw new BusinessException(ClearanceItemErrorCode.CLEARANCE_ITEM_NOT_OPEN);
     }
 
@@ -166,7 +165,7 @@ public class ClearanceItemService {
             .orElseThrow(
                 () -> new BusinessException(ClearanceItemErrorCode.CLEARANCE_ITEM_NOT_FOUND));
 
-    if (item.getStatus() != ClearanceItemStatus.CLOSED) {
+    if (!item.isClosed()) {
       item.close(ClearanceCloseReason.MANUAL);
       log.info(
           "마감 임박 상품 수동 마감됨. clearanceItemId={}, storeId={}, sellerId={}",

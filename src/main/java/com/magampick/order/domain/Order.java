@@ -166,6 +166,31 @@ public class Order extends BaseEntity {
     return customer.getId().equals(customerId);
   }
 
+  /** 결제 대기 상태 판단. */
+  public boolean isAwaitingPayment() {
+    return status == OrderStatus.AWAITING_PAYMENT;
+  }
+
+  /** 주문접수(결제 완료) 상태 판단. */
+  public boolean isPending() {
+    return status == OrderStatus.PENDING;
+  }
+
+  /** 준비중 상태 판단. */
+  public boolean isPreparing() {
+    return status == OrderStatus.PREPARING;
+  }
+
+  /** 준비완료 상태 판단. */
+  public boolean isReady() {
+    return status == OrderStatus.READY;
+  }
+
+  /** 수령완료 상태 판단. */
+  public boolean isCompleted() {
+    return status == OrderStatus.COMPLETED;
+  }
+
   /** 주문 항목 추가. CascadeType.ALL 이 저장을 처리한다. */
   public void addOrderItem(OrderItem item) {
     this.orderItems.add(item);
