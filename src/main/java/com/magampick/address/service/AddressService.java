@@ -130,6 +130,14 @@ public class AddressService {
     log.info("주소지 삭제됨. addressId={}, customerId={}", addressId, customerId);
   }
 
+  /** 소비자 기본 주소지 좌표 (거리 계산 origin). 기본 주소지가 없으면 {@code DEFAULT_ADDRESS_REQUIRED}. */
+  public Point requireDefaultLocation(Long customerId) {
+    return addressRepository
+        .findByCustomerIdAndIsDefaultTrue(customerId)
+        .map(Address::getLocation)
+        .orElseThrow(() -> new BusinessException(AddressErrorCode.DEFAULT_ADDRESS_REQUIRED));
+  }
+
   public String reverseGeocode(double latitude, double longitude) {
     String roadAddress = geocodingService.reverseGeocode(GeometryUtil.toPoint(latitude, longitude));
     if (roadAddress == null) {

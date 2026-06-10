@@ -7,9 +7,8 @@ import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 
-import com.magampick.address.domain.Address;
 import com.magampick.address.exception.AddressErrorCode;
-import com.magampick.address.repository.AddressRepository;
+import com.magampick.address.service.AddressService;
 import com.magampick.favorite.repository.FavoriteRepository;
 import com.magampick.global.common.GeometryUtil;
 import com.magampick.global.exception.BusinessException;
@@ -42,7 +41,7 @@ class StoreDetailQueryServiceTest {
   @Mock StoreRepository storeRepository;
   @Mock StoreBusinessHourRepository storeBusinessHourRepository;
   @Mock ReviewQueryService reviewQueryService;
-  @Mock AddressRepository addressRepository;
+  @Mock AddressService addressService;
   @Mock FavoriteRepository favoriteRepository;
   @InjectMocks StoreDetailQueryService service;
 
@@ -69,8 +68,8 @@ class StoreDetailQueryServiceTest {
   void 기본_주소지_없으면_DEFAULT_ADDRESS_REQUIRED_예외() {
     given(storeRepository.findByIdAndDeletedAtIsNull(STORE_ID))
         .willReturn(Optional.of(stubStore(OperationStatus.OPEN)));
-    given(addressRepository.findByCustomerIdAndIsDefaultTrue(CUSTOMER_ID))
-        .willReturn(Optional.empty());
+    given(addressService.requireDefaultLocation(CUSTOMER_ID))
+        .willThrow(new BusinessException(AddressErrorCode.DEFAULT_ADDRESS_REQUIRED));
 
     assertThatThrownBy(() -> service.getDetail(STORE_ID, CUSTOMER_ID))
         .isInstanceOf(BusinessException.class)
@@ -84,8 +83,8 @@ class StoreDetailQueryServiceTest {
   void 정상_조회_평점_거리_isFavorite_businessStatus_포함() {
     Store store = stubStore(OperationStatus.OPEN);
     given(storeRepository.findByIdAndDeletedAtIsNull(STORE_ID)).willReturn(Optional.of(store));
-    given(addressRepository.findByCustomerIdAndIsDefaultTrue(CUSTOMER_ID))
-        .willReturn(Optional.of(stubAddress()));
+    given(addressService.requireDefaultLocation(CUSTOMER_ID))
+        .willReturn(GeometryUtil.toPoint(ORIGIN_LAT, ORIGIN_LNG));
     given(reviewQueryService.getStoreRating(STORE_ID)).willReturn(new RatingStats(4.2, 8L));
     given(storeRepository.findDistanceMeters(anyLong(), anyDouble(), anyDouble()))
         .willReturn(1500.0);
@@ -109,8 +108,8 @@ class StoreDetailQueryServiceTest {
   void 영업시간_7요일_매핑_없는_요일_closed() {
     Store store = stubStore(OperationStatus.OPEN);
     given(storeRepository.findByIdAndDeletedAtIsNull(STORE_ID)).willReturn(Optional.of(store));
-    given(addressRepository.findByCustomerIdAndIsDefaultTrue(CUSTOMER_ID))
-        .willReturn(Optional.of(stubAddress()));
+    given(addressService.requireDefaultLocation(CUSTOMER_ID))
+        .willReturn(GeometryUtil.toPoint(ORIGIN_LAT, ORIGIN_LNG));
     given(reviewQueryService.getStoreRating(STORE_ID)).willReturn(RatingStats.EMPTY);
     given(storeRepository.findDistanceMeters(anyLong(), anyDouble(), anyDouble()))
         .willReturn(500.0);
@@ -157,8 +156,8 @@ class StoreDetailQueryServiceTest {
   void 오늘_휴무이면_closingTime_null() {
     Store store = stubStore(OperationStatus.CLOSED_TODAY);
     given(storeRepository.findByIdAndDeletedAtIsNull(STORE_ID)).willReturn(Optional.of(store));
-    given(addressRepository.findByCustomerIdAndIsDefaultTrue(CUSTOMER_ID))
-        .willReturn(Optional.of(stubAddress()));
+    given(addressService.requireDefaultLocation(CUSTOMER_ID))
+        .willReturn(GeometryUtil.toPoint(ORIGIN_LAT, ORIGIN_LNG));
     given(reviewQueryService.getStoreRating(STORE_ID)).willReturn(RatingStats.EMPTY);
     given(storeRepository.findDistanceMeters(anyLong(), anyDouble(), anyDouble()))
         .willReturn(200.0);
@@ -178,8 +177,8 @@ class StoreDetailQueryServiceTest {
   void 단골_아니면_isFavorite_false() {
     Store store = stubStore(OperationStatus.OPEN);
     given(storeRepository.findByIdAndDeletedAtIsNull(STORE_ID)).willReturn(Optional.of(store));
-    given(addressRepository.findByCustomerIdAndIsDefaultTrue(CUSTOMER_ID))
-        .willReturn(Optional.of(stubAddress()));
+    given(addressService.requireDefaultLocation(CUSTOMER_ID))
+        .willReturn(GeometryUtil.toPoint(ORIGIN_LAT, ORIGIN_LNG));
     given(reviewQueryService.getStoreRating(STORE_ID)).willReturn(RatingStats.EMPTY);
     given(storeRepository.findDistanceMeters(anyLong(), anyDouble(), anyDouble()))
         .willReturn(200.0);
@@ -215,17 +214,6 @@ class StoreDetailQueryServiceTest {
 
   private Seller stubSeller() {
     return Seller.builder().email("seller@test.com").passwordHash("x").ownerName("사장님").build();
-  }
-
-  private Address stubAddress() {
-    return Address.builder()
-        .customer(null)
-        .label("집")
-        .roadAddress("서울시 중구 테스트로 1")
-        .zonecode("04524")
-        .location(GeometryUtil.toPoint(ORIGIN_LAT, ORIGIN_LNG))
-        .isDefault(true)
-        .build();
   }
 
   private StoreBusinessHour stubHour(DayOfWeek day, LocalTime open, LocalTime close) {

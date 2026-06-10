@@ -1,8 +1,6 @@
 package com.magampick.store.service;
 
-import com.magampick.address.domain.Address;
-import com.magampick.address.exception.AddressErrorCode;
-import com.magampick.address.repository.AddressRepository;
+import com.magampick.address.service.AddressService;
 import com.magampick.favorite.repository.FavoriteRepository;
 import com.magampick.global.common.GeometryUtil;
 import com.magampick.global.exception.BusinessException;
@@ -23,6 +21,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.locationtech.jts.geom.Point;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -61,7 +60,7 @@ public class StoreDetailQueryService {
   private final StoreRepository storeRepository;
   private final StoreBusinessHourRepository storeBusinessHourRepository;
   private final ReviewQueryService reviewQueryService;
-  private final AddressRepository addressRepository;
+  private final AddressService addressService;
   private final FavoriteRepository favoriteRepository;
 
   /**
@@ -80,13 +79,9 @@ public class StoreDetailQueryService {
             .orElseThrow(() -> new BusinessException(StoreErrorCode.STORE_NOT_FOUND));
 
     // 2. 기본 주소지 → 거리 계산 origin
-    Address defaultAddress =
-        addressRepository
-            .findByCustomerIdAndIsDefaultTrue(customerId)
-            .orElseThrow(() -> new BusinessException(AddressErrorCode.DEFAULT_ADDRESS_REQUIRED));
-
-    double originLat = GeometryUtil.latitude(defaultAddress.getLocation());
-    double originLng = GeometryUtil.longitude(defaultAddress.getLocation());
+    Point defaultLocation = addressService.requireDefaultLocation(customerId);
+    double originLat = GeometryUtil.latitude(defaultLocation);
+    double originLng = GeometryUtil.longitude(defaultLocation);
 
     // 3. 평점 / 리뷰수
     RatingStats ratingStats = reviewQueryService.getStoreRating(storeId);
