@@ -312,7 +312,7 @@ public class CouponService {
         userCouponRepository
             .findByIdWithCoupon(userCouponId)
             .orElseThrow(() -> new BusinessException(CouponErrorCode.COUPON_NOT_FOUND));
-    if (!uc.getCustomer().getId().equals(customerId)) {
+    if (!uc.isOwnedBy(customerId)) {
       throw new BusinessException(CouponErrorCode.COUPON_NOT_AVAILABLE);
     }
     if (uc.getStatus() != CouponStatus.USABLE || uc.isExpiredAt(LocalDate.now(clock))) {

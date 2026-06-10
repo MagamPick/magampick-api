@@ -161,6 +161,11 @@ public class Order extends BaseEntity {
     return deletedAt != null;
   }
 
+  /** 소비자 소유권 판단. */
+  public boolean isOwnedBy(Long customerId) {
+    return customer.getId().equals(customerId);
+  }
+
   /** 주문 항목 추가. CascadeType.ALL 이 저장을 처리한다. */
   public void addOrderItem(OrderItem item) {
     this.orderItems.add(item);

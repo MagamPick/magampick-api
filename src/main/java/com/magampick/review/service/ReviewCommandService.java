@@ -110,7 +110,7 @@ public class ReviewCommandService {
             .orElseThrow(() -> new BusinessException(ReviewErrorCode.REVIEW_NOT_FOUND));
 
     // 본인 검증
-    if (!review.getCustomer().getId().equals(customerId)) {
+    if (!review.isOwnedBy(customerId)) {
       throw new BusinessException(ReviewErrorCode.REVIEW_FORBIDDEN);
     }
 
@@ -144,7 +144,7 @@ public class ReviewCommandService {
             .orElseThrow(() -> new BusinessException(ReviewErrorCode.REVIEW_NOT_FOUND));
 
     // 본인 검증
-    if (!review.getCustomer().getId().equals(customerId)) {
+    if (!review.isOwnedBy(customerId)) {
       throw new BusinessException(ReviewErrorCode.REVIEW_FORBIDDEN);
     }
 
@@ -171,7 +171,7 @@ public class ReviewCommandService {
             .orElseThrow(() -> new BusinessException(ReviewErrorCode.REVIEW_NOT_FOUND));
 
     // 본인 매장 리뷰 검증
-    if (!review.getStore().getSeller().getId().equals(sellerId)) {
+    if (!review.getStore().isOwnedBy(sellerId)) {
       throw new BusinessException(ReviewErrorCode.REPLY_STORE_FORBIDDEN);
     }
 

@@ -14,8 +14,7 @@ import com.magampick.product.exception.ProductErrorCode;
 import com.magampick.product.mapper.ProductMapper;
 import com.magampick.product.repository.ProductRepository;
 import com.magampick.store.domain.Store;
-import com.magampick.store.exception.StoreErrorCode;
-import com.magampick.store.repository.StoreRepository;
+import com.magampick.store.service.StoreService;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Set;
@@ -38,7 +37,7 @@ public class ProductService {
       Set.of("image/jpeg", "image/png", "image/webp");
 
   private final ProductRepository productRepository;
-  private final StoreRepository storeRepository;
+  private final StoreService storeService;
   private final StorageService storageService;
   private final ProductMapper productMapper;
   private final ClearanceItemRepository clearanceItemRepository;
@@ -48,10 +47,7 @@ public class ProductService {
       Long sellerId, Long storeId, ProductCreateRequest request, MultipartFile image) {
     validateImage(image);
 
-    Store store =
-        storeRepository
-            .findByIdAndSellerId(storeId, sellerId)
-            .orElseThrow(() -> new BusinessException(StoreErrorCode.STORE_ACCESS_DENIED));
+    Store store = storeService.requireOwnedStore(sellerId, storeId);
 
     if (productRepository.existsByStoreIdAndNameAndDeletedAtIsNull(storeId, request.name())) {
       throw new BusinessException(ProductErrorCode.PRODUCT_NAME_DUPLICATE);
@@ -77,13 +73,13 @@ public class ProductService {
 
   public PageResponse<ProductResponse> getMyStoreProducts(
       Long sellerId, Long storeId, Pageable pageable) {
-    verifyStoreOwnership(sellerId, storeId);
+    storeService.requireOwnedStore(sellerId, storeId);
     Page<Product> page = productRepository.findByStoreIdAndDeletedAtIsNull(storeId, pageable);
     return PageResponse.of(page.map(productMapper::toResponse));
   }
 
   public ProductResponse getMyStoreProduct(Long sellerId, Long storeId, Long productId) {
-    verifyStoreOwnership(sellerId, storeId);
+    storeService.requireOwnedStore(sellerId, storeId);
     Product product =
         productRepository
             .findByIdAndStoreIdAndDeletedAtIsNull(productId, storeId)
@@ -99,7 +95,7 @@ public class ProductService {
       ProductUpdateRequest request,
       MultipartFile image) {
     validateImage(image);
-    verifyStoreOwnership(sellerId, storeId);
+    storeService.requireOwnedStore(sellerId, storeId);
 
     Product product =
         productRepository
@@ -133,7 +129,7 @@ public class ProductService {
 
   @Transactional
   public void deleteProduct(Long sellerId, Long storeId, Long productId) {
-    verifyStoreOwnership(sellerId, storeId);
+    storeService.requireOwnedStore(sellerId, storeId);
 
     Product product =
         productRepository
@@ -150,7 +146,7 @@ public class ProductService {
 
   @Transactional
   public ProductResponse markSoldOut(Long sellerId, Long storeId, Long productId) {
-    verifyStoreOwnership(sellerId, storeId);
+    storeService.requireOwnedStore(sellerId, storeId);
 
     Product product =
         productRepository
@@ -164,7 +160,7 @@ public class ProductService {
 
   @Transactional
   public ProductResponse restock(Long sellerId, Long storeId, Long productId) {
-    verifyStoreOwnership(sellerId, storeId);
+    storeService.requireOwnedStore(sellerId, storeId);
 
     Product product =
         productRepository
@@ -174,12 +170,6 @@ public class ProductService {
     product.restock();
     log.info("상품 재입고 처리됨. productId={}, storeId={}, sellerId={}", productId, storeId, sellerId);
     return productMapper.toResponse(product);
-  }
-
-  private void verifyStoreOwnership(Long sellerId, Long storeId) {
-    storeRepository
-        .findByIdAndSellerId(storeId, sellerId)
-        .orElseThrow(() -> new BusinessException(StoreErrorCode.STORE_ACCESS_DENIED));
   }
 
   private String uploadProductImage(MultipartFile image) {

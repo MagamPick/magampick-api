@@ -23,7 +23,7 @@ import com.magampick.product.repository.ProductRepository;
 import com.magampick.seller.domain.Seller;
 import com.magampick.store.domain.Store;
 import com.magampick.store.exception.StoreErrorCode;
-import com.magampick.store.repository.StoreRepository;
+import com.magampick.store.service.StoreService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -45,7 +45,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 class ProductServiceTest {
 
   @Mock ProductRepository productRepository;
-  @Mock StoreRepository storeRepository;
+  @Mock StoreService storeService;
   @Mock StorageService storageService;
   @Mock ProductMapper productMapper;
   @Mock com.magampick.clearance.repository.ClearanceItemRepository clearanceItemRepository;
@@ -94,7 +94,7 @@ class ProductServiceTest {
   void 일반_상품_등록_성공() {
     // given
     Store store = store();
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(productRepository.existsByStoreIdAndNameAndDeletedAtIsNull(STORE_ID, "크로아상"))
         .willReturn(false);
     given(storageService.upload(any())).willReturn("/uploads/2026/5/product.jpg");
@@ -132,7 +132,8 @@ class ProductServiceTest {
   @Test
   void 일반_상품_등록_타인_매장_접근_거부() {
     // given
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.empty());
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID))
+        .willThrow(new BusinessException(StoreErrorCode.STORE_ACCESS_DENIED));
 
     // when / then
     assertThatThrownBy(
@@ -149,7 +150,7 @@ class ProductServiceTest {
   void 일반_상품_등록_상품명_중복_예외() {
     // given
     Store store = store();
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(productRepository.existsByStoreIdAndNameAndDeletedAtIsNull(STORE_ID, "크로아상"))
         .willReturn(true);
 
@@ -197,7 +198,7 @@ class ProductServiceTest {
   void 일반_상품_등록_이미지_없이_성공() {
     // given
     Store store = store();
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(productRepository.existsByStoreIdAndNameAndDeletedAtIsNull(STORE_ID, "크로아상"))
         .willReturn(false);
     given(productRepository.save(any(Product.class)))
@@ -230,7 +231,7 @@ class ProductServiceTest {
     ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
     Pageable pageable = PageRequest.of(0, 20);
     Page<Product> page = new PageImpl<>(List.of(product), pageable, 1);
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(productRepository.findByStoreIdAndDeletedAtIsNull(STORE_ID, pageable)).willReturn(page);
     given(productMapper.toResponse(product)).willReturn(ProductFixture.aResponse(PRODUCT_ID));
 
@@ -247,7 +248,8 @@ class ProductServiceTest {
   @Test
   void 본인_매장_상품_목록_조회_타인_매장_거부() {
     // given
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.empty());
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID))
+        .willThrow(new BusinessException(StoreErrorCode.STORE_ACCESS_DENIED));
 
     // when / then
     assertThatThrownBy(
@@ -263,7 +265,7 @@ class ProductServiceTest {
     Store store = store();
     Product product = ProductFixture.aProduct(store);
     ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.of(product));
     given(productMapper.toResponse(product)).willReturn(ProductFixture.aResponse(PRODUCT_ID));
@@ -279,7 +281,7 @@ class ProductServiceTest {
   void 본인_매장_상품_상세_조회_없음_예외() {
     // given
     Store store = store();
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.empty());
 
@@ -292,7 +294,8 @@ class ProductServiceTest {
   @Test
   void 본인_매장_상품_상세_조회_타인_매장_거부() {
     // given
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.empty());
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID))
+        .willThrow(new BusinessException(StoreErrorCode.STORE_ACCESS_DENIED));
 
     // when / then
     assertThatThrownBy(() -> productService.getMyStoreProduct(SELLER_ID, STORE_ID, PRODUCT_ID))
@@ -310,7 +313,7 @@ class ProductServiceTest {
     Product product = ProductFixture.aProduct(store);
     ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
     ProductUpdateRequest request = new ProductUpdateRequest("바게트", null, null, null, null);
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.of(product));
     given(
@@ -336,7 +339,7 @@ class ProductServiceTest {
     Product product = ProductFixture.aProduct(store);
     ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
     ProductUpdateRequest request = new ProductUpdateRequest(null, null, null, null, null);
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.of(product));
     given(storageService.upload(any())).willReturn("/uploads/2026/5/new.jpg");
@@ -356,7 +359,7 @@ class ProductServiceTest {
     Product product = ProductFixture.aProduct(store);
     ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
     ProductUpdateRequest request = new ProductUpdateRequest("바게트", null, null, null, null);
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.of(product));
     given(
@@ -374,7 +377,8 @@ class ProductServiceTest {
   @Test
   void 일반_상품_수정_타인_매장_거부() {
     // given
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.empty());
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID))
+        .willThrow(new BusinessException(StoreErrorCode.STORE_ACCESS_DENIED));
 
     // when / then
     assertThatThrownBy(
@@ -393,7 +397,7 @@ class ProductServiceTest {
   void 일반_상품_수정_없는_상품_예외() {
     // given
     Store store = store();
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.empty());
 
@@ -418,7 +422,7 @@ class ProductServiceTest {
     Store store = store();
     Product product = ProductFixture.aProduct(store);
     ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.of(product));
     given(
@@ -437,7 +441,7 @@ class ProductServiceTest {
   void 일반_상품_삭제_이미_삭제된_상품_예외() {
     // given
     Store store = store();
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.empty());
 
@@ -450,7 +454,8 @@ class ProductServiceTest {
   @Test
   void 일반_상품_삭제_타인_매장_거부() {
     // given
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.empty());
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID))
+        .willThrow(new BusinessException(StoreErrorCode.STORE_ACCESS_DENIED));
 
     // when / then
     assertThatThrownBy(() -> productService.deleteProduct(SELLER_ID, STORE_ID, PRODUCT_ID))
@@ -464,7 +469,7 @@ class ProductServiceTest {
     Store store = store();
     Product product = ProductFixture.aProduct(store);
     ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.of(product));
     given(
@@ -486,7 +491,7 @@ class ProductServiceTest {
     Store store = store();
     Product product = ProductFixture.aProduct(store);
     ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.of(product));
     given(productMapper.toResponse(product))
@@ -506,7 +511,7 @@ class ProductServiceTest {
     Store store = store();
     Product product = ProductFixture.aSoldOutProduct(store);
     ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.of(product));
     given(productMapper.toResponse(product))
@@ -525,7 +530,7 @@ class ProductServiceTest {
     Store store = store();
     Product product = ProductFixture.aSoldOutProduct(store);
     ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.of(product));
     given(productMapper.toResponse(product))
@@ -545,7 +550,7 @@ class ProductServiceTest {
     Store store = store();
     Product product = ProductFixture.aProduct(store);
     ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.of(product));
     given(productMapper.toResponse(product))
@@ -562,7 +567,7 @@ class ProductServiceTest {
   void 상품_품절_처리_없는_상품_예외() {
     // given
     Store store = store();
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.empty());
 
@@ -575,7 +580,8 @@ class ProductServiceTest {
   @Test
   void 상품_품절_처리_타인_매장_거부() {
     // given
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.empty());
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID))
+        .willThrow(new BusinessException(StoreErrorCode.STORE_ACCESS_DENIED));
 
     // when / then
     assertThatThrownBy(() -> productService.markSoldOut(SELLER_ID, STORE_ID, PRODUCT_ID))
@@ -586,7 +592,8 @@ class ProductServiceTest {
   @Test
   void 상품_재입고_처리_타인_매장_거부() {
     // given
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.empty());
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID))
+        .willThrow(new BusinessException(StoreErrorCode.STORE_ACCESS_DENIED));
 
     // when / then
     assertThatThrownBy(() -> productService.restock(SELLER_ID, STORE_ID, PRODUCT_ID))
@@ -601,7 +608,7 @@ class ProductServiceTest {
     // given — category 없는 요청은 @NotNull 검증 실패이므로 서비스 레이어까지 오지 않음.
     // 서비스 레이어에서는 category 가 non-null 인 경우만 처리 → 빌더에 전달 확인
     Store store = store();
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(productRepository.existsByStoreIdAndNameAndDeletedAtIsNull(STORE_ID, "크로아상"))
         .willReturn(false);
     given(productRepository.save(any(Product.class)))
@@ -626,7 +633,7 @@ class ProductServiceTest {
   void 등록_status_null이면_ON_SALE_기본값() {
     // given
     Store store = store();
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(productRepository.existsByStoreIdAndNameAndDeletedAtIsNull(STORE_ID, "크로아상"))
         .willReturn(false);
     given(productRepository.save(any(Product.class)))
@@ -652,7 +659,7 @@ class ProductServiceTest {
   void 등록_status_SOLD_OUT으로_직접_설정() {
     // given
     Store store = store();
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(productRepository.existsByStoreIdAndNameAndDeletedAtIsNull(STORE_ID, "크로아상"))
         .willReturn(false);
     given(productRepository.save(any(Product.class)))
@@ -682,7 +689,7 @@ class ProductServiceTest {
   void 등록_description_저장_및_응답_반환() {
     // given
     Store store = store();
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(productRepository.existsByStoreIdAndNameAndDeletedAtIsNull(STORE_ID, "크로아상"))
         .willReturn(false);
     given(productRepository.save(any(Product.class)))
@@ -713,7 +720,7 @@ class ProductServiceTest {
     ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
     ProductUpdateRequest request =
         new ProductUpdateRequest(null, null, ProductCategory.BEVERAGE, null, null);
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.of(product));
     given(productMapper.toResponse(product)).willReturn(ProductFixture.aResponse(PRODUCT_ID));
@@ -733,7 +740,7 @@ class ProductServiceTest {
     ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
     ProductUpdateRequest request =
         new ProductUpdateRequest(null, null, null, null, ProductStatus.SOLD_OUT);
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.of(product));
     given(productMapper.toResponse(product))
@@ -753,7 +760,7 @@ class ProductServiceTest {
     Product product = ProductFixture.aProduct(store);
     ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
     ProductUpdateRequest request = new ProductUpdateRequest(null, null, null, "새 설명", null);
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.of(product));
     given(productMapper.toResponse(product))

@@ -8,8 +8,6 @@ import com.magampick.analytics.dto.AnalyticsResponse.ReviewMetrics;
 import com.magampick.analytics.dto.AnalyticsResponse.ReviewTagCount;
 import com.magampick.analytics.dto.AnalyticsResponse.SalesBar;
 import com.magampick.analytics.dto.AnalyticsResponse.SalesMetrics;
-import com.magampick.analytics.exception.AnalyticsErrorCode;
-import com.magampick.global.exception.BusinessException;
 import com.magampick.order.domain.ItemKind;
 import com.magampick.order.domain.Order;
 import com.magampick.order.domain.OrderItem;
@@ -18,7 +16,7 @@ import com.magampick.order.repository.OrderRepository;
 import com.magampick.review.domain.Review;
 import com.magampick.review.domain.ReviewTag;
 import com.magampick.review.repository.ReviewRepository;
-import com.magampick.store.repository.StoreRepository;
+import com.magampick.store.service.StoreService;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.DayOfWeek;
@@ -46,7 +44,7 @@ public class AnalyticsService {
 
   private final OrderRepository orderRepository;
   private final ReviewRepository reviewRepository;
-  private final StoreRepository storeRepository;
+  private final StoreService storeService;
   private final Clock clock;
 
   /**
@@ -57,7 +55,7 @@ public class AnalyticsService {
    * @param period 집계 기간 단위
    */
   public AnalyticsResponse getAnalytics(Long sellerId, Long storeId, AnalyticsPeriod period) {
-    verifyStoreOwnership(sellerId, storeId);
+    storeService.requireOwnedStore(sellerId, storeId);
 
     LocalDate today = LocalDate.now(clock);
     DateRange range = computeRange(period, today);
@@ -78,14 +76,6 @@ public class AnalyticsService {
 
     log.info("통계 집계 완료. storeId={}, period={}, totalSales={}", storeId, period, sales.totalSales());
     return new AnalyticsResponse(sales, orders, clearance, review);
-  }
-
-  // ── 본인 매장 검증 ────────────────────────────────────────────────────────────
-
-  private void verifyStoreOwnership(Long sellerId, Long storeId) {
-    storeRepository
-        .findByIdAndSellerId(storeId, sellerId)
-        .orElseThrow(() -> new BusinessException(AnalyticsErrorCode.ANALYTICS_STORE_FORBIDDEN));
   }
 
   // ── 기간 계산 ─────────────────────────────────────────────────────────────────

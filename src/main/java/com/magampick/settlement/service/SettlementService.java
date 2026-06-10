@@ -1,15 +1,14 @@
 package com.magampick.settlement.service;
 
-import com.magampick.global.exception.BusinessException;
 import com.magampick.settlement.domain.Settlement;
 import com.magampick.settlement.domain.SettlementStatus;
 import com.magampick.settlement.dto.SettlementCycleResponse;
 import com.magampick.settlement.dto.SettlementSummaryResponse;
-import com.magampick.settlement.exception.SettlementErrorCode;
 import com.magampick.settlement.mapper.SettlementMapper;
 import com.magampick.settlement.repository.SettlementRepository;
 import com.magampick.store.domain.Store;
 import com.magampick.store.repository.StoreRepository;
+import com.magampick.store.service.StoreService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
@@ -35,6 +34,7 @@ public class SettlementService {
 
   private final SettlementRepository settlementRepository;
   private final StoreRepository storeRepository;
+  private final StoreService storeService;
   private final SettlementMapper settlementMapper;
   private final Clock clock;
 
@@ -120,7 +120,7 @@ public class SettlementService {
 
   /** 사장 매장 정산 회차 목록. 본인 소유 매장만 허용. 최신순(year·month·half desc). */
   public List<SettlementCycleResponse> listSettlements(Long sellerId, Long storeId) {
-    verifyStoreOwnership(sellerId, storeId);
+    storeService.requireOwnedStore(sellerId, storeId);
     return settlementRepository.findByStoreIdOrderByYearDescMonthDescHalfDesc(storeId).stream()
         .map(settlementMapper::toCycleResponse)
         .toList();
@@ -132,7 +132,7 @@ public class SettlementService {
    * <p>컨트롤러에서 empty → 204 No Content 처리.
    */
   public Optional<SettlementSummaryResponse> getSettlementSummary(Long sellerId, Long storeId) {
-    verifyStoreOwnership(sellerId, storeId);
+    storeService.requireOwnedStore(sellerId, storeId);
     return settlementRepository
         .findTopByStoreIdAndStatusOrderByYearDescMonthDescHalfDesc(
             storeId, SettlementStatus.SCHEDULED)
@@ -147,12 +147,6 @@ public class SettlementService {
   }
 
   // ── 내부 유틸 ──────────────────────────────────────────────────────────────────
-
-  private void verifyStoreOwnership(Long sellerId, Long storeId) {
-    storeRepository
-        .findByIdAndSellerId(storeId, sellerId)
-        .orElseThrow(() -> new BusinessException(SettlementErrorCode.SETTLEMENT_STORE_FORBIDDEN));
-  }
 
   /**
    * periodLabel 생성. "M월 N차 · M/D1~M/D2" 형식.

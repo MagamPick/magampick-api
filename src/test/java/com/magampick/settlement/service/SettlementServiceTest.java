@@ -15,12 +15,13 @@ import com.magampick.settlement.domain.Settlement;
 import com.magampick.settlement.domain.SettlementStatus;
 import com.magampick.settlement.dto.SettlementCycleResponse;
 import com.magampick.settlement.dto.SettlementSummaryResponse;
-import com.magampick.settlement.exception.SettlementErrorCode;
 import com.magampick.settlement.fixture.SettlementFixture;
 import com.magampick.settlement.mapper.SettlementMapper;
 import com.magampick.settlement.repository.SettlementRepository;
 import com.magampick.store.domain.Store;
+import com.magampick.store.exception.StoreErrorCode;
 import com.magampick.store.repository.StoreRepository;
+import com.magampick.store.service.StoreService;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
@@ -42,6 +43,7 @@ class SettlementServiceTest {
 
   @Mock SettlementRepository settlementRepository;
   @Mock StoreRepository storeRepository;
+  @Mock StoreService storeService;
   @Mock SettlementMapper settlementMapper;
   @Mock Clock clock;
 
@@ -150,7 +152,7 @@ class SettlementServiceTest {
     Long storeId = 10L;
     Settlement s1 = SettlementFixture.aSettlement(store);
     Settlement s2 = SettlementFixture.aSettlementHalf2(store);
-    given(storeRepository.findByIdAndSellerId(storeId, sellerId)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(sellerId, storeId)).willReturn(store);
     given(settlementRepository.findByStoreIdOrderByYearDescMonthDescHalfDesc(storeId))
         .willReturn(List.of(s2, s1));
     given(settlementMapper.toCycleResponse(s2)).willReturn(SettlementFixture.aCycleResponse(2L));
@@ -173,7 +175,7 @@ class SettlementServiceTest {
     Long sellerId = 2L;
     Long storeId = 10L;
     Settlement s = SettlementFixture.aSettlement(store);
-    given(storeRepository.findByIdAndSellerId(storeId, sellerId)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(sellerId, storeId)).willReturn(store);
     given(
             settlementRepository.findTopByStoreIdAndStatusOrderByYearDescMonthDescHalfDesc(
                 storeId, SettlementStatus.SCHEDULED))
@@ -197,7 +199,7 @@ class SettlementServiceTest {
     // given
     Long sellerId = 2L;
     Long storeId = 10L;
-    given(storeRepository.findByIdAndSellerId(storeId, sellerId)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(sellerId, storeId)).willReturn(store);
     given(
             settlementRepository.findTopByStoreIdAndStatusOrderByYearDescMonthDescHalfDesc(
                 storeId, SettlementStatus.SCHEDULED))
@@ -218,14 +220,14 @@ class SettlementServiceTest {
     // given: 다른 사장 ID
     Long anotherSellerId = 99L;
     Long storeId = 10L;
-    given(storeRepository.findByIdAndSellerId(storeId, anotherSellerId))
-        .willReturn(Optional.empty());
+    given(storeService.requireOwnedStore(anotherSellerId, storeId))
+        .willThrow(new BusinessException(StoreErrorCode.STORE_ACCESS_DENIED));
 
     // when / then
     assertThatThrownBy(() -> settlementService.listSettlements(anotherSellerId, storeId))
         .isInstanceOf(BusinessException.class)
         .extracting(e -> ((BusinessException) e).getErrorCode())
-        .isEqualTo(SettlementErrorCode.SETTLEMENT_STORE_FORBIDDEN);
+        .isEqualTo(StoreErrorCode.STORE_ACCESS_DENIED);
   }
 
   // ── periodLabel 포맷 검증 ────────────────────────────────────────────────────

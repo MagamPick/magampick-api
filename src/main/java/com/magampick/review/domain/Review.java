@@ -89,6 +89,11 @@ public class Review extends BaseEntity {
     return deletedAt != null;
   }
 
+  /** 소비자 소유권 판단. */
+  public boolean isOwnedBy(Long customerId) {
+    return customer.getId().equals(customerId);
+  }
+
   /** soft-delete. */
   public void delete() {
     this.deletedAt = LocalDateTime.now();
