@@ -352,6 +352,32 @@ class AddressServiceTest {
   }
 
   @Test
+  void requireDefaultLocation_기본주소지_좌표_반환() {
+    // given
+    Address a = address(1L, CUSTOMER_ID, true);
+    given(addressRepository.findByCustomerIdAndIsDefaultTrue(CUSTOMER_ID))
+        .willReturn(Optional.of(a));
+
+    // when
+    org.locationtech.jts.geom.Point result = addressService.requireDefaultLocation(CUSTOMER_ID);
+
+    // then
+    assertThat(result).isEqualTo(a.getLocation());
+  }
+
+  @Test
+  void requireDefaultLocation_기본주소지_없으면_DEFAULT_ADDRESS_REQUIRED() {
+    // given
+    given(addressRepository.findByCustomerIdAndIsDefaultTrue(CUSTOMER_ID))
+        .willReturn(Optional.empty());
+
+    // when / then
+    assertThatThrownBy(() -> addressService.requireDefaultLocation(CUSTOMER_ID))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", AddressErrorCode.DEFAULT_ADDRESS_REQUIRED);
+  }
+
+  @Test
   void 현재위치_역지오코딩_성공() {
     // given
     given(geocodingService.reverseGeocode(GeometryUtil.toPoint(37.5665, 126.9780)))

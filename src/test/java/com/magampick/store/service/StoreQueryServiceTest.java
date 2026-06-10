@@ -8,9 +8,8 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 
-import com.magampick.address.domain.Address;
 import com.magampick.address.exception.AddressErrorCode;
-import com.magampick.address.repository.AddressRepository;
+import com.magampick.address.service.AddressService;
 import com.magampick.clearance.domain.ClearanceItemStatus;
 import com.magampick.clearance.repository.ClearanceItemRepository;
 import com.magampick.favorite.repository.FavoriteRepository;
@@ -27,7 +26,6 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -37,7 +35,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class StoreQueryServiceTest {
 
-  @Mock AddressRepository addressRepository;
+  @Mock AddressService addressService;
   @Mock StoreRepository storeRepository;
   @Mock ClearanceItemRepository clearanceItemRepository;
   @Mock FavoriteRepository favoriteRepository;
@@ -52,8 +50,8 @@ class StoreQueryServiceTest {
 
   @Test
   void 기본주소지_없으면_예외() {
-    given(addressRepository.findByCustomerIdAndIsDefaultTrue(CUSTOMER_ID))
-        .willReturn(Optional.empty());
+    given(addressService.requireDefaultLocation(CUSTOMER_ID))
+        .willThrow(new BusinessException(AddressErrorCode.DEFAULT_ADDRESS_REQUIRED));
 
     assertThatThrownBy(() -> storeQueryService.getStores(CUSTOMER_ID, StoreSort.RECOMMENDED, 0, 20))
         .isInstanceOf(BusinessException.class)
@@ -367,22 +365,8 @@ class StoreQueryServiceTest {
   // ── helper ───────────────────────────────────────────────────────────────────────────────────
 
   private void stubDefaultAddress() {
-    Address address = makeAddress(LAT, LNG);
-    given(addressRepository.findByCustomerIdAndIsDefaultTrue(CUSTOMER_ID))
-        .willReturn(Optional.of(address));
-  }
-
-  private Address makeAddress(double lat, double lng) {
-    Address address =
-        Address.builder()
-            .customer(null) // Mockito 테스트 — customer 참조 불필요
-            .label("집")
-            .roadAddress("서울시 중구 테스트로 1")
-            .zonecode("04524")
-            .location(GeometryUtil.toPoint(lat, lng))
-            .isDefault(true)
-            .build();
-    return address;
+    given(addressService.requireDefaultLocation(CUSTOMER_ID))
+        .willReturn(GeometryUtil.toPoint(LAT, LNG));
   }
 
   private StoreCandidate candidate(Long id, String name, String imageUrl, double distanceMeters) {

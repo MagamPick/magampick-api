@@ -1,8 +1,6 @@
 package com.magampick.clearance.service;
 
-import com.magampick.address.domain.Address;
-import com.magampick.address.exception.AddressErrorCode;
-import com.magampick.address.repository.AddressRepository;
+import com.magampick.address.service.AddressService;
 import com.magampick.clearance.dto.ClosingDealResponse;
 import com.magampick.clearance.repository.ClearanceItemRepository;
 import com.magampick.clearance.repository.ClosingDealCandidate;
@@ -14,6 +12,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.locationtech.jts.geom.Point;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,7 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class ClosingDealQueryService {
 
-  private final AddressRepository addressRepository;
+  private final AddressService addressService;
   private final ClearanceItemRepository clearanceItemRepository;
 
   /**
@@ -35,13 +34,9 @@ public class ClosingDealQueryService {
    */
   public List<ClosingDealResponse> getClosingSoonDeals(Long customerId) {
     // 1. origin — 기본 주소지
-    Address defaultAddress =
-        addressRepository
-            .findByCustomerIdAndIsDefaultTrue(customerId)
-            .orElseThrow(() -> new BusinessException(AddressErrorCode.DEFAULT_ADDRESS_REQUIRED));
-
-    double lat = GeometryUtil.latitude(defaultAddress.getLocation());
-    double lng = GeometryUtil.longitude(defaultAddress.getLocation());
+    Point defaultLocation = addressService.requireDefaultLocation(customerId);
+    double lat = GeometryUtil.latitude(defaultLocation);
+    double lng = GeometryUtil.longitude(defaultLocation);
     String today = LocalDate.now().getDayOfWeek().name();
     LocalDateTime now = LocalDateTime.now();
     LocalDateTime until = now.plusMinutes(60);

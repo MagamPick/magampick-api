@@ -1,8 +1,6 @@
 package com.magampick.favorite.service;
 
-import com.magampick.address.domain.Address;
-import com.magampick.address.exception.AddressErrorCode;
-import com.magampick.address.repository.AddressRepository;
+import com.magampick.address.service.AddressService;
 import com.magampick.clearance.domain.ClearanceItemStatus;
 import com.magampick.clearance.repository.ClearanceItemRepository;
 import com.magampick.customer.domain.Customer;
@@ -29,6 +27,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.locationtech.jts.geom.Point;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,7 +41,7 @@ public class FavoriteService {
   private final StoreRepository storeRepository;
   private final CustomerRepository customerRepository;
   private final FavoriteMapper favoriteMapper;
-  private final AddressRepository addressRepository;
+  private final AddressService addressService;
   private final ReviewQueryService reviewQueryService;
   private final ClearanceItemRepository clearanceItemRepository;
 
@@ -81,13 +80,9 @@ public class FavoriteService {
    */
   public FavoriteListResponse getFavorites(Long customerId) {
     // 1. 기본 주소지 origin
-    Address defaultAddress =
-        addressRepository
-            .findByCustomerIdAndIsDefaultTrue(customerId)
-            .orElseThrow(() -> new BusinessException(AddressErrorCode.DEFAULT_ADDRESS_REQUIRED));
-
-    double lat = GeometryUtil.latitude(defaultAddress.getLocation());
-    double lng = GeometryUtil.longitude(defaultAddress.getLocation());
+    Point defaultLocation = addressService.requireDefaultLocation(customerId);
+    double lat = GeometryUtil.latitude(defaultLocation);
+    double lng = GeometryUtil.longitude(defaultLocation);
 
     // 2. 단골 매장 후보 조회 (PostGIS 거리 포함, 소프트삭제 제외, 전체 단골)
     List<FavoriteStoreCandidate> candidates =

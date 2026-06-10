@@ -1,8 +1,6 @@
 package com.magampick.store.service;
 
-import com.magampick.address.domain.Address;
-import com.magampick.address.exception.AddressErrorCode;
-import com.magampick.address.repository.AddressRepository;
+import com.magampick.address.service.AddressService;
 import com.magampick.global.common.GeometryUtil;
 import com.magampick.global.exception.BusinessException;
 import com.magampick.store.domain.StoreBusinessHour;
@@ -13,6 +11,7 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import org.locationtech.jts.geom.Point;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,7 +28,7 @@ public class StorePreviewHelper {
 
   private final StoreRepository storeRepository;
   private final StoreBusinessHourRepository storeBusinessHourRepository;
-  private final AddressRepository addressRepository;
+  private final AddressService addressService;
 
   /**
    * 매장 미리보기 공통 데이터 조립.
@@ -41,13 +40,9 @@ public class StorePreviewHelper {
    */
   public StorePreviewInfo buildStorePreview(Long storeId, Long customerId) {
     // 1. 기본 주소지 → origin
-    Address defaultAddress =
-        addressRepository
-            .findByCustomerIdAndIsDefaultTrue(customerId)
-            .orElseThrow(() -> new BusinessException(AddressErrorCode.DEFAULT_ADDRESS_REQUIRED));
-
-    double originLat = GeometryUtil.latitude(defaultAddress.getLocation());
-    double originLng = GeometryUtil.longitude(defaultAddress.getLocation());
+    Point defaultLocation = addressService.requireDefaultLocation(customerId);
+    double originLat = GeometryUtil.latitude(defaultLocation);
+    double originLng = GeometryUtil.longitude(defaultLocation);
 
     // 2. 거리 (m → km)
     Double distanceMeters = storeRepository.findDistanceMeters(storeId, originLat, originLng);

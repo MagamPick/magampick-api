@@ -10,9 +10,8 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verifyNoInteractions;
 
-import com.magampick.address.domain.Address;
 import com.magampick.address.exception.AddressErrorCode;
-import com.magampick.address.repository.AddressRepository;
+import com.magampick.address.service.AddressService;
 import com.magampick.clearance.domain.ClearanceItemStatus;
 import com.magampick.clearance.repository.ClearanceItemRepository;
 import com.magampick.clearance.repository.DealNameSuggestion;
@@ -38,7 +37,6 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -49,7 +47,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class SearchQueryServiceTest {
 
-  @Mock AddressRepository addressRepository;
+  @Mock AddressService addressService;
   @Mock StoreRepository storeRepository;
   @Mock ClearanceItemRepository clearanceItemRepository;
   @Mock ProductRepository productRepository;
@@ -65,8 +63,8 @@ class SearchQueryServiceTest {
 
   @Test
   void 기본주소지_없으면_예외() {
-    given(addressRepository.findByCustomerIdAndIsDefaultTrue(CUSTOMER_ID))
-        .willReturn(Optional.empty());
+    given(addressService.requireDefaultLocation(CUSTOMER_ID))
+        .willThrow(new BusinessException(AddressErrorCode.DEFAULT_ADDRESS_REQUIRED));
 
     assertThatThrownBy(() -> searchQueryService.search(CUSTOMER_ID, "빵집", StoreSort.RECOMMENDED))
         .isInstanceOf(BusinessException.class)
@@ -82,7 +80,7 @@ class SearchQueryServiceTest {
 
     assertThat(result.stores()).isEmpty();
     assertThat(result.products()).isEmpty();
-    verifyNoInteractions(addressRepository);
+    verifyNoInteractions(addressService);
   }
 
   @Test
@@ -92,7 +90,7 @@ class SearchQueryServiceTest {
 
     assertThat(result.stores()).isEmpty();
     assertThat(result.products()).isEmpty();
-    verifyNoInteractions(addressRepository);
+    verifyNoInteractions(addressService);
   }
 
   // ── 와일드카드 이스케이프 ───────────────────────────────────────────────────────────────────────
@@ -377,14 +375,14 @@ class SearchQueryServiceTest {
   void 자동완성_1자_미만_빈_결과() {
     List<SearchSuggestionResponse> result = searchQueryService.autocomplete(CUSTOMER_ID, "");
     assertThat(result).isEmpty();
-    verifyNoInteractions(addressRepository);
+    verifyNoInteractions(addressService);
   }
 
   @Test
   void 자동완성_공백만_있으면_빈_결과() {
     List<SearchSuggestionResponse> result = searchQueryService.autocomplete(CUSTOMER_ID, " ");
     assertThat(result).isEmpty();
-    verifyNoInteractions(addressRepository);
+    verifyNoInteractions(addressService);
   }
 
   @Test
@@ -500,8 +498,8 @@ class SearchQueryServiceTest {
 
   @Test
   void 자동완성_기본주소지_없으면_예외() {
-    given(addressRepository.findByCustomerIdAndIsDefaultTrue(CUSTOMER_ID))
-        .willReturn(Optional.empty());
+    given(addressService.requireDefaultLocation(CUSTOMER_ID))
+        .willThrow(new BusinessException(AddressErrorCode.DEFAULT_ADDRESS_REQUIRED));
 
     assertThatThrownBy(() -> searchQueryService.autocomplete(CUSTOMER_ID, "빵"))
         .isInstanceOf(BusinessException.class)
@@ -512,17 +510,8 @@ class SearchQueryServiceTest {
   // ── helper ───────────────────────────────────────────────────────────────────────────────────
 
   private void stubDefaultAddress() {
-    Address address =
-        Address.builder()
-            .customer(null)
-            .label("집")
-            .roadAddress("서울시 중구 1")
-            .zonecode("04524")
-            .location(GeometryUtil.toPoint(LAT, LNG))
-            .isDefault(true)
-            .build();
-    given(addressRepository.findByCustomerIdAndIsDefaultTrue(CUSTOMER_ID))
-        .willReturn(Optional.of(address));
+    given(addressService.requireDefaultLocation(CUSTOMER_ID))
+        .willReturn(GeometryUtil.toPoint(LAT, LNG));
   }
 
   private void stubEnrich(List<Long> storeIds) {
