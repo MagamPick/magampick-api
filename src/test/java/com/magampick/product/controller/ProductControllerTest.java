@@ -23,6 +23,7 @@ import com.magampick.global.security.JwtAuthenticationEntryPoint;
 import com.magampick.global.security.JwtProvider;
 import com.magampick.global.security.Role;
 import com.magampick.global.security.SecurityConfig;
+import com.magampick.product.domain.ProductCategory;
 import com.magampick.product.domain.ProductStatus;
 import com.magampick.product.dto.ProductCreateRequest;
 import com.magampick.product.dto.ProductResponse;
@@ -70,11 +71,12 @@ class ProductControllerTest {
 
   private String validCreateJson() throws Exception {
     return objectMapper.writeValueAsString(
-        new ProductCreateRequest("크로아상", new BigDecimal("4500")));
+        new ProductCreateRequest(
+            "크로아상", new BigDecimal("4500"), ProductCategory.BAKERY, null, null));
   }
 
   private String validUpdateJson() throws Exception {
-    return objectMapper.writeValueAsString(new ProductUpdateRequest("바게트", null));
+    return objectMapper.writeValueAsString(new ProductUpdateRequest("바게트", null, null, null, null));
   }
 
   // ── POST /api/v1/seller/stores/{storeId}/products ─────────────────────────
@@ -99,7 +101,9 @@ class ProductControllerTest {
   @Test
   void POST_products_400_가격_검증_실패() throws Exception {
     String invalidJson =
-        objectMapper.writeValueAsString(new ProductCreateRequest("크로아상", new BigDecimal("0")));
+        objectMapper.writeValueAsString(
+            new ProductCreateRequest(
+                "크로아상", new BigDecimal("0"), ProductCategory.BAKERY, null, null));
     mockMvc
         .perform(
             multipart("/api/v1/seller/stores/10/products")
@@ -400,5 +404,74 @@ class ProductControllerTest {
     mockMvc
         .perform(post("/api/v1/seller/stores/10/products/100/restock"))
         .andExpect(status().isUnauthorized());
+  }
+
+  // ── 카테고리 / description / status (이슈 #1, #2, #4) ─────────────────────────
+
+  @Test
+  void POST_products_400_category_누락() throws Exception {
+    // category 가 null 이면 @NotNull 위반 → 400
+    String noCategory =
+        objectMapper.writeValueAsString(
+            new ProductCreateRequest("크로아상", new BigDecimal("4500"), null, null, null));
+    mockMvc
+        .perform(
+            multipart("/api/v1/seller/stores/10/products")
+                .file(requestPart(noCategory))
+                .with(user(SELLER_USER)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
+  }
+
+  @Test
+  void POST_products_201_category_응답에_포함() throws Exception {
+    given(productService.registerProduct(eq(1L), eq(10L), any(), any()))
+        .willReturn(ProductFixture.aResponse(100L)); // aResponse 에 BAKERY 포함
+
+    mockMvc
+        .perform(
+            multipart("/api/v1/seller/stores/10/products")
+                .file(requestPart(validCreateJson()))
+                .with(user(SELLER_USER)))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.data.category").value("BAKERY"));
+  }
+
+  @Test
+  void POST_products_201_SOLD_OUT_상태로_등록() throws Exception {
+    String soldOutJson =
+        objectMapper.writeValueAsString(
+            new ProductCreateRequest(
+                "크로아상",
+                new BigDecimal("4500"),
+                ProductCategory.BAKERY,
+                null,
+                ProductStatus.SOLD_OUT));
+    given(productService.registerProduct(eq(1L), eq(10L), any(), any()))
+        .willReturn(ProductFixture.aResponseWithStatus(100L, ProductStatus.SOLD_OUT));
+
+    mockMvc
+        .perform(
+            multipart("/api/v1/seller/stores/10/products")
+                .file(requestPart(soldOutJson))
+                .with(user(SELLER_USER)))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.data.status").value("SOLD_OUT"));
+  }
+
+  @Test
+  void PATCH_products_id_200_description_변경() throws Exception {
+    String descJson =
+        objectMapper.writeValueAsString(new ProductUpdateRequest(null, null, null, "새로운 설명", null));
+    given(productService.updateProduct(eq(1L), eq(10L), eq(100L), any(), any()))
+        .willReturn(ProductFixture.aResponseWithDescription(100L, "새로운 설명"));
+
+    mockMvc
+        .perform(
+            multipart(HttpMethod.PATCH, "/api/v1/seller/stores/10/products/100")
+                .file(requestPart(descJson))
+                .with(user(SELLER_USER)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data.description").value("새로운 설명"));
   }
 }

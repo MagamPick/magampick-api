@@ -1,6 +1,7 @@
 package com.magampick.product.fixture;
 
 import com.magampick.product.domain.Product;
+import com.magampick.product.domain.ProductCategory;
 import com.magampick.product.domain.ProductStatus;
 import com.magampick.product.dto.ProductCreateRequest;
 import com.magampick.product.dto.ProductResponse;
@@ -20,6 +21,7 @@ public class ProductFixture {
         .regularPrice(new BigDecimal("4500"))
         .imageUrl("/uploads/2026/5/product.jpg")
         .status(ProductStatus.ON_SALE)
+        .category(ProductCategory.BAKERY)
         .build();
   }
 
@@ -30,15 +32,27 @@ public class ProductFixture {
         .regularPrice(new BigDecimal("4500"))
         .imageUrl("/uploads/2026/5/product.jpg")
         .status(ProductStatus.SOLD_OUT)
+        .category(ProductCategory.BAKERY)
         .build();
   }
 
   public static ProductCreateRequest aCreateRequest() {
-    return new ProductCreateRequest("크로아상", new BigDecimal("4500"));
+    return new ProductCreateRequest(
+        "크로아상", new BigDecimal("4500"), ProductCategory.BAKERY, null, null);
+  }
+
+  public static ProductCreateRequest aCreateRequestWithDescription(String description) {
+    return new ProductCreateRequest(
+        "크로아상", new BigDecimal("4500"), ProductCategory.BAKERY, description, null);
+  }
+
+  public static ProductCreateRequest aCreateRequestWithStatus(ProductStatus status) {
+    return new ProductCreateRequest(
+        "크로아상", new BigDecimal("4500"), ProductCategory.BAKERY, null, status);
   }
 
   public static ProductUpdateRequest aUpdateRequest() {
-    return new ProductUpdateRequest("바게트", new BigDecimal("5000"));
+    return new ProductUpdateRequest("바게트", new BigDecimal("5000"), null, null, null);
   }
 
   public static ProductResponse aResponse(Long id) {
@@ -48,12 +62,21 @@ public class ProductFixture {
         new BigDecimal("4500"),
         "/uploads/2026/5/product.jpg",
         ProductStatus.ON_SALE,
+        ProductCategory.BAKERY,
+        null,
         OffsetDateTime.now());
   }
 
   public static ProductResponse aResponseWithoutImage(Long id) {
     return new ProductResponse(
-        id, "크로아상", new BigDecimal("4500"), null, ProductStatus.ON_SALE, OffsetDateTime.now());
+        id,
+        "크로아상",
+        new BigDecimal("4500"),
+        null,
+        ProductStatus.ON_SALE,
+        ProductCategory.BAKERY,
+        null,
+        OffsetDateTime.now());
   }
 
   public static ProductResponse aResponseWithStatus(Long id, ProductStatus status) {
@@ -63,6 +86,20 @@ public class ProductFixture {
         new BigDecimal("4500"),
         "/uploads/2026/5/product.jpg",
         status,
+        ProductCategory.BAKERY,
+        null,
+        OffsetDateTime.now());
+  }
+
+  public static ProductResponse aResponseWithDescription(Long id, String description) {
+    return new ProductResponse(
+        id,
+        "크로아상",
+        new BigDecimal("4500"),
+        "/uploads/2026/5/product.jpg",
+        ProductStatus.ON_SALE,
+        ProductCategory.BAKERY,
+        description,
         OffsetDateTime.now());
   }
 }

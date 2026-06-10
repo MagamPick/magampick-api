@@ -66,8 +66,9 @@ public class ClearanceItemDetailQueryService {
             .setScale(0, RoundingMode.HALF_UP)
             .intValue();
 
-    // 5. imageUrl (product 연결 없으면 null)
+    // 5. imageUrl, description (product 연결 없으면 null)
     String imageUrl = item.getProduct() != null ? item.getProduct().getImageUrl() : null;
+    String description = item.getProduct() != null ? item.getProduct().getDescription() : null;
 
     // 6. dealStatus 매핑
     String dealStatus = resolveDealStatus(item);
@@ -81,7 +82,7 @@ public class ClearanceItemDetailQueryService {
         item.getStore().getOperationStatus(),
         imageUrl,
         item.getName(),
-        null,
+        description,
         ratingStats.average(),
         ratingStats.count(),
         storePreview.closingTime(),

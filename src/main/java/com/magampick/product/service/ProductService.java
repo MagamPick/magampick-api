@@ -62,7 +62,9 @@ public class ProductService {
             .name(request.name())
             .regularPrice(request.regularPrice())
             .imageUrl(imageUrl)
-            .status(ProductStatus.ON_SALE)
+            .status(request.status() != null ? request.status() : ProductStatus.ON_SALE)
+            .category(request.category())
+            .description(request.description())
             .build();
     productRepository.save(product);
 
@@ -109,7 +111,13 @@ public class ProductService {
 
     String oldImageUrl = product.getImageUrl();
     String imageUrl = hasImage(image) ? uploadProductImage(image) : null;
-    product.updateInfo(request.name(), request.regularPrice(), imageUrl);
+    product.updateInfo(
+        request.name(),
+        request.regularPrice(),
+        imageUrl,
+        request.description(),
+        request.category(),
+        request.status());
 
     log.info(
         "상품 수정됨. productId={}, storeId={}, sellerId={}, oldImageUrl={}",

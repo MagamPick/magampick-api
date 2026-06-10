@@ -53,7 +53,7 @@ public class ProductDetailQueryService {
         product.getStore().getOperationStatus(),
         product.getImageUrl(),
         product.getName(),
-        null,
+        product.getDescription(),
         0.0,
         0L,
         storePreview.closingTime(),

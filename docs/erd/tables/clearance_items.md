@@ -14,7 +14,7 @@
 | sale_price | NUMERIC(12, 0) | N | CHECK > 0 | 판매가 (원, 정수). 항상 regular_price 미만 |
 | total_quantity | INT | N | CHECK > 0 | 등록 수량 |
 | remaining_quantity | INT | N | CHECK >= 0 | 잔여 수량 (주문 시 감소) |
-| pickup_start_at | TIMESTAMP | N | | 픽업 시작 시각 (KST) |
+| pickup_start_at | TIMESTAMP | N | | 픽업 시작 시각 (KST). **사용자 입력 아님 — 등록 시각으로 서버 자동 설정** (이슈 #5) |
 | pickup_end_at | TIMESTAMP | N | | 픽업 종료 시각 (KST). 등록 당일만 허용 |
 | status | VARCHAR(20) | N | CHECK | `OPEN`, `SOLD_OUT`, `CLOSED` |
 | created_at | TIMESTAMP | N | | 생성 시각 |
@@ -54,13 +54,13 @@
 - **가격**: `sale_price` 단독 입력. `discount_rate` 는 응답 전용 계산 필드 (`1 - sale_price / regular_price`), DB 저장 X.
 - **스냅샷**: `name` + `regular_price` 는 등록 시점 product 값 복사. 이후 product 수정 영향 없음.
 - **이미지**: `image_url` 컬럼 없음. 응답 시 `product.image_url` 라이브 참조.
-- **픽업창**: `pickup_end_at.toLocalDate() == 등록 당일 (KST)` + `pickup_start_at < pickup_end_at` 검증.
+- **픽업창**: `pickup_end_at.toLocalDate() == 등록 당일 (KST)` + `pickup_end_at > now(KST)` 검증. `pickup_start_at` 은 서버 자동 설정이므로 요청 필드에 없음.
 - **soft-delete 미도입**: `deleted_at` 없음. CLOSED 상태가 종료를 나타냄. 날짜가 바뀌면 새 row 등록.
 - **권한**: 등록 시 매장 APPROVED 필수. 셀러 조회는 매장 상태 무관 (본인이면 허용).
 
 ### #69 — 수정·마감
 
-- **수정 가능 필드**: `sale_price` / `total_quantity` / `pickup_start_at` / `pickup_end_at`. `name` / `regular_price` (스냅샷) / `status` 는 PATCH 노출 X.
+- **수정 가능 필드**: `sale_price` / `total_quantity` / `pickup_end_at`. `pickup_start_at` 은 서버 자동 설정, 수정 불가. `name` / `regular_price` (스냅샷) / `status` 는 PATCH 노출 X.
 - **수정 시 `remaining_quantity` 동기화**: `total_quantity` 변경 시 `remaining_quantity = total_quantity`. 주문 미구현 상태에서만 유효 — 계층 5 연결 시 재검토.
 - **수정·마감 가능 상태**: `OPEN` 만. `CLOSED` / `SOLD_OUT` → `CLEARANCE_ITEM_NOT_OPEN` (409).
 - **수동 마감 멱등**: `POST /close` 재호출 시 이미 `CLOSED` 면 no-op + 200. `uq_clearance_items_product_open` 해제로 동일 상품 재등록 가능.

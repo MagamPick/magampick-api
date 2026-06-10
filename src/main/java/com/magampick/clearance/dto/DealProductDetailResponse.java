@@ -15,7 +15,7 @@ public record DealProductDetailResponse(
     @Schema(description = "매장 영업 상태 (OPEN/BREAK/CLOSED_TODAY)") OperationStatus businessStatus,
     @Schema(description = "상품 이미지 URL (없으면 null)") String imageUrl,
     @Schema(description = "상품명") String name,
-    @Schema(description = "상품 설명 (현재 미지원, null)") String description,
+    @Schema(description = "상품 설명 (없으면 null)") String description,
     @Schema(description = "평균 평점", example = "4.3") double rating,
     @Schema(description = "리뷰 수", example = "12") long reviewCount,
     @Schema(description = "오늘 영업 종료 시각 (HH:mm). 오늘 휴무이면 null", example = "21:00")

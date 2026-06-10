@@ -96,7 +96,7 @@ class ClearanceItemDetailQueryServiceTest {
     assertThat(response.businessStatus()).isEqualTo(OperationStatus.OPEN);
     assertThat(response.imageUrl()).isEqualTo("/img/item.jpg");
     assertThat(response.name()).isEqualTo("크로아상");
-    assertThat(response.description()).isNull();
+    assertThat(response.description()).isNull(); // product 에 description 없으면 null
     assertThat(response.rating()).isEqualTo(4.0);
     assertThat(response.reviewCount()).isEqualTo(5L);
     assertThat(response.closingTime()).isEqualTo("21:00");
@@ -195,6 +195,37 @@ class ClearanceItemDetailQueryServiceTest {
     assertThat(response.imageUrl()).isNull();
   }
 
+  // ── description 배선 ──────────────────────────────────────────────────────────────────────────
+
+  @Test
+  void description_product_있으면_product_description_반환() {
+    Product product = stubProductWithDescription("/img/item.jpg", "맛있는 크로아상");
+    ClearanceItem item = stubItem(ClearanceItemStatus.OPEN, futurePickupEnd(), product);
+    given(clearanceItemRepository.findByIdWithStoreAndProduct(ITEM_ID))
+        .willReturn(Optional.of(item));
+    given(storePreviewHelper.buildStorePreview(STORE_ID, CUSTOMER_ID))
+        .willReturn(new StorePreviewInfo(1.2, "21:00"));
+    given(reviewQueryService.getClearanceItemRating(ITEM_ID)).willReturn(RatingStats.EMPTY);
+
+    DealProductDetailResponse response = service.getDetail(ITEM_ID, CUSTOMER_ID);
+
+    assertThat(response.description()).isEqualTo("맛있는 크로아상");
+  }
+
+  @Test
+  void description_product_없으면_null() {
+    ClearanceItem item = stubItem(ClearanceItemStatus.OPEN, futurePickupEnd(), null);
+    given(clearanceItemRepository.findByIdWithStoreAndProduct(ITEM_ID))
+        .willReturn(Optional.of(item));
+    given(storePreviewHelper.buildStorePreview(STORE_ID, CUSTOMER_ID))
+        .willReturn(new StorePreviewInfo(0.5, null));
+    given(reviewQueryService.getClearanceItemRating(ITEM_ID)).willReturn(RatingStats.EMPTY);
+
+    DealProductDetailResponse response = service.getDetail(ITEM_ID, CUSTOMER_ID);
+
+    assertThat(response.description()).isNull();
+  }
+
   // ── helpers ───────────────────────────────────────────────────────────────────────────────────
 
   private Store stubStore() {
@@ -224,6 +255,18 @@ class ClearanceItemDetailQueryServiceTest {
         .imageUrl(imageUrl)
         .status(ProductStatus.ON_SALE)
         .category(ProductCategory.BAKERY)
+        .build();
+  }
+
+  private Product stubProductWithDescription(String imageUrl, String description) {
+    return Product.builder()
+        .store(stubStore())
+        .name("상품")
+        .regularPrice(new BigDecimal("4500"))
+        .imageUrl(imageUrl)
+        .status(ProductStatus.ON_SALE)
+        .category(ProductCategory.BAKERY)
+        .description(description)
         .build();
   }
 

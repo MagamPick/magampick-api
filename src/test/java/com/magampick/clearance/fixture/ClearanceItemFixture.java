@@ -34,8 +34,7 @@ public class ClearanceItemFixture {
   }
 
   public static ClearanceItemCreateRequest aCreateRequest(Long productId) {
-    return new ClearanceItemCreateRequest(
-        productId, new BigDecimal("3000"), 5, todayAt(17, 0), todayAt(21, 0));
+    return new ClearanceItemCreateRequest(productId, new BigDecimal("3000"), 5, todayAt(23, 59));
   }
 
   public static ClearanceItemResponse aResponse(Long id) {

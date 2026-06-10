@@ -247,8 +247,7 @@ class ClearanceItemServiceTest {
     Product prod = product(ProductStatus.ON_SALE);
     // salePrice == regularPrice (4500)
     ClearanceItemCreateRequest request =
-        new ClearanceItemCreateRequest(
-            PRODUCT_ID, new BigDecimal("4500"), 5, todayAt(17, 0), todayAt(21, 0));
+        new ClearanceItemCreateRequest(PRODUCT_ID, new BigDecimal("4500"), 5, todayAt(23, 59));
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.of(prod));
@@ -271,8 +270,7 @@ class ClearanceItemServiceTest {
     Product prod = product(ProductStatus.ON_SALE);
     LocalDateTime tomorrow = LocalDate.now(KST).plusDays(1).atTime(21, 0);
     ClearanceItemCreateRequest request =
-        new ClearanceItemCreateRequest(
-            PRODUCT_ID, new BigDecimal("3000"), 5, todayAt(17, 0), tomorrow);
+        new ClearanceItemCreateRequest(PRODUCT_ID, new BigDecimal("3000"), 5, tomorrow);
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.of(prod));
@@ -289,13 +287,14 @@ class ClearanceItemServiceTest {
   }
 
   @Test
-  void 마감_임박_상품_등록_픽업_시작_종료_역전_예외() {
-    // given
+  void 마감_임박_상품_등록_픽업종료_과거_예외() {
+    // given — pickupEndAt 이 과거(1시간 전)이면 INVALID_PICKUP_WINDOW
     Store store = store();
     Product prod = product(ProductStatus.ON_SALE);
+    // 1시간 전: 오늘이면 isAfter(now) 실패 → 어제면 equals(today) 실패 → 둘 다 예외
+    LocalDateTime pastEndAt = LocalDateTime.now(KST).minusHours(1);
     ClearanceItemCreateRequest request =
-        new ClearanceItemCreateRequest(
-            PRODUCT_ID, new BigDecimal("3000"), 5, todayAt(21, 0), todayAt(17, 0)); // start > end
+        new ClearanceItemCreateRequest(PRODUCT_ID, new BigDecimal("3000"), 5, pastEndAt);
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.of(prod));
@@ -309,6 +308,37 @@ class ClearanceItemServiceTest {
         .hasFieldOrPropertyWithValue(
             "errorCode", ClearanceItemErrorCode.CLEARANCE_ITEM_INVALID_PICKUP_WINDOW);
     then(clearanceItemRepository).should(never()).save(any());
+  }
+
+  @Test
+  void 마감_임박_상품_등록_pickupStartAt_서버_now로_자동_설정() {
+    // given
+    Store store = store();
+    Product prod = product(ProductStatus.ON_SALE);
+    ClearanceItemCreateRequest request = ClearanceItemFixture.aCreateRequest(PRODUCT_ID);
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
+        .willReturn(Optional.of(prod));
+    given(clearanceItemRepository.existsByProductIdAndStatus(PRODUCT_ID, ClearanceItemStatus.OPEN))
+        .willReturn(false);
+    LocalDateTime beforeCall = LocalDateTime.now(KST);
+    given(clearanceItemRepository.saveAndFlush(any(ClearanceItem.class)))
+        .willAnswer(
+            inv -> {
+              ClearanceItem item = inv.getArgument(0);
+              ReflectionTestUtils.setField(item, "id", CLEARANCE_ITEM_ID);
+              // pickupStartAt 은 요청과 무관하게 서버 now 로 설정됨
+              assertThat(item.getPickupStartAt()).isAfterOrEqualTo(beforeCall);
+              return item;
+            });
+    given(clearanceItemMapper.toResponse(any(ClearanceItem.class)))
+        .willReturn(ClearanceItemFixture.aResponse(CLEARANCE_ITEM_ID));
+
+    // when
+    clearanceItemService.registerClearanceItem(SELLER_ID, STORE_ID, request);
+
+    // then — saveAndFlush 안의 assertion 으로 검증
+    then(clearanceItemRepository).should().saveAndFlush(any(ClearanceItem.class));
   }
 
   // ── 조회 ─────────────────────────────────────────────────────────────────────
@@ -398,7 +428,7 @@ class ClearanceItemServiceTest {
     ClearanceItem item = ClearanceItemFixture.aClearanceItem(store, prod);
     ReflectionTestUtils.setField(item, "id", CLEARANCE_ITEM_ID);
     ClearanceItemUpdateRequest request =
-        new ClearanceItemUpdateRequest(new BigDecimal("2000"), null, null, null);
+        new ClearanceItemUpdateRequest(new BigDecimal("2000"), null, null);
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
     given(clearanceItemRepository.findByIdAndStoreId(CLEARANCE_ITEM_ID, STORE_ID))
         .willReturn(Optional.of(item));
@@ -423,7 +453,7 @@ class ClearanceItemServiceTest {
     ReflectionTestUtils.setField(item, "id", CLEARANCE_ITEM_ID);
     item.close();
     ClearanceItemUpdateRequest request =
-        new ClearanceItemUpdateRequest(new BigDecimal("2000"), null, null, null);
+        new ClearanceItemUpdateRequest(new BigDecimal("2000"), null, null);
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
     given(clearanceItemRepository.findByIdAndStoreId(CLEARANCE_ITEM_ID, STORE_ID))
         .willReturn(Optional.of(item));
@@ -445,7 +475,7 @@ class ClearanceItemServiceTest {
     ClearanceItem item = ClearanceItemFixture.aClearanceItem(store, prod);
     ReflectionTestUtils.setField(item, "id", CLEARANCE_ITEM_ID);
     ClearanceItemUpdateRequest request =
-        new ClearanceItemUpdateRequest(new BigDecimal("5000"), null, null, null);
+        new ClearanceItemUpdateRequest(new BigDecimal("5000"), null, null);
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
     given(clearanceItemRepository.findByIdAndStoreId(CLEARANCE_ITEM_ID, STORE_ID))
         .willReturn(Optional.of(item));
@@ -468,7 +498,7 @@ class ClearanceItemServiceTest {
     ClearanceItem item = ClearanceItemFixture.aClearanceItem(store, prod);
     ReflectionTestUtils.setField(item, "id", CLEARANCE_ITEM_ID);
     LocalDateTime tomorrow = LocalDate.now(KST).plusDays(1).atTime(21, 0);
-    ClearanceItemUpdateRequest request = new ClearanceItemUpdateRequest(null, null, null, tomorrow);
+    ClearanceItemUpdateRequest request = new ClearanceItemUpdateRequest(null, null, tomorrow);
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
     given(clearanceItemRepository.findByIdAndStoreId(CLEARANCE_ITEM_ID, STORE_ID))
         .willReturn(Optional.of(item));
@@ -488,7 +518,7 @@ class ClearanceItemServiceTest {
     // given
     Store store = store();
     ClearanceItemUpdateRequest request =
-        new ClearanceItemUpdateRequest(new BigDecimal("2000"), null, null, null);
+        new ClearanceItemUpdateRequest(new BigDecimal("2000"), null, null);
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
     given(clearanceItemRepository.findByIdAndStoreId(CLEARANCE_ITEM_ID, STORE_ID))
         .willReturn(Optional.empty());

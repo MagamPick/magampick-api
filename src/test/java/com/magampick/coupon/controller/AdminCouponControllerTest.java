@@ -49,6 +49,8 @@ class AdminCouponControllerTest {
 
   private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
+  private static final LocalDate TODAY = LocalDate.now();
+
   private AdminCouponResponse sampleAdminResponse() {
     return new AdminCouponResponse(
         1L,
@@ -60,7 +62,7 @@ class AdminCouponControllerTest {
         100,
         0,
         true,
-        LocalDate.of(2026, 6, 9),
+        TODAY,
         LocalDate.of(2026, 12, 31),
         EventStatus.ONGOING);
   }
@@ -74,7 +76,7 @@ class AdminCouponControllerTest {
             10000,
             LocalDate.of(2026, 12, 31),
             100,
-            LocalDate.of(2026, 6, 9),
+            TODAY,
             LocalDate.of(2026, 12, 31));
     return objectMapper.writeValueAsString(req);
   }
@@ -96,7 +98,7 @@ class AdminCouponControllerTest {
         .andExpect(jsonPath("$.data.id").value(1))
         .andExpect(jsonPath("$.data.label").value("이벤트 쿠폰"))
         .andExpect(jsonPath("$.data.status").value("ongoing"))
-        .andExpect(jsonPath("$.data.displayStartAt").value("2026-06-09"));
+        .andExpect(jsonPath("$.data.displayStartAt").value(TODAY.toString()));
   }
 
   @Test
@@ -130,7 +132,7 @@ class AdminCouponControllerTest {
             10000,
             LocalDate.of(2026, 12, 31),
             100,
-            LocalDate.of(2026, 6, 9),
+            TODAY,
             LocalDate.of(2026, 12, 31));
     String body = objectMapper.writeValueAsString(req);
 
