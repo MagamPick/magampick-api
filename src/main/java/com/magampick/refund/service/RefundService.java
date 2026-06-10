@@ -76,9 +76,8 @@ public class RefundService {
     }
 
     // ── 3일 이내 확인 ────────────────────────────────────────────────────────
-    LocalDateTime completedAt = order.getCompletedAt();
     LocalDateTime now = LocalDateTime.now(clock);
-    if (completedAt == null || now.isAfter(completedAt.plusDays(REFUND_WINDOW_DAYS))) {
+    if (order.isRefundWindowExpired(now, REFUND_WINDOW_DAYS)) {
       throw new BusinessException(RefundErrorCode.REFUND_WINDOW_EXPIRED);
     }
 
@@ -252,12 +251,8 @@ public class RefundService {
    */
   private void reverseBenefits(Order order) {
     pointService.clawback(order);
-    if (order.getPointUsed() != null && order.getPointUsed() > 0) {
-      pointService.restore(order, order.getPointUsed());
-    }
-    if (order.getUserCouponId() != null) {
-      couponService.restore(order.getUserCouponId());
-    }
+    if (order.hasUsedPoints()) pointService.restore(order, order.getPointUsed());
+    if (order.hasCoupon()) couponService.restore(order.getUserCouponId());
   }
 
   /** 사장 전용: 환불 조회 + 본인 매장 검증. 공통 헬퍼. */

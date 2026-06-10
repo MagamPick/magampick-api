@@ -61,9 +61,8 @@ public class TossConfirmService {
       throw new BusinessException(PaymentErrorCode.PAYMENT_GATEWAY_ERROR);
     }
 
-    if (order.getUserCouponId() != null) couponService.use(order.getUserCouponId());
-    if (order.getPointUsed() != null && order.getPointUsed() > 0)
-      pointService.use(order, order.getPointUsed());
+    if (order.hasCoupon()) couponService.use(order.getUserCouponId());
+    if (order.hasUsedPoints()) pointService.use(order, order.getPointUsed());
     order.activate();
     // markUsed(@Modifying clearAutomatically=true) 가 EntityManager 를 비워 order 가 detached 되므로
     // 명시적 save 로 PENDING 상태를 DB 에 반영한다.

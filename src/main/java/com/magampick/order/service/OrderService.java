@@ -524,8 +524,7 @@ public class OrderService {
       throw new BusinessException(OrderErrorCode.INVALID_ORDER_TRANSITION);
     }
     order.complete(LocalDateTime.now(clock));
-    if (order.getEarnedPoints() != null && order.getEarnedPoints() > 0)
-      pointService.earn(order, order.getEarnedPoints());
+    if (order.hasEarnedPoints()) pointService.earn(order, order.getEarnedPoints());
     Order saved = orderRepository.save(order);
     notificationService.notifyCustomer(
         order.getCustomer().getId(),
@@ -551,9 +550,8 @@ public class OrderService {
 
   /** 결제 시 차감된 쿠폰/포인트 복원 (취소·거절 공통). */
   private void restoreBenefits(Order order) {
-    if (order.getUserCouponId() != null) couponService.restore(order.getUserCouponId());
-    if (order.getPointUsed() != null && order.getPointUsed() > 0)
-      pointService.restore(order, order.getPointUsed());
+    if (order.hasCoupon()) couponService.restore(order.getUserCouponId());
+    if (order.hasUsedPoints()) pointService.restore(order, order.getPointUsed());
   }
 
   /** 결제 취소(환불) 헬퍼. Payment 가 있으면 PG 취소 → Payment.cancel() 저장. */
