@@ -1,4 +1,4 @@
-package com.magampick.store.service;
+package com.magampick.geocode.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

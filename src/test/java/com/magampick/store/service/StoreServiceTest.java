@@ -10,6 +10,9 @@ import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 
+import com.magampick.geocode.exception.GeocodeErrorCode;
+import com.magampick.geocode.service.GeocodeQuery;
+import com.magampick.geocode.service.GeocodingService;
 import com.magampick.global.common.GeometryUtil;
 import com.magampick.global.exception.BusinessException;
 import com.magampick.global.exception.CommonErrorCode;
@@ -307,12 +310,12 @@ class StoreServiceTest {
   void 매장_등록_지오코딩_실패_예외() {
     // given
     given(geocodingService.geocode(any()))
-        .willThrow(new BusinessException(StoreErrorCode.ADDRESS_GEOCODING_FAILED));
+        .willThrow(new BusinessException(GeocodeErrorCode.GEOCODING_FAILED));
 
     // when / then
     assertThatThrownBy(() -> storeService.registerStore(SELLER_ID, createRequest(), validImage()))
         .isInstanceOf(BusinessException.class)
-        .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.ADDRESS_GEOCODING_FAILED);
+        .hasFieldOrPropertyWithValue("errorCode", GeocodeErrorCode.GEOCODING_FAILED);
     then(storageService).should(never()).upload(any());
     then(storeRepository).should(never()).save(any());
   }
@@ -1078,14 +1081,14 @@ class StoreServiceTest {
     Store s = store(STORE_ID, seller());
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(s));
     given(geocodingService.geocode(any()))
-        .willThrow(new BusinessException(StoreErrorCode.ADDRESS_GEOCODING_FAILED));
+        .willThrow(new BusinessException(GeocodeErrorCode.GEOCODING_FAILED));
 
     StoreUpdateRequest req = updateOf(null, "새 주소", null, null, "12345", null, null);
 
     // when / then
     assertThatThrownBy(() -> storeService.updateStore(SELLER_ID, STORE_ID, req, null))
         .isInstanceOf(BusinessException.class)
-        .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.ADDRESS_GEOCODING_FAILED);
+        .hasFieldOrPropertyWithValue("errorCode", GeocodeErrorCode.GEOCODING_FAILED);
     then(storageService).should(never()).upload(any());
     then(storeRepository).should(never()).save(any());
   }

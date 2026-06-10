@@ -1,5 +1,7 @@
 package com.magampick.store.service;
 
+import com.magampick.geocode.service.GeocodeQuery;
+import com.magampick.geocode.service.GeocodingService;
 import com.magampick.global.exception.BusinessException;
 import com.magampick.global.storage.StorageService;
 import com.magampick.seller.domain.Seller;

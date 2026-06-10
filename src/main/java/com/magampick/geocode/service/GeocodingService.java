@@ -1,4 +1,4 @@
-package com.magampick.store.service;
+package com.magampick.geocode.service;
 
 import org.locationtech.jts.geom.Point;
 
@@ -12,7 +12,7 @@ import org.locationtech.jts.geom.Point;
  */
 public interface GeocodingService {
 
-  /** 정방향. 매칭 실패 시 {@code ADDRESS_GEOCODING_FAILED} 를 던진다. */
+  /** 정방향. 매칭 실패 시 {@code GEOCODING_FAILED} 를 던진다. */
   Point geocode(GeocodeQuery query);
 
   /** 역방향. 최근접 건물의 도로명주소 라벨 (매칭 없으면 {@code null}). */

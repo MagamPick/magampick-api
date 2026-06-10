@@ -17,12 +17,12 @@ import com.magampick.address.mapper.AddressMapper;
 import com.magampick.address.repository.AddressRepository;
 import com.magampick.customer.domain.Customer;
 import com.magampick.customer.repository.CustomerRepository;
+import com.magampick.geocode.exception.GeocodeErrorCode;
+import com.magampick.geocode.service.GeocodeQuery;
+import com.magampick.geocode.service.GeocodingService;
 import com.magampick.global.common.GeometryUtil;
 import com.magampick.global.exception.BusinessException;
 import com.magampick.global.exception.CommonErrorCode;
-import com.magampick.store.exception.StoreErrorCode;
-import com.magampick.store.service.GeocodeQuery;
-import com.magampick.store.service.GeocodingService;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -173,7 +173,7 @@ class AddressServiceTest {
     // given
     given(addressRepository.countByCustomerId(CUSTOMER_ID)).willReturn(0L);
     given(geocodingService.geocode(any()))
-        .willThrow(new BusinessException(StoreErrorCode.ADDRESS_GEOCODING_FAILED));
+        .willThrow(new BusinessException(GeocodeErrorCode.GEOCODING_FAILED));
 
     // when / then
     assertThatThrownBy(() -> addressService.create(CUSTOMER_ID, createReq()))

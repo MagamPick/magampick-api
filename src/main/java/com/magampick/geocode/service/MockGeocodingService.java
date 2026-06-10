@@ -1,4 +1,4 @@
-package com.magampick.store.service;
+package com.magampick.geocode.service;
 
 import com.magampick.global.common.GeometryUtil;
 import lombok.extern.slf4j.Slf4j;
