@@ -51,6 +51,9 @@ public class Product extends BaseEntity {
   @Column(name = "category", nullable = false, length = 20)
   private ProductCategory category;
 
+  @Column(name = "description", length = 500)
+  private String description;
+
   @Column(name = "deleted_at")
   private LocalDateTime deletedAt;
 
@@ -61,7 +64,8 @@ public class Product extends BaseEntity {
       BigDecimal regularPrice,
       String imageUrl,
       ProductStatus status,
-      ProductCategory category) {
+      ProductCategory category,
+      String description) {
     this.store = store;
     this.name = name;
     this.regularPrice = regularPrice;
@@ -69,12 +73,22 @@ public class Product extends BaseEntity {
     this.status = status;
     // 기존 등록 경로(category 미전달)는 ETC 기본값 적용
     this.category = category != null ? category : ProductCategory.ETC;
+    this.description = description;
   }
 
-  public void updateInfo(String name, BigDecimal regularPrice, String imageUrl) {
+  public void updateInfo(
+      String name,
+      BigDecimal regularPrice,
+      String imageUrl,
+      String description,
+      ProductCategory category,
+      ProductStatus status) {
     if (name != null) this.name = name;
     if (regularPrice != null) this.regularPrice = regularPrice;
     if (imageUrl != null) this.imageUrl = imageUrl;
+    if (description != null) this.description = description;
+    if (category != null) this.category = category;
+    if (status != null) this.status = status;
   }
 
   public void softDelete() {

@@ -137,6 +137,34 @@ class ProductDetailQueryServiceTest {
     assertThat(response.isOnSale()).isFalse();
   }
 
+  // ── description 배선 ────────────────────────────────────────────────────────
+
+  @Test
+  void description_상품에서_배선됨() {
+    Product product = stubProductWithDescription(ProductStatus.ON_SALE, "/img/bread.jpg", "맛있는 빵");
+    given(productRepository.findByIdAndDeletedAtIsNull(PRODUCT_ID))
+        .willReturn(Optional.of(product));
+    given(storePreviewHelper.buildStorePreview(STORE_ID, CUSTOMER_ID))
+        .willReturn(new StorePreviewInfo(0.8, "20:00"));
+
+    MenuProductDetailResponse response = service.getDetail(PRODUCT_ID, CUSTOMER_ID);
+
+    assertThat(response.description()).isEqualTo("맛있는 빵");
+  }
+
+  @Test
+  void description_null이면_null반환() {
+    Product product = stubProduct(ProductStatus.ON_SALE, "/img/bread.jpg");
+    given(productRepository.findByIdAndDeletedAtIsNull(PRODUCT_ID))
+        .willReturn(Optional.of(product));
+    given(storePreviewHelper.buildStorePreview(STORE_ID, CUSTOMER_ID))
+        .willReturn(new StorePreviewInfo(0.8, "20:00"));
+
+    MenuProductDetailResponse response = service.getDetail(PRODUCT_ID, CUSTOMER_ID);
+
+    assertThat(response.description()).isNull();
+  }
+
   // ── helpers ───────────────────────────────────────────────────────────────────────────────────
 
   private Store stubStore() {
@@ -167,6 +195,22 @@ class ProductDetailQueryServiceTest {
             .imageUrl(imageUrl)
             .status(status)
             .category(ProductCategory.BAKERY)
+            .build();
+    setId(product, PRODUCT_ID);
+    return product;
+  }
+
+  private Product stubProductWithDescription(
+      ProductStatus status, String imageUrl, String description) {
+    Product product =
+        Product.builder()
+            .store(stubStore())
+            .name("크로아상")
+            .regularPrice(new BigDecimal("4500"))
+            .imageUrl(imageUrl)
+            .status(status)
+            .category(ProductCategory.BAKERY)
+            .description(description)
             .build();
     setId(product, PRODUCT_ID);
     return product;

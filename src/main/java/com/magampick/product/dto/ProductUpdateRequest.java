@@ -1,5 +1,7 @@
 package com.magampick.product.dto;
 
+import com.magampick.product.domain.ProductCategory;
+import com.magampick.product.domain.ProductStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
@@ -12,4 +14,7 @@ public record ProductUpdateRequest(
     @Schema(description = "정상가 (원, 정수)", example = "4500")
         @DecimalMin(value = "1")
         @Digits(integer = 12, fraction = 0)
-        BigDecimal regularPrice) {}
+        BigDecimal regularPrice,
+    @Schema(description = "카테고리 (null 이면 변경 없음)", example = "BAKERY") ProductCategory category,
+    @Schema(description = "상품 설명 (null 이면 변경 없음, 최대 500자)") @Size(max = 500) String description,
+    @Schema(description = "판매 상태 (null 이면 변경 없음)", example = "SOLD_OUT") ProductStatus status) {}

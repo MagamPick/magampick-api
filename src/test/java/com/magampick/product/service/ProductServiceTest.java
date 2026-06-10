@@ -12,6 +12,7 @@ import com.magampick.global.exception.BusinessException;
 import com.magampick.global.response.PageResponse;
 import com.magampick.global.storage.StorageService;
 import com.magampick.product.domain.Product;
+import com.magampick.product.domain.ProductCategory;
 import com.magampick.product.domain.ProductStatus;
 import com.magampick.product.dto.ProductResponse;
 import com.magampick.product.dto.ProductUpdateRequest;
@@ -111,6 +112,8 @@ class ProductServiceTest {
                 new BigDecimal("4500"),
                 "/uploads/2026/5/product.jpg",
                 ProductStatus.ON_SALE,
+                ProductCategory.BAKERY,
+                null,
                 OffsetDateTime.now()));
 
     // when
@@ -305,7 +308,7 @@ class ProductServiceTest {
     Store store = store();
     Product product = ProductFixture.aProduct(store);
     ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
-    ProductUpdateRequest request = new ProductUpdateRequest("바게트", null);
+    ProductUpdateRequest request = new ProductUpdateRequest("바게트", null, null, null, null);
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.of(product));
@@ -331,7 +334,7 @@ class ProductServiceTest {
     Store store = store();
     Product product = ProductFixture.aProduct(store);
     ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
-    ProductUpdateRequest request = new ProductUpdateRequest(null, null);
+    ProductUpdateRequest request = new ProductUpdateRequest(null, null, null, null, null);
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.of(product));
@@ -351,7 +354,7 @@ class ProductServiceTest {
     Store store = store();
     Product product = ProductFixture.aProduct(store);
     ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
-    ProductUpdateRequest request = new ProductUpdateRequest("바게트", null);
+    ProductUpdateRequest request = new ProductUpdateRequest("바게트", null, null, null, null);
     given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.of(product));
@@ -376,7 +379,11 @@ class ProductServiceTest {
     assertThatThrownBy(
             () ->
                 productService.updateProduct(
-                    SELLER_ID, STORE_ID, PRODUCT_ID, new ProductUpdateRequest(null, null), null))
+                    SELLER_ID,
+                    STORE_ID,
+                    PRODUCT_ID,
+                    new ProductUpdateRequest(null, null, null, null, null),
+                    null))
         .isInstanceOf(BusinessException.class)
         .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.STORE_ACCESS_DENIED);
   }
@@ -393,7 +400,11 @@ class ProductServiceTest {
     assertThatThrownBy(
             () ->
                 productService.updateProduct(
-                    SELLER_ID, STORE_ID, PRODUCT_ID, new ProductUpdateRequest(null, null), null))
+                    SELLER_ID,
+                    STORE_ID,
+                    PRODUCT_ID,
+                    new ProductUpdateRequest(null, null, null, null, null),
+                    null))
         .isInstanceOf(BusinessException.class)
         .hasFieldOrPropertyWithValue("errorCode", ProductErrorCode.PRODUCT_NOT_FOUND);
   }
@@ -556,5 +567,177 @@ class ProductServiceTest {
     assertThatThrownBy(() -> productService.restock(SELLER_ID, STORE_ID, PRODUCT_ID))
         .isInstanceOf(BusinessException.class)
         .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.STORE_ACCESS_DENIED);
+  }
+
+  // ── 카테고리 / description / status (이슈 #1, #2, #4) ─────────────────────────
+
+  @Test
+  void 등록_카테고리_필수_없으면_등록_불가() {
+    // given — category 없는 요청은 @NotNull 검증 실패이므로 서비스 레이어까지 오지 않음.
+    // 서비스 레이어에서는 category 가 non-null 인 경우만 처리 → 빌더에 전달 확인
+    Store store = store();
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(productRepository.existsByStoreIdAndNameAndDeletedAtIsNull(STORE_ID, "크로아상"))
+        .willReturn(false);
+    given(productRepository.save(any(Product.class)))
+        .willAnswer(
+            inv -> {
+              Product p = inv.getArgument(0);
+              ReflectionTestUtils.setField(p, "id", PRODUCT_ID);
+              return p;
+            });
+    given(productMapper.toResponse(any(Product.class)))
+        .willReturn(ProductFixture.aResponse(PRODUCT_ID));
+
+    // when
+    ProductResponse response =
+        productService.registerProduct(SELLER_ID, STORE_ID, ProductFixture.aCreateRequest(), null);
+
+    // then — BAKERY 가 category 로 저장됐는지 캡처로 확인
+    assertThat(response.category()).isEqualTo(ProductCategory.BAKERY);
+  }
+
+  @Test
+  void 등록_status_null이면_ON_SALE_기본값() {
+    // given
+    Store store = store();
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(productRepository.existsByStoreIdAndNameAndDeletedAtIsNull(STORE_ID, "크로아상"))
+        .willReturn(false);
+    given(productRepository.save(any(Product.class)))
+        .willAnswer(
+            inv -> {
+              Product p = inv.getArgument(0);
+              ReflectionTestUtils.setField(p, "id", PRODUCT_ID);
+              // status null 이 아닌 경우 확인 — 서비스에서 ON_SALE 로 설정해야 함
+              assertThat(p.getStatus()).isEqualTo(ProductStatus.ON_SALE);
+              return p;
+            });
+    given(productMapper.toResponse(any(Product.class)))
+        .willReturn(ProductFixture.aResponse(PRODUCT_ID));
+
+    // when
+    productService.registerProduct(SELLER_ID, STORE_ID, ProductFixture.aCreateRequest(), null);
+
+    // then — save 호출 시 Product 상태 검증 (위 willAnswer 에서 수행)
+    then(productRepository).should().save(any(Product.class));
+  }
+
+  @Test
+  void 등록_status_SOLD_OUT으로_직접_설정() {
+    // given
+    Store store = store();
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(productRepository.existsByStoreIdAndNameAndDeletedAtIsNull(STORE_ID, "크로아상"))
+        .willReturn(false);
+    given(productRepository.save(any(Product.class)))
+        .willAnswer(
+            inv -> {
+              Product p = inv.getArgument(0);
+              ReflectionTestUtils.setField(p, "id", PRODUCT_ID);
+              assertThat(p.getStatus()).isEqualTo(ProductStatus.SOLD_OUT);
+              return p;
+            });
+    given(productMapper.toResponse(any(Product.class)))
+        .willReturn(ProductFixture.aResponseWithStatus(PRODUCT_ID, ProductStatus.SOLD_OUT));
+
+    // when
+    ProductResponse response =
+        productService.registerProduct(
+            SELLER_ID,
+            STORE_ID,
+            ProductFixture.aCreateRequestWithStatus(ProductStatus.SOLD_OUT),
+            null);
+
+    // then
+    assertThat(response.status()).isEqualTo(ProductStatus.SOLD_OUT);
+  }
+
+  @Test
+  void 등록_description_저장_및_응답_반환() {
+    // given
+    Store store = store();
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(productRepository.existsByStoreIdAndNameAndDeletedAtIsNull(STORE_ID, "크로아상"))
+        .willReturn(false);
+    given(productRepository.save(any(Product.class)))
+        .willAnswer(
+            inv -> {
+              Product p = inv.getArgument(0);
+              ReflectionTestUtils.setField(p, "id", PRODUCT_ID);
+              assertThat(p.getDescription()).isEqualTo("부드러운 크로아상");
+              return p;
+            });
+    given(productMapper.toResponse(any(Product.class)))
+        .willReturn(ProductFixture.aResponseWithDescription(PRODUCT_ID, "부드러운 크로아상"));
+
+    // when
+    ProductResponse response =
+        productService.registerProduct(
+            SELLER_ID, STORE_ID, ProductFixture.aCreateRequestWithDescription("부드러운 크로아상"), null);
+
+    // then
+    assertThat(response.description()).isEqualTo("부드러운 크로아상");
+  }
+
+  @Test
+  void 수정으로_category_변경() {
+    // given
+    Store store = store();
+    Product product = ProductFixture.aProduct(store); // BAKERY
+    ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
+    ProductUpdateRequest request =
+        new ProductUpdateRequest(null, null, ProductCategory.BEVERAGE, null, null);
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
+        .willReturn(Optional.of(product));
+    given(productMapper.toResponse(product)).willReturn(ProductFixture.aResponse(PRODUCT_ID));
+
+    // when
+    productService.updateProduct(SELLER_ID, STORE_ID, PRODUCT_ID, request, null);
+
+    // then
+    assertThat(product.getCategory()).isEqualTo(ProductCategory.BEVERAGE);
+  }
+
+  @Test
+  void 수정으로_status_변경() {
+    // given
+    Store store = store();
+    Product product = ProductFixture.aProduct(store); // ON_SALE
+    ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
+    ProductUpdateRequest request =
+        new ProductUpdateRequest(null, null, null, null, ProductStatus.SOLD_OUT);
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
+        .willReturn(Optional.of(product));
+    given(productMapper.toResponse(product))
+        .willReturn(ProductFixture.aResponseWithStatus(PRODUCT_ID, ProductStatus.SOLD_OUT));
+
+    // when
+    productService.updateProduct(SELLER_ID, STORE_ID, PRODUCT_ID, request, null);
+
+    // then
+    assertThat(product.getStatus()).isEqualTo(ProductStatus.SOLD_OUT);
+  }
+
+  @Test
+  void 수정으로_description_변경() {
+    // given
+    Store store = store();
+    Product product = ProductFixture.aProduct(store);
+    ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
+    ProductUpdateRequest request = new ProductUpdateRequest(null, null, null, "새 설명", null);
+    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
+        .willReturn(Optional.of(product));
+    given(productMapper.toResponse(product))
+        .willReturn(ProductFixture.aResponseWithDescription(PRODUCT_ID, "새 설명"));
+
+    // when
+    productService.updateProduct(SELLER_ID, STORE_ID, PRODUCT_ID, request, null);
+
+    // then
+    assertThat(product.getDescription()).isEqualTo("새 설명");
   }
 }

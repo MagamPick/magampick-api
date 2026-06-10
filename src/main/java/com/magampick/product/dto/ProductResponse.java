@@ -1,5 +1,6 @@
 package com.magampick.product.dto;
 
+import com.magampick.product.domain.ProductCategory;
 import com.magampick.product.domain.ProductStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
@@ -12,4 +13,6 @@ public record ProductResponse(
     @Schema(description = "정상가 (원)", example = "4500") BigDecimal regularPrice,
     @Schema(description = "대표 사진 URL") String imageUrl,
     @Schema(description = "상품 상태") ProductStatus status,
+    @Schema(description = "카테고리") ProductCategory category,
+    @Schema(description = "상품 설명 (없으면 null)") String description,
     @Schema(description = "등록 시각") OffsetDateTime createdAt) {}

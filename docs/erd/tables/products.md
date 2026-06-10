@@ -11,8 +11,9 @@
 | name | VARCHAR(50) | N |  | 상품명 |
 | regular_price | NUMERIC(12, 0) | N | CHECK > 0 | 정상가 (원, 정수) |
 | image_url | VARCHAR(500) | Y |  | 대표 사진 URL (선택, 최대 1장) |
-| status | VARCHAR(10) | N | CHECK | `ON_SALE`, `SOLD_OUT`. 등록 시 ON_SALE |
-| category | VARCHAR(20) | N | CHECK, DEFAULT 'ETC' | `BAKERY`, `BEVERAGE`, `DESSERT`, `ETC`. 등록 시 ETC |
+| status | VARCHAR(10) | N | CHECK | `ON_SALE`, `SOLD_OUT`. 등록 시 null 이면 ON_SALE, 명시 가능 |
+| category | VARCHAR(20) | N | CHECK, DEFAULT 'ETC' | `BAKERY`, `BEVERAGE`, `DESSERT`, `ETC`. **등록 시 필수 입력** |
+| description | VARCHAR(500) | Y |  | 상품 설명 (선택) |
 | created_at | TIMESTAMP | N |  | 생성 시각 |
 | updated_at | TIMESTAMP | N |  | 수정 시각 |
 | deleted_at | TIMESTAMP | Y |  | 소프트 삭제 시각. NULL = 삭제되지 않음 |
@@ -49,7 +50,12 @@
 ### #65 — 수정·삭제·품절
 - **Soft Delete (`deleted_at`)**: 통계 / 마감 임박 상품 이력 추적 대비 (계층 8). `deleted_at IS NULL` 필터를 Repository 메서드에 명시 — `@SQLRestriction` 미사용 (관리자 기능 확장 시 JPA 우회 불필요).
 - **Partial Unique Index**: 소프트 삭제로 인한 `UNIQUE (store_id, name)` 충돌 방지. `WHERE deleted_at IS NULL` partial index 로 교체 → 삭제된 상품과 동명 재등록 허용.
-- **수정 가능 필드**: `name` / `regular_price` / `image_url` 만. `status` 는 별도 액션 엔드포인트로 관리.
+- **수정 가능 필드**: `name` / `regular_price` / `image_url` / `description` / `category` / `status`. null 필드는 변경 없음.
 - **이미지 수정**: 새 파일 업로드 시 URL 교체. 명시적 제거(null로 변경) 미지원 — 기존 이미지 파일 storage 물리 삭제는 출시 시점 S3 lifecycle policy 별도 이슈.
-- **품절 멱등**: `sold-out` / `restock` 이미 그 상태면 no-op (200 OK). 잘못된 전이 거부 X.
+- **품절 멱등**: `sold-out` / `restock` 이미 그 상태면 no-op (200 OK). 잘못된 전이 거부 X. 등록/수정 시에도 status 직접 설정 가능.
 - **권한 (수정·삭제·품절)**: 셀러 본인 매장만. 매장 status 무관 (등록만 APPROVED 필수).
+
+### 이슈 #1, #2, #4 — 카테고리·description·status 반영
+- **카테고리 등록 필수**: `category` 는 등록 요청(`ProductCreateRequest`)에서 `@NotNull`. `BAKERY` / `BEVERAGE` / `DESSERT` / `ETC` 중 택1.
+- **description 추가**: `VARCHAR(500)`, nullable. 등록·수정 모두 선택 입력. 마이그레이션: `V20260610120000__add_products_description.sql`.
+- **status 등록·수정에서 설정 가능**: 등록 시 null 이면 `ON_SALE` 기본값. 수정 시 null 이면 변경 없음. 기존 `sold-out` / `restock` 별도 엔드포인트는 유지.
