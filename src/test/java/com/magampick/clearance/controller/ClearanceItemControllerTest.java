@@ -50,10 +50,9 @@ class ClearanceItemControllerTest {
   private static final CustomUserDetails CUSTOMER_USER = new CustomUserDetails(2L, Role.CUSTOMER);
 
   private String validCreateJson() throws Exception {
-    LocalDateTime todayAt17 = LocalDate.now().atTime(17, 0);
     LocalDateTime todayAt21 = LocalDate.now().atTime(21, 0);
     return objectMapper.writeValueAsString(
-        new ClearanceItemCreateRequest(100L, new BigDecimal("3000"), 5, todayAt17, todayAt21));
+        new ClearanceItemCreateRequest(100L, new BigDecimal("3000"), 5, todayAt21));
   }
 
   // ── POST /api/v1/seller/stores/{storeId}/clearance-items ──────────────────
@@ -100,8 +99,7 @@ class ClearanceItemControllerTest {
     // salePrice null
     String invalidJson =
         objectMapper.writeValueAsString(
-            new ClearanceItemCreateRequest(
-                100L, null, 5, LocalDate.now().atTime(17, 0), LocalDate.now().atTime(21, 0)));
+            new ClearanceItemCreateRequest(100L, null, 5, LocalDate.now().atTime(21, 0)));
 
     mockMvc
         .perform(
@@ -172,7 +170,7 @@ class ClearanceItemControllerTest {
         .willReturn(ClearanceItemFixture.aResponse(200L));
     String json =
         objectMapper.writeValueAsString(
-            new ClearanceItemUpdateRequest(new BigDecimal("2000"), null, null, null));
+            new ClearanceItemUpdateRequest(new BigDecimal("2000"), null, null));
 
     mockMvc
         .perform(
@@ -188,7 +186,7 @@ class ClearanceItemControllerTest {
   void PATCH_clearance_items_401_미인증() throws Exception {
     String json =
         objectMapper.writeValueAsString(
-            new ClearanceItemUpdateRequest(new BigDecimal("2000"), null, null, null));
+            new ClearanceItemUpdateRequest(new BigDecimal("2000"), null, null));
 
     mockMvc
         .perform(
@@ -202,7 +200,7 @@ class ClearanceItemControllerTest {
   void PATCH_clearance_items_403_소비자_접근_거부() throws Exception {
     String json =
         objectMapper.writeValueAsString(
-            new ClearanceItemUpdateRequest(new BigDecimal("2000"), null, null, null));
+            new ClearanceItemUpdateRequest(new BigDecimal("2000"), null, null));
 
     mockMvc
         .perform(
@@ -219,7 +217,7 @@ class ClearanceItemControllerTest {
         .willThrow(new BusinessException(ClearanceItemErrorCode.CLEARANCE_ITEM_NOT_FOUND));
     String json =
         objectMapper.writeValueAsString(
-            new ClearanceItemUpdateRequest(new BigDecimal("2000"), null, null, null));
+            new ClearanceItemUpdateRequest(new BigDecimal("2000"), null, null));
 
     mockMvc
         .perform(
@@ -237,7 +235,7 @@ class ClearanceItemControllerTest {
         .willThrow(new BusinessException(ClearanceItemErrorCode.CLEARANCE_ITEM_NOT_OPEN));
     String json =
         objectMapper.writeValueAsString(
-            new ClearanceItemUpdateRequest(new BigDecimal("2000"), null, null, null));
+            new ClearanceItemUpdateRequest(new BigDecimal("2000"), null, null));
 
     mockMvc
         .perform(

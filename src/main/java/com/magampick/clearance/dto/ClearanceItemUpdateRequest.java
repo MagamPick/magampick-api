@@ -14,7 +14,5 @@ public record ClearanceItemUpdateRequest(
         @Digits(integer = 12, fraction = 0)
         BigDecimal salePrice,
     @Schema(description = "등록 수량. null 이면 변경 없음", example = "3") @Min(1) Integer totalQuantity,
-    @Schema(description = "픽업 시작 시각 (KST). null 이면 변경 없음", example = "2026-05-20T17:00:00")
-        LocalDateTime pickupStartAt,
     @Schema(description = "픽업 종료 시각 (KST). null 이면 변경 없음", example = "2026-05-20T21:00:00")
         LocalDateTime pickupEndAt) {}

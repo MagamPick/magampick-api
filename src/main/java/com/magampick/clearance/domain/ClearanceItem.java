@@ -96,11 +96,7 @@ public class ClearanceItem extends BaseEntity {
         .setScale(2, RoundingMode.HALF_UP);
   }
 
-  public void update(
-      BigDecimal salePrice,
-      Integer totalQuantity,
-      LocalDateTime pickupStartAt,
-      LocalDateTime pickupEndAt) {
+  public void update(BigDecimal salePrice, Integer totalQuantity, LocalDateTime pickupEndAt) {
     if (salePrice != null) this.salePrice = salePrice;
     if (totalQuantity != null) {
       this.totalQuantity = totalQuantity;
@@ -108,7 +104,6 @@ public class ClearanceItem extends BaseEntity {
       // orders 계층 5 연결 시 remaining = total - sold 로 재검토
       this.remainingQuantity = totalQuantity;
     }
-    if (pickupStartAt != null) this.pickupStartAt = pickupStartAt;
     if (pickupEndAt != null) this.pickupEndAt = pickupEndAt;
   }
 

@@ -69,8 +69,9 @@ public class ClearanceItemService {
     }
 
     LocalDate today = LocalDate.now(KST);
+    LocalDateTime nowKst = LocalDateTime.now(KST);
     if (!request.pickupEndAt().toLocalDate().equals(today)
-        || !request.pickupStartAt().isBefore(request.pickupEndAt())) {
+        || !request.pickupEndAt().isAfter(nowKst)) {
       throw new BusinessException(ClearanceItemErrorCode.CLEARANCE_ITEM_INVALID_PICKUP_WINDOW);
     }
 
@@ -82,7 +83,7 @@ public class ClearanceItemService {
             .regularPrice(product.getRegularPrice())
             .salePrice(request.salePrice())
             .totalQuantity(request.totalQuantity())
-            .pickupStartAt(request.pickupStartAt())
+            .pickupStartAt(LocalDateTime.now(KST))
             .pickupEndAt(request.pickupEndAt())
             .build();
     try {
@@ -139,25 +140,15 @@ public class ClearanceItemService {
       throw new BusinessException(ClearanceItemErrorCode.CLEARANCE_ITEM_SALE_PRICE_NOT_DISCOUNTED);
     }
 
-    LocalDateTime effectiveStartAt =
-        request.pickupStartAt() != null ? request.pickupStartAt() : item.getPickupStartAt();
-    LocalDateTime effectiveEndAt =
-        request.pickupEndAt() != null ? request.pickupEndAt() : item.getPickupEndAt();
-
-    if (request.pickupStartAt() != null || request.pickupEndAt() != null) {
+    if (request.pickupEndAt() != null) {
       LocalDate today = LocalDate.now(KST);
-      if (!effectiveEndAt.toLocalDate().equals(today)
-          || !effectiveStartAt.isBefore(effectiveEndAt)
-          || !effectiveEndAt.isAfter(LocalDateTime.now(KST))) {
+      if (!request.pickupEndAt().toLocalDate().equals(today)
+          || !request.pickupEndAt().isAfter(LocalDateTime.now(KST))) {
         throw new BusinessException(ClearanceItemErrorCode.CLEARANCE_ITEM_INVALID_PICKUP_WINDOW);
       }
     }
 
-    item.update(
-        request.salePrice(),
-        request.totalQuantity(),
-        request.pickupStartAt(),
-        request.pickupEndAt());
+    item.update(request.salePrice(), request.totalQuantity(), request.pickupEndAt());
 
     log.info(
         "마감 임박 상품 수정됨. clearanceItemId={}, storeId={}, sellerId={}",

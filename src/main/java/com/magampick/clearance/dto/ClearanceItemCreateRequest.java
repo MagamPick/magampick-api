@@ -17,7 +17,5 @@ public record ClearanceItemCreateRequest(
         @Digits(integer = 12, fraction = 0)
         BigDecimal salePrice,
     @Schema(description = "등록 수량", example = "5") @NotNull @Min(1) Integer totalQuantity,
-    @Schema(description = "픽업 시작 시각 (KST)", example = "2026-05-20T17:00:00") @NotNull
-        LocalDateTime pickupStartAt,
     @Schema(description = "픽업 종료 시각 (KST). 등록 당일만 허용", example = "2026-05-20T21:00:00") @NotNull
         LocalDateTime pickupEndAt) {}
