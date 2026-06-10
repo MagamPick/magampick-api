@@ -45,7 +45,7 @@ class DevPushControllerTest {
 
   @Test
   void POST_echo_200_발송_성공() throws Exception {
-    given(fcmSender.send(any(), any(), any())).willReturn("projects/x/messages/1");
+    given(fcmSender.send(any(), any())).willReturn("projects/x/messages/1");
 
     mockMvc
         .perform(
@@ -84,7 +84,10 @@ class DevPushControllerTest {
 
   @Test
   void POST_me_200_내_토큰으로_발송() throws Exception {
-    given(notificationService.sendToOwner(eq(Role.CUSTOMER), eq(1L), any(), any())).willReturn(2);
+    given(
+            notificationService.sendToOwner(
+                eq(Role.CUSTOMER), eq(1L), any(), any(), any(), any(), any()))
+        .willReturn(2);
 
     mockMvc
         .perform(

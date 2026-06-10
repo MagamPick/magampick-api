@@ -43,11 +43,13 @@ class NotificationServiceTest {
         .willReturn(List.of());
 
     // when
-    int sent = notificationService.sendToOwner(Role.CUSTOMER, OWNER_ID, "제목", "본문");
+    int sent =
+        notificationService.sendToOwner(
+            Role.CUSTOMER, OWNER_ID, NotificationCategory.ORDER, "제목", "본문", "/orders", 1L);
 
     // then
     assertThat(sent).isZero();
-    then(fcmSender).should(never()).sendEachToTokens(any(), any(), any());
+    then(fcmSender).should(never()).sendEachToTokens(any(), any());
   }
 
   @Test
@@ -55,11 +57,16 @@ class NotificationServiceTest {
     // given
     given(pushTokenRepository.findByOwnerTypeAndOwnerId(Role.CUSTOMER, OWNER_ID))
         .willReturn(List.of(token("t1"), token("t2")));
-    given(fcmSender.sendEachToTokens(List.of("t1", "t2"), "제목", "본문"))
+    given(
+            fcmSender.sendEachToTokens(
+                List.of("t1", "t2"),
+                FcmSender.dataOf("제목", "본문", NotificationCategory.ORDER, 1L, "/orders")))
         .willReturn(new FcmSendResult(2, List.of()));
 
     // when
-    int sent = notificationService.sendToOwner(Role.CUSTOMER, OWNER_ID, "제목", "본문");
+    int sent =
+        notificationService.sendToOwner(
+            Role.CUSTOMER, OWNER_ID, NotificationCategory.ORDER, "제목", "본문", "/orders", 1L);
 
     // then
     assertThat(sent).isEqualTo(2);
@@ -71,11 +78,16 @@ class NotificationServiceTest {
     // given — t2 가 죽은 토큰
     given(pushTokenRepository.findByOwnerTypeAndOwnerId(Role.SELLER, OWNER_ID))
         .willReturn(List.of(token("t1"), token("t2")));
-    given(fcmSender.sendEachToTokens(List.of("t1", "t2"), "제목", "본문"))
+    given(
+            fcmSender.sendEachToTokens(
+                List.of("t1", "t2"),
+                FcmSender.dataOf("제목", "본문", NotificationCategory.REVIEW, 5L, "/reviews")))
         .willReturn(new FcmSendResult(1, List.of("t2")));
 
     // when
-    int sent = notificationService.sendToOwner(Role.SELLER, OWNER_ID, "제목", "본문");
+    int sent =
+        notificationService.sendToOwner(
+            Role.SELLER, OWNER_ID, NotificationCategory.REVIEW, "제목", "본문", "/reviews", 5L);
 
     // then
     assertThat(sent).isEqualTo(1);
@@ -125,7 +137,10 @@ class NotificationServiceTest {
     CustomerNotificationSetting setting = CustomerNotificationSetting.defaultFor(OWNER_ID);
     given(customerNotificationSettingRepository.findByCustomerId(OWNER_ID))
         .willReturn(Optional.of(setting));
-    given(notificationRepository.save(any(Notification.class))).willReturn(null);
+    given(notificationRepository.save(any(Notification.class)))
+        .willReturn(
+            Notification.create(
+                Role.CUSTOMER, OWNER_ID, NotificationCategory.ORDER, "제목", "본문", "/orders"));
     given(pushTokenRepository.findByOwnerTypeAndOwnerId(Role.CUSTOMER, OWNER_ID))
         .willReturn(List.of());
 
@@ -170,7 +185,10 @@ class NotificationServiceTest {
     SellerNotificationSetting setting = SellerNotificationSetting.defaultFor(OWNER_ID);
     given(sellerNotificationSettingRepository.findBySellerId(OWNER_ID))
         .willReturn(Optional.of(setting));
-    given(notificationRepository.save(any(Notification.class))).willReturn(null);
+    given(notificationRepository.save(any(Notification.class)))
+        .willReturn(
+            Notification.create(
+                Role.SELLER, OWNER_ID, NotificationCategory.ORDER, "제목", "본문", "/orders"));
     given(pushTokenRepository.findByOwnerTypeAndOwnerId(Role.SELLER, OWNER_ID))
         .willReturn(List.of());
 
