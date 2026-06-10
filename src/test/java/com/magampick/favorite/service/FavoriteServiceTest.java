@@ -11,9 +11,8 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 
-import com.magampick.address.domain.Address;
 import com.magampick.address.exception.AddressErrorCode;
-import com.magampick.address.repository.AddressRepository;
+import com.magampick.address.service.AddressService;
 import com.magampick.clearance.domain.ClearanceItemStatus;
 import com.magampick.clearance.repository.ClearanceItemRepository;
 import com.magampick.customer.domain.Customer;
@@ -52,7 +51,7 @@ class FavoriteServiceTest {
   @Mock StoreRepository storeRepository;
   @Mock CustomerRepository customerRepository;
   @Mock FavoriteMapper favoriteMapper;
-  @Mock AddressRepository addressRepository;
+  @Mock AddressService addressService;
   @Mock ReviewQueryService reviewQueryService;
   @Mock ClearanceItemRepository clearanceItemRepository;
   @InjectMocks FavoriteService favoriteService;
@@ -142,8 +141,8 @@ class FavoriteServiceTest {
   @Test
   void 단골_없으면_빈_응답() {
     // given
-    given(addressRepository.findByCustomerIdAndIsDefaultTrue(CUSTOMER_ID))
-        .willReturn(Optional.of(mockAddress(37.5665, 126.9780)));
+    given(addressService.requireDefaultLocation(CUSTOMER_ID))
+        .willReturn(GeometryUtil.toPoint(37.5665, 126.9780));
     given(
             favoriteRepository.findFavoriteStoresWithDistance(
                 eq(CUSTOMER_ID), anyDouble(), anyDouble()))
@@ -161,8 +160,8 @@ class FavoriteServiceTest {
   @Test
   void 기본주소지_없으면_DEFAULT_ADDRESS_REQUIRED() {
     // given
-    given(addressRepository.findByCustomerIdAndIsDefaultTrue(CUSTOMER_ID))
-        .willReturn(Optional.empty());
+    given(addressService.requireDefaultLocation(CUSTOMER_ID))
+        .willThrow(new BusinessException(AddressErrorCode.DEFAULT_ADDRESS_REQUIRED));
 
     // when / then
     assertThatThrownBy(() -> favoriteService.getFavorites(CUSTOMER_ID))
@@ -176,8 +175,8 @@ class FavoriteServiceTest {
     double distMeters = 1500.0;
     FavoriteStoreCandidate cand =
         mockCandidate(STORE_ID, "동네빵집", "/img.jpg", distMeters, LocalDateTime.now());
-    given(addressRepository.findByCustomerIdAndIsDefaultTrue(CUSTOMER_ID))
-        .willReturn(Optional.of(mockAddress(37.5665, 126.9780)));
+    given(addressService.requireDefaultLocation(CUSTOMER_ID))
+        .willReturn(GeometryUtil.toPoint(37.5665, 126.9780));
     given(
             favoriteRepository.findFavoriteStoresWithDistance(
                 eq(CUSTOMER_ID), anyDouble(), anyDouble()))
@@ -210,8 +209,8 @@ class FavoriteServiceTest {
         mockCandidate(STORE_ID_A, "매장A", null, 1000.0, LocalDateTime.now());
     FavoriteStoreCandidate candB =
         mockCandidate(STORE_ID_B, "매장B", null, 2000.0, LocalDateTime.now());
-    given(addressRepository.findByCustomerIdAndIsDefaultTrue(CUSTOMER_ID))
-        .willReturn(Optional.of(mockAddress(37.5665, 126.9780)));
+    given(addressService.requireDefaultLocation(CUSTOMER_ID))
+        .willReturn(GeometryUtil.toPoint(37.5665, 126.9780));
     given(
             favoriteRepository.findFavoriteStoresWithDistance(
                 eq(CUSTOMER_ID), anyDouble(), anyDouble()))
@@ -242,8 +241,8 @@ class FavoriteServiceTest {
     FavoriteStoreCandidate candB = mockCandidate(STORE_ID_B, "매장B", null, 1000.0, older); // 먼저 등록
     FavoriteStoreCandidate candA = mockCandidate(STORE_ID_A, "매장A", null, 2000.0, newer); // 나중 등록
 
-    given(addressRepository.findByCustomerIdAndIsDefaultTrue(CUSTOMER_ID))
-        .willReturn(Optional.of(mockAddress(37.5665, 126.9780)));
+    given(addressService.requireDefaultLocation(CUSTOMER_ID))
+        .willReturn(GeometryUtil.toPoint(37.5665, 126.9780));
     given(
             favoriteRepository.findFavoriteStoresWithDistance(
                 eq(CUSTOMER_ID), anyDouble(), anyDouble()))
@@ -270,8 +269,8 @@ class FavoriteServiceTest {
     FavoriteStoreCandidate candA = mockCandidate(STORE_ID_A, "매장A", null, 1000.0, second); // 나중 등록
     FavoriteStoreCandidate candB = mockCandidate(STORE_ID_B, "매장B", null, 2000.0, first); // 먼저 등록
 
-    given(addressRepository.findByCustomerIdAndIsDefaultTrue(CUSTOMER_ID))
-        .willReturn(Optional.of(mockAddress(37.5665, 126.9780)));
+    given(addressService.requireDefaultLocation(CUSTOMER_ID))
+        .willReturn(GeometryUtil.toPoint(37.5665, 126.9780));
     given(
             favoriteRepository.findFavoriteStoresWithDistance(
                 eq(CUSTOMER_ID), anyDouble(), anyDouble()))
@@ -319,18 +318,6 @@ class FavoriteServiceTest {
             .build();
     ReflectionTestUtils.setField(s, "id", id);
     return s;
-  }
-
-  /** 단위 테스트용 Address: Mockito 중첩 stubbing 이슈 회피를 위해 실제 객체로 생성. */
-  private Address mockAddress(double lat, double lng) {
-    return Address.builder()
-        .customer(null)
-        .label("집")
-        .roadAddress("서울시 중구 테스트로 1")
-        .zonecode("04524")
-        .location(GeometryUtil.toPoint(lat, lng))
-        .isDefault(true)
-        .build();
   }
 
   private FavoriteStoreCandidate mockCandidate(

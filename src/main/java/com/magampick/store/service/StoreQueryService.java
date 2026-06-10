@@ -1,8 +1,6 @@
 package com.magampick.store.service;
 
-import com.magampick.address.domain.Address;
-import com.magampick.address.exception.AddressErrorCode;
-import com.magampick.address.repository.AddressRepository;
+import com.magampick.address.service.AddressService;
 import com.magampick.clearance.domain.ClearanceItemStatus;
 import com.magampick.clearance.repository.ClearanceItemRepository;
 import com.magampick.favorite.repository.FavoriteRepository;
@@ -25,6 +23,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.locationtech.jts.geom.Point;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,7 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class StoreQueryService {
 
-  private final AddressRepository addressRepository;
+  private final AddressService addressService;
   private final StoreRepository storeRepository;
   private final ClearanceItemRepository clearanceItemRepository;
   private final FavoriteRepository favoriteRepository;
@@ -55,13 +54,9 @@ public class StoreQueryService {
    */
   public StoreListResponse getStores(Long customerId, StoreSort sort, int page, int size) {
     // 1. origin — 기본 주소지
-    Address defaultAddress =
-        addressRepository
-            .findByCustomerIdAndIsDefaultTrue(customerId)
-            .orElseThrow(() -> new BusinessException(AddressErrorCode.DEFAULT_ADDRESS_REQUIRED));
-
-    double lat = GeometryUtil.latitude(defaultAddress.getLocation());
-    double lng = GeometryUtil.longitude(defaultAddress.getLocation());
+    Point defaultLocation = addressService.requireDefaultLocation(customerId);
+    double lat = GeometryUtil.latitude(defaultLocation);
+    double lng = GeometryUtil.longitude(defaultLocation);
     // DayOfWeek.name() = "SATURDAY" 등 — store_business_hours.day_of_week VARCHAR enum 과 일치
     String today = LocalDate.now().getDayOfWeek().name();
 

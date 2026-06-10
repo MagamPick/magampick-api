@@ -1,8 +1,6 @@
 package com.magampick.search.service;
 
-import com.magampick.address.domain.Address;
-import com.magampick.address.exception.AddressErrorCode;
-import com.magampick.address.repository.AddressRepository;
+import com.magampick.address.service.AddressService;
 import com.magampick.clearance.domain.ClearanceItemStatus;
 import com.magampick.clearance.repository.ClearanceItemRepository;
 import com.magampick.clearance.repository.DealSearchCandidate;
@@ -37,6 +35,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.locationtech.jts.geom.Point;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -54,7 +53,7 @@ public class SearchQueryService {
   private static final double AUTOCOMPLETE_THRESHOLD = 0.3;
   private static final int AUTOCOMPLETE_MAX = 10;
 
-  private final AddressRepository addressRepository;
+  private final AddressService addressService;
   private final StoreRepository storeRepository;
   private final ClearanceItemRepository clearanceItemRepository;
   private final ProductRepository productRepository;
@@ -77,13 +76,9 @@ public class SearchQueryService {
     }
 
     // origin 추출
-    Address defaultAddress =
-        addressRepository
-            .findByCustomerIdAndIsDefaultTrue(customerId)
-            .orElseThrow(() -> new BusinessException(AddressErrorCode.DEFAULT_ADDRESS_REQUIRED));
-
-    double lat = GeometryUtil.latitude(defaultAddress.getLocation());
-    double lng = GeometryUtil.longitude(defaultAddress.getLocation());
+    Point defaultLocation = addressService.requireDefaultLocation(customerId);
+    double lat = GeometryUtil.latitude(defaultLocation);
+    double lng = GeometryUtil.longitude(defaultLocation);
     String today = LocalDate.now().getDayOfWeek().name();
     String trimmed = q.trim();
     String escaped = escapeLike(trimmed);
@@ -147,13 +142,9 @@ public class SearchQueryService {
 
     String trimmed = q.trim();
 
-    Address defaultAddress =
-        addressRepository
-            .findByCustomerIdAndIsDefaultTrue(customerId)
-            .orElseThrow(() -> new BusinessException(AddressErrorCode.DEFAULT_ADDRESS_REQUIRED));
-
-    double lat = GeometryUtil.latitude(defaultAddress.getLocation());
-    double lng = GeometryUtil.longitude(defaultAddress.getLocation());
+    Point defaultLocation = addressService.requireDefaultLocation(customerId);
+    double lat = GeometryUtil.latitude(defaultLocation);
+    double lng = GeometryUtil.longitude(defaultLocation);
     String today = LocalDate.now().getDayOfWeek().name();
 
     // 노출 세트 매장 ID 목록

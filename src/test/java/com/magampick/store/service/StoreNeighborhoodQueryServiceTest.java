@@ -8,9 +8,8 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 
-import com.magampick.address.domain.Address;
 import com.magampick.address.exception.AddressErrorCode;
-import com.magampick.address.repository.AddressRepository;
+import com.magampick.address.service.AddressService;
 import com.magampick.clearance.domain.ClearanceItemStatus;
 import com.magampick.clearance.repository.ClearanceItemRepository;
 import com.magampick.favorite.repository.FavoriteRepository;
@@ -25,7 +24,6 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -35,7 +33,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class StoreNeighborhoodQueryServiceTest {
 
-  @Mock AddressRepository addressRepository;
+  @Mock AddressService addressService;
   @Mock StoreRepository storeRepository;
   @Mock ClearanceItemRepository clearanceItemRepository;
   @Mock FavoriteRepository favoriteRepository;
@@ -50,8 +48,8 @@ class StoreNeighborhoodQueryServiceTest {
 
   @Test
   void 기본주소지_없으면_DEFAULT_ADDRESS_REQUIRED() {
-    given(addressRepository.findByCustomerIdAndIsDefaultTrue(CUSTOMER_ID))
-        .willReturn(Optional.empty());
+    given(addressService.requireDefaultLocation(CUSTOMER_ID))
+        .willThrow(new BusinessException(AddressErrorCode.DEFAULT_ADDRESS_REQUIRED));
 
     assertThatThrownBy(() -> service.getNeighborhoodStores(CUSTOMER_ID))
         .isInstanceOf(BusinessException.class)
@@ -202,17 +200,8 @@ class StoreNeighborhoodQueryServiceTest {
   // ── helper ───────────────────────────────────────────────────────────────────────────────────
 
   private void stubAddress() {
-    Address address =
-        Address.builder()
-            .customer(null)
-            .label("집")
-            .roadAddress("서울시 중구 1")
-            .zonecode("04524")
-            .location(GeometryUtil.toPoint(LAT, LNG))
-            .isDefault(true)
-            .build();
-    given(addressRepository.findByCustomerIdAndIsDefaultTrue(CUSTOMER_ID))
-        .willReturn(Optional.of(address));
+    given(addressService.requireDefaultLocation(CUSTOMER_ID))
+        .willReturn(GeometryUtil.toPoint(LAT, LNG));
   }
 
   private StoreCandidate candidate(Long id, String name, String imageUrl, double distanceMeters) {
