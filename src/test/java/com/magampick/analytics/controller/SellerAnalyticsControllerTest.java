@@ -10,7 +10,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.magampick.analytics.domain.AnalyticsPeriod;
-import com.magampick.analytics.exception.AnalyticsErrorCode;
 import com.magampick.analytics.fixture.AnalyticsFixture;
 import com.magampick.analytics.service.AnalyticsService;
 import com.magampick.global.exception.BusinessException;
@@ -20,6 +19,7 @@ import com.magampick.global.security.JwtAuthenticationEntryPoint;
 import com.magampick.global.security.JwtProvider;
 import com.magampick.global.security.Role;
 import com.magampick.global.security.SecurityConfig;
+import com.magampick.store.exception.StoreErrorCode;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -97,7 +97,7 @@ class SellerAnalyticsControllerTest {
 
   @Test
   void 타인매장_403() throws Exception {
-    willThrow(new BusinessException(AnalyticsErrorCode.ANALYTICS_STORE_FORBIDDEN))
+    willThrow(new BusinessException(StoreErrorCode.STORE_ACCESS_DENIED))
         .given(analyticsService)
         .getAnalytics(any(), any(), any());
 
@@ -105,6 +105,6 @@ class SellerAnalyticsControllerTest {
         .perform(
             get("/api/v1/seller/stores/10/analytics").param("period", "today").with(user(SELLER)))
         .andExpect(status().isForbidden())
-        .andExpect(jsonPath("$.error.code").value("ANALYTICS_STORE_FORBIDDEN"));
+        .andExpect(jsonPath("$.error.code").value("STORE_ACCESS_DENIED"));
   }
 }

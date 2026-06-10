@@ -26,7 +26,7 @@ import com.magampick.product.repository.ProductRepository;
 import com.magampick.seller.domain.Seller;
 import com.magampick.store.domain.Store;
 import com.magampick.store.exception.StoreErrorCode;
-import com.magampick.store.repository.StoreRepository;
+import com.magampick.store.service.StoreService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -49,7 +49,7 @@ class ClearanceItemServiceTest {
 
   @Mock ClearanceItemRepository clearanceItemRepository;
   @Mock ProductRepository productRepository;
-  @Mock StoreRepository storeRepository;
+  @Mock StoreService storeService;
   @Mock ClearanceItemMapper clearanceItemMapper;
   @Mock ClearanceNotificationService clearanceNotificationService;
   @InjectMocks ClearanceItemService clearanceItemService;
@@ -112,7 +112,7 @@ class ClearanceItemServiceTest {
     Store store = store();
     Product prod = product(ProductStatus.ON_SALE);
     ClearanceItemCreateRequest request = ClearanceItemFixture.aCreateRequest(PRODUCT_ID);
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.of(prod));
     given(clearanceItemRepository.existsByProductIdAndStatus(PRODUCT_ID, ClearanceItemStatus.OPEN))
@@ -143,7 +143,7 @@ class ClearanceItemServiceTest {
     Store store = store();
     Product prod = product(ProductStatus.ON_SALE);
     ClearanceItemCreateRequest request = ClearanceItemFixture.aCreateRequest(PRODUCT_ID);
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.of(prod));
     given(clearanceItemRepository.existsByProductIdAndStatus(PRODUCT_ID, ClearanceItemStatus.OPEN))
@@ -168,7 +168,8 @@ class ClearanceItemServiceTest {
   @Test
   void 마감_임박_상품_등록_타인_매장_접근_거부() {
     // given
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.empty());
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID))
+        .willThrow(new BusinessException(StoreErrorCode.STORE_ACCESS_DENIED));
 
     // when / then
     assertThatThrownBy(
@@ -184,7 +185,7 @@ class ClearanceItemServiceTest {
   void 마감_임박_상품_등록_원본_상품_없음_예외() {
     // given
     Store store = store();
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.empty());
 
@@ -203,7 +204,7 @@ class ClearanceItemServiceTest {
     // given
     Store store = store();
     Product soldOut = product(ProductStatus.SOLD_OUT);
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.of(soldOut));
 
@@ -223,7 +224,7 @@ class ClearanceItemServiceTest {
     // given
     Store store = store();
     Product prod = product(ProductStatus.ON_SALE);
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.of(prod));
     given(clearanceItemRepository.existsByProductIdAndStatus(PRODUCT_ID, ClearanceItemStatus.OPEN))
@@ -248,7 +249,7 @@ class ClearanceItemServiceTest {
     // salePrice == regularPrice (4500)
     ClearanceItemCreateRequest request =
         new ClearanceItemCreateRequest(PRODUCT_ID, new BigDecimal("4500"), 5, todayAt(23, 59));
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.of(prod));
     given(clearanceItemRepository.existsByProductIdAndStatus(PRODUCT_ID, ClearanceItemStatus.OPEN))
@@ -271,7 +272,7 @@ class ClearanceItemServiceTest {
     LocalDateTime tomorrow = LocalDate.now(KST).plusDays(1).atTime(21, 0);
     ClearanceItemCreateRequest request =
         new ClearanceItemCreateRequest(PRODUCT_ID, new BigDecimal("3000"), 5, tomorrow);
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.of(prod));
     given(clearanceItemRepository.existsByProductIdAndStatus(PRODUCT_ID, ClearanceItemStatus.OPEN))
@@ -295,7 +296,7 @@ class ClearanceItemServiceTest {
     LocalDateTime pastEndAt = LocalDateTime.now(KST).minusHours(1);
     ClearanceItemCreateRequest request =
         new ClearanceItemCreateRequest(PRODUCT_ID, new BigDecimal("3000"), 5, pastEndAt);
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.of(prod));
     given(clearanceItemRepository.existsByProductIdAndStatus(PRODUCT_ID, ClearanceItemStatus.OPEN))
@@ -316,7 +317,7 @@ class ClearanceItemServiceTest {
     Store store = store();
     Product prod = product(ProductStatus.ON_SALE);
     ClearanceItemCreateRequest request = ClearanceItemFixture.aCreateRequest(PRODUCT_ID);
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
         .willReturn(Optional.of(prod));
     given(clearanceItemRepository.existsByProductIdAndStatus(PRODUCT_ID, ClearanceItemStatus.OPEN))
@@ -352,7 +353,7 @@ class ClearanceItemServiceTest {
     ReflectionTestUtils.setField(item, "id", CLEARANCE_ITEM_ID);
     Pageable pageable = PageRequest.of(0, 20);
     Page<ClearanceItem> page = new PageImpl<>(List.of(item), pageable, 1);
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(clearanceItemRepository.findByStoreId(STORE_ID, pageable)).willReturn(page);
     given(clearanceItemMapper.toResponse(item))
         .willReturn(ClearanceItemFixture.aResponse(CLEARANCE_ITEM_ID));
@@ -370,7 +371,8 @@ class ClearanceItemServiceTest {
   @Test
   void 본인_매장_마감_임박_상품_목록_조회_타인_매장_접근_거부() {
     // given
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.empty());
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID))
+        .willThrow(new BusinessException(StoreErrorCode.STORE_ACCESS_DENIED));
 
     // when / then
     assertThatThrownBy(
@@ -389,7 +391,7 @@ class ClearanceItemServiceTest {
     Product prod = product(ProductStatus.ON_SALE);
     ClearanceItem item = ClearanceItemFixture.aClearanceItem(store, prod);
     ReflectionTestUtils.setField(item, "id", CLEARANCE_ITEM_ID);
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(clearanceItemRepository.findByIdAndStoreId(CLEARANCE_ITEM_ID, STORE_ID))
         .willReturn(Optional.of(item));
     given(clearanceItemMapper.toResponse(item))
@@ -407,7 +409,7 @@ class ClearanceItemServiceTest {
   void 본인_매장_마감_임박_상품_상세_조회_없음_예외() {
     // given
     Store store = store();
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(clearanceItemRepository.findByIdAndStoreId(CLEARANCE_ITEM_ID, STORE_ID))
         .willReturn(Optional.empty());
 
@@ -429,7 +431,7 @@ class ClearanceItemServiceTest {
     ReflectionTestUtils.setField(item, "id", CLEARANCE_ITEM_ID);
     ClearanceItemUpdateRequest request =
         new ClearanceItemUpdateRequest(new BigDecimal("2000"), null, null);
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(clearanceItemRepository.findByIdAndStoreId(CLEARANCE_ITEM_ID, STORE_ID))
         .willReturn(Optional.of(item));
     given(clearanceItemMapper.toResponse(item))
@@ -454,7 +456,7 @@ class ClearanceItemServiceTest {
     item.close();
     ClearanceItemUpdateRequest request =
         new ClearanceItemUpdateRequest(new BigDecimal("2000"), null, null);
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(clearanceItemRepository.findByIdAndStoreId(CLEARANCE_ITEM_ID, STORE_ID))
         .willReturn(Optional.of(item));
 
@@ -476,7 +478,7 @@ class ClearanceItemServiceTest {
     ReflectionTestUtils.setField(item, "id", CLEARANCE_ITEM_ID);
     ClearanceItemUpdateRequest request =
         new ClearanceItemUpdateRequest(new BigDecimal("5000"), null, null);
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(clearanceItemRepository.findByIdAndStoreId(CLEARANCE_ITEM_ID, STORE_ID))
         .willReturn(Optional.of(item));
 
@@ -499,7 +501,7 @@ class ClearanceItemServiceTest {
     ReflectionTestUtils.setField(item, "id", CLEARANCE_ITEM_ID);
     LocalDateTime tomorrow = LocalDate.now(KST).plusDays(1).atTime(21, 0);
     ClearanceItemUpdateRequest request = new ClearanceItemUpdateRequest(null, null, tomorrow);
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(clearanceItemRepository.findByIdAndStoreId(CLEARANCE_ITEM_ID, STORE_ID))
         .willReturn(Optional.of(item));
 
@@ -519,7 +521,7 @@ class ClearanceItemServiceTest {
     Store store = store();
     ClearanceItemUpdateRequest request =
         new ClearanceItemUpdateRequest(new BigDecimal("2000"), null, null);
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(clearanceItemRepository.findByIdAndStoreId(CLEARANCE_ITEM_ID, STORE_ID))
         .willReturn(Optional.empty());
 
@@ -541,7 +543,7 @@ class ClearanceItemServiceTest {
     Product prod = product(ProductStatus.ON_SALE);
     ClearanceItem item = ClearanceItemFixture.aClearanceItem(store, prod);
     ReflectionTestUtils.setField(item, "id", CLEARANCE_ITEM_ID);
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(clearanceItemRepository.findByIdAndStoreId(CLEARANCE_ITEM_ID, STORE_ID))
         .willReturn(Optional.of(item));
     given(clearanceItemMapper.toResponse(item))
@@ -566,7 +568,7 @@ class ClearanceItemServiceTest {
     ClearanceItem item = ClearanceItemFixture.aClearanceItem(store, prod);
     ReflectionTestUtils.setField(item, "id", CLEARANCE_ITEM_ID);
     item.close();
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(clearanceItemRepository.findByIdAndStoreId(CLEARANCE_ITEM_ID, STORE_ID))
         .willReturn(Optional.of(item));
     given(clearanceItemMapper.toResponse(item))
@@ -585,7 +587,7 @@ class ClearanceItemServiceTest {
   void 마감_임박_상품_수동_마감_없음_예외() {
     // given
     Store store = store();
-    given(storeRepository.findByIdAndSellerId(STORE_ID, SELLER_ID)).willReturn(Optional.of(store));
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
     given(clearanceItemRepository.findByIdAndStoreId(CLEARANCE_ITEM_ID, STORE_ID))
         .willReturn(Optional.empty());
 

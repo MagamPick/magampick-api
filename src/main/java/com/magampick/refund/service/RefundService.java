@@ -67,7 +67,7 @@ public class RefundService {
         orderRepository
             .findById(orderId)
             .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
-    if (!order.getCustomer().getId().equals(customerId)) {
+    if (!order.isOwnedBy(customerId)) {
       throw new BusinessException(OrderErrorCode.ORDER_FORBIDDEN);
     }
 
@@ -267,7 +267,7 @@ public class RefundService {
         refundRepository
             .findById(refundId)
             .orElseThrow(() -> new BusinessException(RefundErrorCode.REFUND_NOT_FOUND));
-    if (!refund.getOrder().getStore().getSeller().getId().equals(sellerId)) {
+    if (!refund.getOrder().getStore().isOwnedBy(sellerId)) {
       throw new BusinessException(RefundErrorCode.REFUND_FORBIDDEN);
     }
     return refund;

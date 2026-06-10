@@ -398,7 +398,7 @@ public class OrderService {
         orderRepository
             .findById(orderId)
             .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
-    if (!order.getCustomer().getId().equals(customerId)) {
+    if (!order.isOwnedBy(customerId)) {
       throw new BusinessException(OrderErrorCode.ORDER_FORBIDDEN);
     }
     OrderResponse base = orderMapper.toResponse(order);
@@ -425,7 +425,7 @@ public class OrderService {
         orderRepository
             .findById(orderId)
             .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
-    if (!order.getStore().getSeller().getId().equals(sellerId)) {
+    if (!order.getStore().isOwnedBy(sellerId)) {
       throw new BusinessException(OrderErrorCode.ORDER_FORBIDDEN);
     }
     return orderMapper.toSellerResponse(order);
@@ -440,7 +440,7 @@ public class OrderService {
         orderRepository
             .findById(orderId)
             .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
-    if (!order.getCustomer().getId().equals(customerId)) {
+    if (!order.isOwnedBy(customerId)) {
       throw new BusinessException(OrderErrorCode.ORDER_FORBIDDEN);
     }
     if (order.getStatus() != OrderStatus.PENDING) {
@@ -579,7 +579,7 @@ public class OrderService {
         orderRepository
             .findById(orderId)
             .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
-    if (!order.getStore().getSeller().getId().equals(sellerId)) {
+    if (!order.getStore().isOwnedBy(sellerId)) {
       throw new BusinessException(OrderErrorCode.ORDER_FORBIDDEN);
     }
     return order;

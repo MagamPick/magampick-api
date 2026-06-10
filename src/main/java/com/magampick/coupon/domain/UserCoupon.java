@@ -74,6 +74,11 @@ public class UserCoupon extends BaseEntity {
   @Column(name = "min_order", nullable = false)
   private int minOrder;
 
+  /** 소비자 소유권 판단. */
+  public boolean isOwnedBy(Long customerId) {
+    return customer.getId().equals(customerId);
+  }
+
   public void markExpiryAlertSent(LocalDateTime now) {
     this.expiryAlertSentAt = now;
   }

@@ -16,8 +16,7 @@ import com.magampick.product.domain.ProductStatus;
 import com.magampick.product.exception.ProductErrorCode;
 import com.magampick.product.repository.ProductRepository;
 import com.magampick.store.domain.Store;
-import com.magampick.store.exception.StoreErrorCode;
-import com.magampick.store.repository.StoreRepository;
+import com.magampick.store.service.StoreService;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -39,17 +38,14 @@ public class ClearanceItemService {
 
   private final ClearanceItemRepository clearanceItemRepository;
   private final ProductRepository productRepository;
-  private final StoreRepository storeRepository;
+  private final StoreService storeService;
   private final ClearanceItemMapper clearanceItemMapper;
   private final ClearanceNotificationService clearanceNotificationService;
 
   @Transactional
   public ClearanceItemResponse registerClearanceItem(
       Long sellerId, Long storeId, ClearanceItemCreateRequest request) {
-    Store store =
-        storeRepository
-            .findByIdAndSellerId(storeId, sellerId)
-            .orElseThrow(() -> new BusinessException(StoreErrorCode.STORE_ACCESS_DENIED));
+    Store store = storeService.requireOwnedStore(sellerId, storeId);
 
     Product product =
         productRepository
@@ -106,14 +102,14 @@ public class ClearanceItemService {
 
   public PageResponse<ClearanceItemResponse> getMyClearanceItems(
       Long sellerId, Long storeId, Pageable pageable) {
-    verifyStoreOwnership(sellerId, storeId);
+    storeService.requireOwnedStore(sellerId, storeId);
     Page<ClearanceItem> page = clearanceItemRepository.findByStoreId(storeId, pageable);
     return PageResponse.of(page.map(clearanceItemMapper::toResponse));
   }
 
   public ClearanceItemResponse getMyClearanceItem(
       Long sellerId, Long storeId, Long clearanceItemId) {
-    verifyStoreOwnership(sellerId, storeId);
+    storeService.requireOwnedStore(sellerId, storeId);
     ClearanceItem item =
         clearanceItemRepository
             .findByIdAndStoreId(clearanceItemId, storeId)
@@ -125,7 +121,7 @@ public class ClearanceItemService {
   @Transactional
   public ClearanceItemResponse updateClearanceItem(
       Long sellerId, Long storeId, Long clearanceItemId, ClearanceItemUpdateRequest request) {
-    verifyStoreOwnership(sellerId, storeId);
+    storeService.requireOwnedStore(sellerId, storeId);
 
     ClearanceItem item =
         clearanceItemRepository
@@ -162,7 +158,7 @@ public class ClearanceItemService {
   @Transactional
   public ClearanceItemResponse closeClearanceItem(
       Long sellerId, Long storeId, Long clearanceItemId) {
-    verifyStoreOwnership(sellerId, storeId);
+    storeService.requireOwnedStore(sellerId, storeId);
 
     ClearanceItem item =
         clearanceItemRepository
@@ -185,11 +181,5 @@ public class ClearanceItemService {
   @Transactional
   public int autoCloseExpiredItems(LocalDateTime now) {
     return clearanceItemRepository.closeExpiredItems(now);
-  }
-
-  private void verifyStoreOwnership(Long sellerId, Long storeId) {
-    storeRepository
-        .findByIdAndSellerId(storeId, sellerId)
-        .orElseThrow(() -> new BusinessException(StoreErrorCode.STORE_ACCESS_DENIED));
   }
 }

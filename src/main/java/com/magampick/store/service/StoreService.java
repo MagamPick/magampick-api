@@ -162,7 +162,7 @@ public class StoreService {
    */
   public StoreDetailResponse updateStore(
       Long sellerId, Long storeId, StoreUpdateRequest request, MultipartFile image) {
-    Store store = findOwnedStore(sellerId, storeId);
+    Store store = requireOwnedStore(sellerId, storeId);
 
     boolean addressChanged =
         request.roadAddress() != null && !request.roadAddress().equals(store.getRoadAddress());
@@ -234,7 +234,7 @@ public class StoreService {
   /** 본인 매장 영업 상태 + 오늘 영업 요일 여부 + 오늘 마감 시각 조회. */
   @Transactional(readOnly = true)
   public OperationStatusResponse getOperationStatus(Long sellerId, Long storeId) {
-    Store store = findOwnedStore(sellerId, storeId);
+    Store store = requireOwnedStore(sellerId, storeId);
     return toOperationStatusResponse(store);
   }
 
@@ -245,7 +245,7 @@ public class StoreService {
   @Transactional
   public OperationStatusResponse transitionOperationStatus(
       Long sellerId, Long storeId, OperationStatus to) {
-    Store store = findOwnedStore(sellerId, storeId);
+    Store store = requireOwnedStore(sellerId, storeId);
     Optional<StoreBusinessHour> todayHour = findTodayBusinessHour(store.getId());
     validateTransition(store.getOperationStatus(), to, todayHour.isPresent());
     store.changeOperationStatus(to);
@@ -256,7 +256,7 @@ public class StoreService {
   /** 본인 매장의 영업 요일별 영업시간 (영업 요일만, 휴무 요일은 row 없음). */
   @Transactional(readOnly = true)
   public List<BusinessHourPayload> getBusinessHours(Long sellerId, Long storeId) {
-    Store store = findOwnedStore(sellerId, storeId);
+    Store store = requireOwnedStore(sellerId, storeId);
     return storeBusinessHourRepository.findByStoreId(store.getId()).stream()
         .map(this::toPayload)
         .toList();
@@ -273,7 +273,7 @@ public class StoreService {
     validateRanges(hours);
     validateNoDuplicates(hours);
 
-    Store store = findOwnedStore(sellerId, storeId);
+    Store store = requireOwnedStore(sellerId, storeId);
 
     List<StoreBusinessHour> prev = storeBusinessHourRepository.findByStoreId(store.getId());
     validateTodayLockIfOpen(store, prev, hours);
@@ -296,7 +296,8 @@ public class StoreService {
     return hours;
   }
 
-  private Store findOwnedStore(Long sellerId, Long storeId) {
+  /** 본인 매장 조회 — 소유권 검증 facade. 실패 시 STORE_ACCESS_DENIED 예외. */
+  public Store requireOwnedStore(Long sellerId, Long storeId) {
     return storeRepository
         .findByIdAndSellerId(storeId, sellerId)
         .orElseThrow(() -> new BusinessException(StoreErrorCode.STORE_ACCESS_DENIED));

@@ -41,7 +41,7 @@ public class TossConfirmService {
             .findById(request.orderId())
             .orElseThrow(() -> new BusinessException(PaymentErrorCode.PAYMENT_ORDER_NOT_FOUND));
 
-    if (!order.getCustomer().getId().equals(customerId)) {
+    if (!order.isOwnedBy(customerId)) {
       throw new BusinessException(PaymentErrorCode.PAYMENT_ORDER_FORBIDDEN);
     }
 

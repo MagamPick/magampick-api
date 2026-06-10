@@ -15,9 +15,9 @@ import com.magampick.global.security.JwtAuthenticationEntryPoint;
 import com.magampick.global.security.JwtProvider;
 import com.magampick.global.security.Role;
 import com.magampick.global.security.SecurityConfig;
-import com.magampick.settlement.exception.SettlementErrorCode;
 import com.magampick.settlement.fixture.SettlementFixture;
 import com.magampick.settlement.service.SettlementService;
+import com.magampick.store.exception.StoreErrorCode;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -71,14 +71,14 @@ class SellerSettlementControllerTest {
 
   @Test
   void 정산_목록_조회_403_타인매장() throws Exception {
-    willThrow(new BusinessException(SettlementErrorCode.SETTLEMENT_STORE_FORBIDDEN))
+    willThrow(new BusinessException(StoreErrorCode.STORE_ACCESS_DENIED))
         .given(settlementService)
         .listSettlements(any(), any());
 
     mockMvc
         .perform(get("/api/v1/seller/stores/10/settlements").with(user(SELLER)))
         .andExpect(status().isForbidden())
-        .andExpect(jsonPath("$.error.code").value("SETTLEMENT_STORE_FORBIDDEN"));
+        .andExpect(jsonPath("$.error.code").value("STORE_ACCESS_DENIED"));
   }
 
   // ── GET /api/v1/seller/stores/{storeId}/settlements/summary ─────────────────
@@ -114,7 +114,7 @@ class SellerSettlementControllerTest {
 
   @Test
   void 정산_요약_조회_403_타인매장() throws Exception {
-    willThrow(new BusinessException(SettlementErrorCode.SETTLEMENT_STORE_FORBIDDEN))
+    willThrow(new BusinessException(StoreErrorCode.STORE_ACCESS_DENIED))
         .given(settlementService)
         .getSettlementSummary(any(), any());
 

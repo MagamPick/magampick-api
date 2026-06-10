@@ -10,7 +10,6 @@ import static org.mockito.Mockito.lenient;
 import com.magampick.analytics.domain.AnalyticsPeriod;
 import com.magampick.analytics.dto.AnalyticsResponse;
 import com.magampick.analytics.dto.AnalyticsResponse.SalesBar;
-import com.magampick.analytics.exception.AnalyticsErrorCode;
 import com.magampick.analytics.fixture.AnalyticsFixture;
 import com.magampick.customer.domain.Customer;
 import com.magampick.global.exception.BusinessException;
@@ -23,14 +22,14 @@ import com.magampick.review.domain.ReviewTag;
 import com.magampick.review.repository.ReviewRepository;
 import com.magampick.seller.domain.Seller;
 import com.magampick.store.domain.Store;
-import com.magampick.store.repository.StoreRepository;
+import com.magampick.store.exception.StoreErrorCode;
+import com.magampick.store.service.StoreService;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
-import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -44,7 +43,7 @@ class AnalyticsServiceTest {
 
   @Mock OrderRepository orderRepository;
   @Mock ReviewRepository reviewRepository;
-  @Mock StoreRepository storeRepository;
+  @Mock StoreService storeService;
   @Mock Clock clock;
 
   @InjectMocks AnalyticsService analyticsService;
@@ -71,7 +70,7 @@ class AnalyticsServiceTest {
     store = Store.builder().seller(seller).businessNumber("0000000000").name("빵집").build();
     ReflectionTestUtils.setField(store, "id", 10L);
 
-    lenient().when(storeRepository.findByIdAndSellerId(10L, 2L)).thenReturn(Optional.of(store));
+    lenient().when(storeService.requireOwnedStore(2L, 10L)).thenReturn(store);
     lenient().when(orderRepository.countOrdersByStatus(any(), any(), any())).thenReturn(List.of());
     lenient().when(reviewRepository.findForAnalytics(any(), any(), any())).thenReturn(List.of());
     lenient().when(orderRepository.sumCompletedTotalPrice(any(), any(), any())).thenReturn(null);
@@ -404,12 +403,13 @@ class AnalyticsServiceTest {
   @Test
   void 본인매장_아니면_403() {
     // given — 다른 sellerId 로 조회
-    given(storeRepository.findByIdAndSellerId(10L, 999L)).willReturn(Optional.empty());
+    given(storeService.requireOwnedStore(999L, 10L))
+        .willThrow(new BusinessException(StoreErrorCode.STORE_ACCESS_DENIED));
 
     // when / then
     assertThatThrownBy(() -> analyticsService.getAnalytics(999L, 10L, AnalyticsPeriod.TODAY))
         .isInstanceOf(BusinessException.class)
-        .hasFieldOrPropertyWithValue("errorCode", AnalyticsErrorCode.ANALYTICS_STORE_FORBIDDEN);
+        .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.STORE_ACCESS_DENIED);
   }
 
   // ── 내부 유틸 검증 ─────────────────────────────────────────────────────────────
