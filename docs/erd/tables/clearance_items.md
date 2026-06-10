@@ -17,6 +17,7 @@
 | pickup_start_at | TIMESTAMP | N | | 픽업 시작 시각 (KST). **사용자 입력 아님 — 등록 시각으로 서버 자동 설정** (이슈 #5) |
 | pickup_end_at | TIMESTAMP | N | | 픽업 종료 시각 (KST). 등록 당일만 허용 |
 | status | VARCHAR(20) | N | CHECK | `OPEN`, `SOLD_OUT`, `CLOSED` |
+| close_reason | VARCHAR(30) | Y | CHECK | `EXPIRED`, `SOLD_OUT`, `MANUAL`. OPEN 상태이면 NULL |
 | created_at | TIMESTAMP | N | | 생성 시각 |
 | updated_at | TIMESTAMP | N | | 수정 시각 |
 
@@ -34,6 +35,7 @@
 - `fk_clearance_items_store` FK `store_id → stores.id`
 - `fk_clearance_items_product` FK `product_id → products.id`
 - `chk_clearance_items_status` CHECK `status IN ('OPEN', 'SOLD_OUT', 'CLOSED')`
+- `chk_clearance_items_close_reason` CHECK `close_reason IN ('EXPIRED', 'SOLD_OUT', 'MANUAL')`
 - `chk_clearance_items_sale_price_positive` CHECK `sale_price > 0`
 - `chk_clearance_items_regular_price_positive` CHECK `regular_price > 0`
 - `chk_clearance_items_total_quantity_positive` CHECK `total_quantity > 0`
@@ -64,4 +66,6 @@
 - **수정 시 `remaining_quantity` 동기화**: `total_quantity` 변경 시 `remaining_quantity = total_quantity`. 주문 미구현 상태에서만 유효 — 계층 5 연결 시 재검토.
 - **수정·마감 가능 상태**: `OPEN` 만. `CLOSED` / `SOLD_OUT` → `CLEARANCE_ITEM_NOT_OPEN` (409).
 - **수동 마감 멱등**: `POST /close` 재호출 시 이미 `CLOSED` 면 no-op + 200. `uq_clearance_items_product_open` 해제로 동일 상품 재등록 가능.
-- **자동 마감**: `@Scheduled(cron = "0 */5 * * * *")` — 5분 주기 bulk UPDATE. `status = OPEN AND pickup_end_at < now(KST)` → `CLOSED` 전환. 단일 인스턴스 가정 (졸업 프로젝트).
+- **자동 마감**: `@Scheduled(cron = "0 */5 * * * *")` — 5분 주기 bulk UPDATE. `status = OPEN AND pickup_end_at < now(KST)` → `CLOSED` + `close_reason = EXPIRED` 전환. 단일 인스턴스 가정 (졸업 프로젝트).
+- **마감 사유**: `close_reason` — 마감 트리거 자동 기록. `EXPIRED`(시간 만료) / `SOLD_OUT`(수량 소진) / `MANUAL`(사장 강제 마감). OPEN 상태이면 NULL.
+- **상품 삭제 차단**: `status = OPEN` 인 떨이가 있는 상품은 soft delete 불가. 먼저 떨이를 마감해야 삭제 가능.
