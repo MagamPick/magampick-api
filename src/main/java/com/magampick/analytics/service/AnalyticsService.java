@@ -271,21 +271,9 @@ public class AnalyticsService {
 
     int soldQty = dealItems.stream().mapToInt(OrderItem::getQuantity).sum();
 
-    long savedAmount =
-        dealItems.stream()
-            .mapToLong(
-                i ->
-                    i.getOriginalPrice()
-                        .subtract(i.getUnitPrice())
-                        .multiply(BigDecimal.valueOf(i.getQuantity()))
-                        .longValue())
-            .sum();
+    long savedAmount = dealItems.stream().mapToLong(i -> i.discountAmount().longValue()).sum();
 
-    long totalOriginal =
-        dealItems.stream()
-            .mapToLong(
-                i -> i.getOriginalPrice().multiply(BigDecimal.valueOf(i.getQuantity())).longValue())
-            .sum();
+    long totalOriginal = dealItems.stream().mapToLong(i -> i.originalLineTotal().longValue()).sum();
 
     int avgDiscountRate =
         totalOriginal == 0 ? 0 : (int) Math.round((double) savedAmount / totalOriginal * 100);

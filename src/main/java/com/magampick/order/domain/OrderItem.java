@@ -139,4 +139,19 @@ public class OrderItem extends BaseEntity {
         .unitPrice(unitPrice)
         .build();
   }
+
+  // ── 계산 메서드 ────────────────────────────────────────────────────────────────
+
+  /** 정상가 합계 = originalPrice × quantity. */
+  public BigDecimal originalLineTotal() {
+    return originalPrice.multiply(BigDecimal.valueOf(quantity));
+  }
+
+  /**
+   * 할인 금액 = originalLineTotal - subtotal. subtotal = unitPrice × quantity 이므로 (originalPrice -
+   * unitPrice) × quantity 와 동치.
+   */
+  public BigDecimal discountAmount() {
+    return originalLineTotal().subtract(subtotal);
+  }
 }

@@ -237,4 +237,31 @@ public class Order extends BaseEntity {
   public void noShow() {
     this.status = OrderStatus.NO_SHOW;
   }
+
+  // ── 혜택 존재 판단 메서드 ───────────────────────────────────────────────────────
+
+  /** 쿠폰 사용 여부. */
+  public boolean hasCoupon() {
+    return userCouponId != null;
+  }
+
+  /** 포인트 사용 여부. */
+  public boolean hasUsedPoints() {
+    return pointUsed != null && pointUsed > 0;
+  }
+
+  /** 포인트 적립 여부. */
+  public boolean hasEarnedPoints() {
+    return earnedPoints != null && earnedPoints > 0;
+  }
+
+  /**
+   * 환불 가능 기간 만료 여부. completedAt 이 null 이거나 now 가 completedAt + windowDays 이후이면 true.
+   *
+   * @param now 현재 시각 (서비스가 clock 으로부터 생성해 전달)
+   * @param windowDays 환불 가능 일수 (정책 상수 — 서비스가 보유)
+   */
+  public boolean isRefundWindowExpired(LocalDateTime now, int windowDays) {
+    return completedAt == null || now.isAfter(completedAt.plusDays(windowDays));
+  }
 }
