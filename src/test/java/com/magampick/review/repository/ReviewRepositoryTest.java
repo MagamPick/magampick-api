@@ -172,6 +172,28 @@ class ReviewRepositoryTest {
     assertThat(page1.hasNext()).isFalse();
   }
 
+  @Test
+  void 사장_매장_리뷰_목록_List_최신순_삭제제외() {
+    // given — active 2개 + soft-delete 1개
+    Order order1 = orderRepository.save(OrderFixture.anOrder(customer, store));
+    Order order2 = orderRepository.save(OrderFixture.anOrder(customer, store));
+    Order order3 = orderRepository.save(OrderFixture.anOrder(customer, store));
+    reviewRepository.save(ReviewFixture.aReviewWithRating(customer, order1, store, 3));
+    reviewRepository.save(ReviewFixture.aReviewWithRating(customer, order2, store, 5));
+    Review deleted =
+        reviewRepository.save(ReviewFixture.aReviewWithRating(customer, order3, store, 1));
+    ReflectionTestUtils.setField(deleted, "deletedAt", LocalDateTime.now());
+    reviewRepository.save(deleted);
+
+    // when
+    List<Review> result =
+        reviewRepository.findByStoreIdWithCustomerOrderByCreatedAtDesc(store.getId());
+
+    // then — soft-delete 제외, 최신순(id 큰 쪽 먼저)
+    assertThat(result).hasSize(2);
+    assertThat(result.get(0).getId()).isGreaterThan(result.get(1).getId());
+  }
+
   // ── 평점 집계 ─────────────────────────────────────────────────────────────────
 
   @Test

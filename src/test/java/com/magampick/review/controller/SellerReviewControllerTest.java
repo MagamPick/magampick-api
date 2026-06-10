@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.willThrow;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -22,6 +23,7 @@ import com.magampick.review.dto.StoreReviewResponse;
 import com.magampick.review.exception.ReviewErrorCode;
 import com.magampick.review.service.ReviewCommandService;
 import com.magampick.review.service.ReviewQueryService;
+import com.magampick.store.exception.StoreErrorCode;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -134,6 +136,43 @@ class SellerReviewControllerTest {
                 .content(objectMapper.writeValueAsString(req)))
         .andExpect(status().isForbidden())
         .andExpect(jsonPath("$.error.code").value("REPLY_STORE_FORBIDDEN"));
+  }
+
+  // ── GET /api/v1/seller/stores/{storeId}/reviews ──────────────────────────────
+
+  @Test
+  void 매장_리뷰_목록_200() throws Exception {
+    StoreReviewResponse resp = buildStoreReviewResponse(20L);
+    given(reviewQueryService.getSellerStoreReviews(eq(2L), eq(100L))).willReturn(List.of(resp));
+
+    mockMvc
+        .perform(get("/api/v1/seller/stores/100/reviews").with(user(SELLER)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data[0].id").value(20));
+  }
+
+  @Test
+  void 매장_리뷰_목록_미인증_401() throws Exception {
+    mockMvc.perform(get("/api/v1/seller/stores/100/reviews")).andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void 매장_리뷰_목록_소비자권한_403() throws Exception {
+    mockMvc
+        .perform(get("/api/v1/seller/stores/100/reviews").with(user(CUSTOMER)))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void 매장_리뷰_목록_본인매장아님_403() throws Exception {
+    willThrow(new BusinessException(StoreErrorCode.STORE_ACCESS_DENIED))
+        .given(reviewQueryService)
+        .getSellerStoreReviews(any(), any());
+
+    mockMvc
+        .perform(get("/api/v1/seller/stores/100/reviews").with(user(SELLER)))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.error.code").value("STORE_ACCESS_DENIED"));
   }
 
   // ── 헬퍼 ─────────────────────────────────────────────────────────────────────

@@ -1,12 +1,14 @@
 package com.magampick.review.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.within;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 
 import com.magampick.customer.domain.Customer;
+import com.magampick.global.exception.BusinessException;
 import com.magampick.global.response.SliceResponse;
 import com.magampick.order.domain.Order;
 import com.magampick.review.domain.Review;
@@ -16,6 +18,8 @@ import com.magampick.review.fixture.ReviewFixture;
 import com.magampick.review.mapper.ReviewMapper;
 import com.magampick.review.repository.ReviewRepository;
 import com.magampick.store.domain.Store;
+import com.magampick.store.exception.StoreErrorCode;
+import com.magampick.store.service.StoreService;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -34,9 +38,11 @@ class ReviewQueryServiceTest {
 
   @Mock ReviewRepository reviewRepository;
   @Mock ReviewMapper reviewMapper;
+  @Mock StoreService storeService;
   @InjectMocks ReviewQueryService reviewQueryService;
 
   private static final Long STORE_ID = 1L;
+  private static final Long SELLER_ID = 2L;
   private static final Long CLEARANCE_ITEM_ID = 10L;
 
   // ── 매장 리뷰 목록 ───────────────────────────────────────────────────────────
@@ -74,6 +80,35 @@ class ReviewQueryServiceTest {
     // then
     assertThat(result.content()).isEmpty();
     assertThat(result.hasNext()).isFalse();
+  }
+
+  // ── 사장 본인 매장 리뷰 목록 ──────────────────────────────────────────────────
+
+  @Test
+  void 사장_본인매장_리뷰_목록_최신순_반환() {
+    // given — 소유권 검증 통과, 리뷰 1건
+    Review review = buildReview(STORE_ID, 5);
+    given(reviewRepository.findByStoreIdWithCustomerOrderByCreatedAtDesc(STORE_ID))
+        .willReturn(List.of(review));
+    given(reviewMapper.toResponse(review)).willReturn(ReviewFixture.aStoreReviewResponse());
+
+    // when
+    List<StoreReviewResponse> result =
+        reviewQueryService.getSellerStoreReviews(SELLER_ID, STORE_ID);
+
+    // then
+    assertThat(result).hasSize(1);
+  }
+
+  @Test
+  void 사장_본인매장_아니면_STORE_ACCESS_DENIED() {
+    // given — 소유권 검증 실패
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID))
+        .willThrow(new BusinessException(StoreErrorCode.STORE_ACCESS_DENIED));
+
+    // when & then
+    assertThatThrownBy(() -> reviewQueryService.getSellerStoreReviews(SELLER_ID, STORE_ID))
+        .isInstanceOf(BusinessException.class);
   }
 
   // ── 매장 리뷰 요약 ───────────────────────────────────────────────────────────
