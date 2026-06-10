@@ -20,6 +20,16 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
   Slice<Review> findByStoreIdOrderByCreatedAtDesc(
       @Param("storeId") Long storeId, Pageable pageable);
 
+  /**
+   * 매장 리뷰 전체 목록 (List, 최신순, soft-delete 제외). 사장 본인 매장 조회용. customer JOIN FETCH → authorNickname N+1
+   * 방지.
+   */
+  @Query(
+      "SELECT r FROM Review r JOIN FETCH r.customer "
+          + "WHERE r.store.id = :storeId AND r.deletedAt IS NULL "
+          + "ORDER BY r.createdAt DESC")
+  List<Review> findByStoreIdWithCustomerOrderByCreatedAtDesc(@Param("storeId") Long storeId);
+
   /** 매장 평점/건수 집계 (soft-delete 제외). 결과: [avg, count] — 0건이면 avg=null, count=0. */
   @Query(
       "SELECT AVG(CAST(r.rating AS double)), COUNT(r) "

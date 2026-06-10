@@ -12,6 +12,7 @@ import com.magampick.review.dto.ReviewableOrderResponse;
 import com.magampick.review.dto.StoreReviewResponse;
 import com.magampick.review.mapper.ReviewMapper;
 import com.magampick.review.repository.ReviewRepository;
+import com.magampick.store.service.StoreService;
 import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.Comparator;
@@ -34,6 +35,7 @@ public class ReviewQueryService {
   private final ReviewRepository reviewRepository;
   private final ReviewMapper reviewMapper;
   private final OrderRepository orderRepository;
+  private final StoreService storeService;
 
   // ── 엔드포인트용 ────────────────────────────────────────────────────────────────
 
@@ -43,6 +45,14 @@ public class ReviewQueryService {
         reviewRepository
             .findByStoreIdOrderByCreatedAtDesc(storeId, pageable)
             .map(reviewMapper::toResponse));
+  }
+
+  /** 사장 본인 매장 리뷰 전체 목록 (최신순, soft-delete 제외). 소유권 검증 후 조회. */
+  public List<StoreReviewResponse> getSellerStoreReviews(Long sellerId, Long storeId) {
+    storeService.requireOwnedStore(sellerId, storeId);
+    return reviewRepository.findByStoreIdWithCustomerOrderByCreatedAtDesc(storeId).stream()
+        .map(reviewMapper::toResponse)
+        .toList();
   }
 
   /** 매장 리뷰 요약 (평균 + 1~5점 분포). */
