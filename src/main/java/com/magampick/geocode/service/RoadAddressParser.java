@@ -1,4 +1,4 @@
-package com.magampick.store.service;
+package com.magampick.geocode.service;
 
 /**
  * 다음 우편번호 위젯 결과 → 도로명 자연키({@link GeocodeKey}) 조립 (정방향 지오코딩 조회 키). ADR-002 B안.
@@ -10,8 +10,8 @@ package com.magampick.store.service;
  *       건물번호이며, 도로명 안의 숫자(예: 국회대로62길)와 혼동하지 않는다.
  * </ul>
  *
- * 형식 위반(마지막 토큰이 건물번호가 아님 등)은 {@link IllegalArgumentException} 으로, 호출 서비스가 {@code
- * ADDRESS_GEOCODING_FAILED} 로 변환한다.
+ * 형식 위반(마지막 토큰이 건물번호가 아님 등)은 {@link IllegalArgumentException} 으로, 호출 서비스가 {@code GEOCODING_FAILED}
+ * 로 변환한다.
  */
 public final class RoadAddressParser {
 

@@ -1,4 +1,4 @@
-package com.magampick.store.service;
+package com.magampick.geocode.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -11,10 +11,10 @@ import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
 
 import com.magampick.geocode.domain.GeocodeBuilding;
+import com.magampick.geocode.exception.GeocodeErrorCode;
 import com.magampick.geocode.repository.GeocodeBuildingRepository;
 import com.magampick.global.common.GeometryUtil;
 import com.magampick.global.exception.BusinessException;
-import com.magampick.store.exception.StoreErrorCode;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -54,7 +54,7 @@ class DbGeocodingServiceTest {
   }
 
   @Test
-  void 정방향_매칭_미스는_ADDRESS_GEOCODING_FAILED() {
+  void 정방향_매칭_미스는_GEOCODING_FAILED() {
     given(
             geocodeBuildingRepository
                 .findByRoadNameCodeAndUndergroundAndBuildingMainNoAndBuildingSubNo(
@@ -65,17 +65,17 @@ class DbGeocodingServiceTest {
             () ->
                 geocodingService.geocode(new GeocodeQuery("11110", "3100012", "서울특별시 종로구 자하문로 94")))
         .isInstanceOf(BusinessException.class)
-        .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.ADDRESS_GEOCODING_FAILED);
+        .hasFieldOrPropertyWithValue("errorCode", GeocodeErrorCode.GEOCODING_FAILED);
   }
 
   @Test
-  void 정방향_파싱_실패는_조회_없이_ADDRESS_GEOCODING_FAILED() {
+  void 정방향_파싱_실패는_조회_없이_GEOCODING_FAILED() {
     assertThatThrownBy(
             () ->
                 geocodingService.geocode(
                     new GeocodeQuery("11110", "3100012", "서울특별시 종로구 자하문로 가나다")))
         .isInstanceOf(BusinessException.class)
-        .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.ADDRESS_GEOCODING_FAILED);
+        .hasFieldOrPropertyWithValue("errorCode", GeocodeErrorCode.GEOCODING_FAILED);
 
     then(geocodeBuildingRepository)
         .should(never())

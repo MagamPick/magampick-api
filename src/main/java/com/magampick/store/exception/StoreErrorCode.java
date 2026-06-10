@@ -21,8 +21,6 @@ public enum StoreErrorCode implements BaseErrorCode {
       HttpStatus.SERVICE_UNAVAILABLE,
       "BUSINESS_NUMBER_VERIFICATION_FAILED",
       "사업자 번호 검증에 실패했습니다. 잠시 후 다시 시도해 주세요"),
-  ADDRESS_GEOCODING_FAILED(
-      HttpStatus.BAD_REQUEST, "ADDRESS_GEOCODING_FAILED", "주소를 좌표로 변환할 수 없습니다"),
   STORE_IMAGE_TOO_LARGE(
       HttpStatus.BAD_REQUEST, "STORE_IMAGE_TOO_LARGE", "이미지 파일은 최대 5MB까지 업로드할 수 있습니다"),
   STORE_IMAGE_INVALID_TYPE(
