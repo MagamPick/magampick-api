@@ -3,7 +3,9 @@ package com.magampick.customer.controller;
 import com.magampick.customer.dto.CustomerPhoneUpdateRequest;
 import com.magampick.customer.dto.CustomerProfileResponse;
 import com.magampick.customer.dto.CustomerProfileUpdateRequest;
+import com.magampick.customer.dto.CustomerStatsResponse;
 import com.magampick.customer.service.CustomerService;
+import com.magampick.customer.service.CustomerStatsQueryService;
 import com.magampick.global.security.CustomUserDetails;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -26,6 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class CustomerController {
 
   private final CustomerService customerService;
+  private final CustomerStatsQueryService customerStatsQueryService;
 
   @GetMapping("/me")
   @Operation(summary = "소비자 본인 프로필 조회", description = "JWT 의 customerId 에 해당하는 소비자의 프로필을 반환한다.")
@@ -36,6 +39,19 @@ public class CustomerController {
   public CustomerProfileResponse getProfile(
       @AuthenticationPrincipal CustomUserDetails userDetails) {
     return customerService.getProfile(userDetails.getUserId());
+  }
+
+  @GetMapping("/me/stats")
+  @Operation(
+      summary = "소비자 마이페이지 통계 조회",
+      description = "이번 달 절약 금액(마감할인 합), 구한 음식 수(누적), 단골 가게 수를 반환한다. 데이터 없으면 0.")
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "조회 성공"),
+    @ApiResponse(responseCode = "401", description = "미인증"),
+    @ApiResponse(responseCode = "403", description = "소비자 역할 아님")
+  })
+  public CustomerStatsResponse getStats(@AuthenticationPrincipal CustomUserDetails userDetails) {
+    return customerStatsQueryService.getStats(userDetails.getUserId());
   }
 
   @PatchMapping("/me")
