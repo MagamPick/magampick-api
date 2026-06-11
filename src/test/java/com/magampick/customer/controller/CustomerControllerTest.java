@@ -14,8 +14,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.magampick.customer.dto.CustomerPhoneUpdateRequest;
 import com.magampick.customer.dto.CustomerProfileResponse;
 import com.magampick.customer.dto.CustomerProfileUpdateRequest;
+import com.magampick.customer.dto.CustomerStatsResponse;
 import com.magampick.customer.exception.CustomerErrorCode;
 import com.magampick.customer.service.CustomerService;
+import com.magampick.customer.service.CustomerStatsQueryService;
 import com.magampick.global.exception.BusinessException;
 import com.magampick.global.security.CustomUserDetails;
 import com.magampick.global.security.JwtAccessDeniedHandler;
@@ -40,6 +42,7 @@ class CustomerControllerTest {
   @Autowired MockMvc mockMvc;
   @Autowired ObjectMapper objectMapper;
   @MockitoBean CustomerService customerService;
+  @MockitoBean CustomerStatsQueryService customerStatsQueryService;
   @MockitoBean JwtProvider jwtProvider;
 
   private static final CustomUserDetails CUSTOMER_USER = new CustomUserDetails(1L, Role.CUSTOMER);
@@ -269,6 +272,57 @@ class CustomerControllerTest {
                 .content(
                     objectMapper.writeValueAsString(
                         new CustomerPhoneUpdateRequest("01012345678", "some-token"))))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
+  }
+
+  // ── GET /api/v1/customers/me/stats ────────────────────────────────────────
+
+  @Test
+  void GET_customers_me_stats_200_성공() throws Exception {
+    // given
+    given(customerStatsQueryService.getStats(1L))
+        .willReturn(new CustomerStatsResponse(14300L, 4, 3));
+
+    // when / then
+    mockMvc
+        .perform(get("/api/v1/customers/me/stats").with(user(CUSTOMER_USER)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.monthlySavings").value(14300))
+        .andExpect(jsonPath("$.data.rescuedCount").value(4))
+        .andExpect(jsonPath("$.data.favoriteCount").value(3));
+  }
+
+  @Test
+  void GET_customers_me_stats_200_데이터_없으면_모두_0() throws Exception {
+    // given
+    given(customerStatsQueryService.getStats(1L)).willReturn(new CustomerStatsResponse(0L, 0, 0));
+
+    // when / then
+    mockMvc
+        .perform(get("/api/v1/customers/me/stats").with(user(CUSTOMER_USER)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.monthlySavings").value(0))
+        .andExpect(jsonPath("$.data.rescuedCount").value(0))
+        .andExpect(jsonPath("$.data.favoriteCount").value(0));
+  }
+
+  @Test
+  void GET_customers_me_stats_401_미인증() throws Exception {
+    mockMvc
+        .perform(get("/api/v1/customers/me/stats"))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.success").value(false))
+        .andExpect(jsonPath("$.error.code").value("UNAUTHORIZED"));
+  }
+
+  @Test
+  void GET_customers_me_stats_403_사장_역할() throws Exception {
+    mockMvc
+        .perform(get("/api/v1/customers/me/stats").with(user(SELLER_USER)))
         .andExpect(status().isForbidden())
         .andExpect(jsonPath("$.success").value(false))
         .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
