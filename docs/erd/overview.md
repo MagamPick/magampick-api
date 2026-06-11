@@ -51,6 +51,11 @@ erDiagram
         geography location
         boolean is_default
     }
+    customer_locations {
+        bigint customer_id PK_FK
+        geography location
+        timestamp location_updated_at
+    }
     favorites {
         bigint id PK
         bigint customer_id FK
@@ -274,6 +279,7 @@ erDiagram
     }
 
     customers ||--o{ addresses : "owns"
+    customers ||--o| customer_locations : "tracks"
     customers ||--o{ favorites : "saves"
     customers ||--o{ orders : "places"
     customers ||--o{ reviews : "writes"
@@ -332,6 +338,7 @@ erDiagram
 - `sellers` — 사장 (사업자 인증 + 관리자 승인 필요)
 - `admins` — 운영자
 - `addresses` — 소비자 주소지 (최대 3개, 알림 반경 기준)
+- `customer_locations` — 소비자 현재 위치 (1:1, 신선도 1시간, 떨이 알림 ② 현재위치 대상)
 - `favorites` — 소비자-매장 즐겨찾기 (M:N)
 
 ### Stores

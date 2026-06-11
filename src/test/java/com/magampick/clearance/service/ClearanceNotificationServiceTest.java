@@ -1,16 +1,19 @@
 package com.magampick.clearance.service;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 
 import com.magampick.address.repository.AddressRepository;
 import com.magampick.clearance.domain.ClearanceItem;
 import com.magampick.clearance.domain.ClearanceItemStatus;
 import com.magampick.clearance.fixture.ClearanceItemFixture;
 import com.magampick.clearance.repository.ClearanceItemRepository;
+import com.magampick.customer.repository.CustomerLocationRepository;
 import com.magampick.favorite.repository.FavoriteRepository;
 import com.magampick.global.common.GeometryUtil;
 import com.magampick.notification.domain.NotificationCategory;
@@ -36,6 +39,7 @@ class ClearanceNotificationServiceTest {
 
   @Mock FavoriteRepository favoriteRepository;
   @Mock AddressRepository addressRepository;
+  @Mock CustomerLocationRepository customerLocationRepository;
   @Mock ClearanceItemRepository clearanceItemRepository;
   @Mock NotificationService notificationService;
   @InjectMocks ClearanceNotificationService clearanceNotificationService;
@@ -43,6 +47,7 @@ class ClearanceNotificationServiceTest {
   private static final Long STORE_ID = 10L;
   private static final Long CUSTOMER_ID_FAV = 1L;
   private static final Long CUSTOMER_ID_NEARBY = 2L;
+  private static final Long CUSTOMER_ID_CURRENT = 3L;
   private static final Long CLEARANCE_ITEM_ID = 200L;
   private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
@@ -99,6 +104,10 @@ class ClearanceNotificationServiceTest {
     ClearanceItem ci = item();
     given(favoriteRepository.findCustomerIdsByStoreId(STORE_ID))
         .willReturn(List.of(CUSTOMER_ID_FAV));
+    given(
+            customerLocationRepository.findCustomerIdsNear(
+                anyDouble(), anyDouble(), anyDouble(), any()))
+        .willReturn(List.of());
     given(addressRepository.findCustomerIdsWithDefaultAddressNear(37.5, 127.0, 3000.0))
         .willReturn(List.of());
 
@@ -122,6 +131,10 @@ class ClearanceNotificationServiceTest {
     // given
     ClearanceItem ci = item();
     given(favoriteRepository.findCustomerIdsByStoreId(STORE_ID)).willReturn(List.of());
+    given(
+            customerLocationRepository.findCustomerIdsNear(
+                anyDouble(), anyDouble(), anyDouble(), any()))
+        .willReturn(List.of());
     given(addressRepository.findCustomerIdsWithDefaultAddressNear(37.5, 127.0, 3000.0))
         .willReturn(List.of(CUSTOMER_ID_NEARBY));
 
@@ -146,6 +159,10 @@ class ClearanceNotificationServiceTest {
     ClearanceItem ci = item();
     given(favoriteRepository.findCustomerIdsByStoreId(STORE_ID))
         .willReturn(List.of(CUSTOMER_ID_FAV));
+    given(
+            customerLocationRepository.findCustomerIdsNear(
+                anyDouble(), anyDouble(), anyDouble(), any()))
+        .willReturn(List.of());
     given(addressRepository.findCustomerIdsWithDefaultAddressNear(37.5, 127.0, 3000.0))
         .willReturn(List.of(CUSTOMER_ID_FAV, CUSTOMER_ID_NEARBY));
 
@@ -173,8 +190,93 @@ class ClearanceNotificationServiceTest {
             any());
     // 총 2회 — CUSTOMER_ID_FAV 는 nearbyDeal 로 중복 호출되지 않는다
     then(notificationService)
-        .should(org.mockito.Mockito.times(2))
+        .should(times(2))
         .notifyCustomer(any(), any(), any(), any(), any(), any());
+  }
+
+  @Test
+  void 떨이_등록_알림_현재위치_소비자_nearbyDeal_키로_발송() {
+    // given — 즐겨찾기·주소지 없음, 현재위치만 반경 이내
+    ClearanceItem ci = item();
+    given(favoriteRepository.findCustomerIdsByStoreId(STORE_ID)).willReturn(List.of());
+    given(
+            customerLocationRepository.findCustomerIdsNear(
+                anyDouble(), anyDouble(), anyDouble(), any()))
+        .willReturn(List.of(CUSTOMER_ID_CURRENT));
+    given(addressRepository.findCustomerIdsWithDefaultAddressNear(37.5, 127.0, 3000.0))
+        .willReturn(List.of());
+
+    // when
+    clearanceNotificationService.notifyNewClearanceItem(ci);
+
+    // then
+    then(notificationService)
+        .should()
+        .notifyCustomer(
+            eq(CUSTOMER_ID_CURRENT),
+            eq("nearbyDeal"),
+            eq(NotificationCategory.DEAL),
+            any(),
+            any(),
+            any());
+  }
+
+  @Test
+  void 떨이_등록_알림_즐겨찾기_현재위치_주소지_삼중_중복_favoriteStore_우선_1회_발송() {
+    // given — CUSTOMER_ID_FAV 가 즐겨찾기·현재위치·주소지 모두 해당
+    ClearanceItem ci = item();
+    given(favoriteRepository.findCustomerIdsByStoreId(STORE_ID))
+        .willReturn(List.of(CUSTOMER_ID_FAV));
+    given(
+            customerLocationRepository.findCustomerIdsNear(
+                anyDouble(), anyDouble(), anyDouble(), any()))
+        .willReturn(List.of(CUSTOMER_ID_FAV));
+    given(addressRepository.findCustomerIdsWithDefaultAddressNear(37.5, 127.0, 3000.0))
+        .willReturn(List.of(CUSTOMER_ID_FAV));
+
+    // when
+    clearanceNotificationService.notifyNewClearanceItem(ci);
+
+    // then — favoriteStore 로 1회만 발송
+    then(notificationService)
+        .should()
+        .notifyCustomer(
+            eq(CUSTOMER_ID_FAV),
+            eq("favoriteStore"),
+            eq(NotificationCategory.DEAL),
+            any(),
+            any(),
+            any());
+    then(notificationService)
+        .should(times(1))
+        .notifyCustomer(any(), any(), any(), any(), any(), any());
+  }
+
+  @Test
+  void 떨이_등록_알림_현재위치_주소지_중복_nearbyDeal_1회_발송() {
+    // given — CUSTOMER_ID_NEARBY 가 현재위치·주소지 모두 해당 (즐겨찾기 아님)
+    ClearanceItem ci = item();
+    given(favoriteRepository.findCustomerIdsByStoreId(STORE_ID)).willReturn(List.of());
+    given(
+            customerLocationRepository.findCustomerIdsNear(
+                anyDouble(), anyDouble(), anyDouble(), any()))
+        .willReturn(List.of(CUSTOMER_ID_NEARBY));
+    given(addressRepository.findCustomerIdsWithDefaultAddressNear(37.5, 127.0, 3000.0))
+        .willReturn(List.of(CUSTOMER_ID_NEARBY));
+
+    // when
+    clearanceNotificationService.notifyNewClearanceItem(ci);
+
+    // then — nearbyDeal 로 1회만 발송
+    then(notificationService)
+        .should(times(1))
+        .notifyCustomer(
+            eq(CUSTOMER_ID_NEARBY),
+            eq("nearbyDeal"),
+            eq(NotificationCategory.DEAL),
+            any(),
+            any(),
+            any());
   }
 
   // ── 마감 임박 알림 ────────────────────────────────────────────────────────────
@@ -192,6 +294,10 @@ class ClearanceNotificationServiceTest {
         .willReturn(List.of(ci));
     given(favoriteRepository.findCustomerIdsByStoreId(STORE_ID))
         .willReturn(List.of(CUSTOMER_ID_FAV));
+    given(
+            customerLocationRepository.findCustomerIdsNear(
+                anyDouble(), anyDouble(), anyDouble(), any()))
+        .willReturn(List.of());
     given(addressRepository.findCustomerIdsWithDefaultAddressNear(37.5, 127.0, 3000.0))
         .willReturn(List.of());
 
@@ -209,6 +315,40 @@ class ClearanceNotificationServiceTest {
             any(),
             any());
     then(clearanceItemRepository).should().save(ci);
+  }
+
+  @Test
+  void 마감_임박_알림_현재위치_소비자_포함() {
+    // given
+    LocalDateTime now = LocalDateTime.now(KST);
+    LocalDateTime from = now.plusMinutes(55);
+    LocalDateTime to = now.plusMinutes(65);
+    ClearanceItem ci = item();
+    given(
+            clearanceItemRepository.findAllByStatusAndClosingAlertSentAtIsNullAndPickupEndAtBetween(
+                ClearanceItemStatus.OPEN, from, to))
+        .willReturn(List.of(ci));
+    given(favoriteRepository.findCustomerIdsByStoreId(STORE_ID)).willReturn(List.of());
+    given(
+            customerLocationRepository.findCustomerIdsNear(
+                anyDouble(), anyDouble(), anyDouble(), any()))
+        .willReturn(List.of(CUSTOMER_ID_CURRENT));
+    given(addressRepository.findCustomerIdsWithDefaultAddressNear(37.5, 127.0, 3000.0))
+        .willReturn(List.of());
+
+    // when
+    clearanceNotificationService.sendClosingAlerts(now);
+
+    // then
+    then(notificationService)
+        .should()
+        .notifyCustomer(
+            eq(CUSTOMER_ID_CURRENT),
+            eq("nearbyDeal"),
+            eq(NotificationCategory.DEAL),
+            any(),
+            any(),
+            any());
   }
 
   @Test

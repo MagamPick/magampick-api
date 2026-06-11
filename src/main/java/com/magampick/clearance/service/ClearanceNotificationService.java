@@ -4,11 +4,13 @@ import com.magampick.address.repository.AddressRepository;
 import com.magampick.clearance.domain.ClearanceItem;
 import com.magampick.clearance.domain.ClearanceItemStatus;
 import com.magampick.clearance.repository.ClearanceItemRepository;
+import com.magampick.customer.repository.CustomerLocationRepository;
 import com.magampick.favorite.repository.FavoriteRepository;
 import com.magampick.global.common.GeometryUtil;
 import com.magampick.notification.domain.NotificationCategory;
 import com.magampick.notification.service.NotificationService;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,14 +26,16 @@ import org.springframework.transaction.annotation.Transactional;
 public class ClearanceNotificationService {
 
   private static final double NEARBY_METERS = 3000.0;
+  private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
   private final FavoriteRepository favoriteRepository;
   private final AddressRepository addressRepository;
+  private final CustomerLocationRepository customerLocationRepository;
   private final ClearanceItemRepository clearanceItemRepository;
   private final NotificationService notificationService;
 
   /**
-   * 떨이 등록 시 관련 소비자 알림 발송. 우선순위: 즐겨찾기 → 기본 주소지 3km. 중복 시 즐겨찾기 우선.
+   * 떨이 등록 시 관련 소비자 알림 발송. 우선순위: ① 즐겨찾기 → ② 현재위치 3km → ③ 기본 주소지 3km. 중복 시 상위 순위 우선.
    *
    * @param item 등록된 떨이 상품
    */
@@ -44,19 +48,9 @@ public class ClearanceNotificationService {
     String storeName = item.getStore().getName();
     String itemName = item.getName();
 
-    // 알림 대상자 조회
-    List<Long> favoriteCustomerIds = favoriteRepository.findCustomerIdsByStoreId(storeId);
-    List<Long> nearbyCustomerIds =
-        addressRepository.findCustomerIdsWithDefaultAddressNear(lat, lng, NEARBY_METERS);
-
-    // 대상자 합산 (우선순위: 즐겨찾기 > 주소지, 중복 제거)
-    Map<Long, String> targets = new LinkedHashMap<>();
-    for (Long cid : favoriteCustomerIds) {
-      targets.put(cid, "favoriteStore");
-    }
-    for (Long cid : nearbyCustomerIds) {
-      targets.putIfAbsent(cid, "nearbyDeal");
-    }
+    // 알림 대상자 조회 (현재 시각 기준 신선도 판단)
+    LocalDateTime now = LocalDateTime.now(KST);
+    Map<Long, String> targets = resolveTargets(storeId, lat, lng, now);
 
     // 알림 발송
     for (Map.Entry<Long, String> entry : targets.entrySet()) {
@@ -112,14 +106,7 @@ public class ClearanceNotificationService {
     String itemName = item.getName();
 
     // 알림 대상자 조회
-    List<Long> favoriteCustomerIds = favoriteRepository.findCustomerIdsByStoreId(storeId);
-    List<Long> nearbyCustomerIds =
-        addressRepository.findCustomerIdsWithDefaultAddressNear(lat, lng, NEARBY_METERS);
-
-    // 대상자 합산
-    Map<Long, String> targets = new LinkedHashMap<>();
-    for (Long cid : favoriteCustomerIds) targets.put(cid, "favoriteStore");
-    for (Long cid : nearbyCustomerIds) targets.putIfAbsent(cid, "nearbyDeal");
+    Map<Long, String> targets = resolveTargets(storeId, lat, lng, now);
 
     // 알림 발송
     String title = "마감 1시간 전!";
@@ -138,5 +125,33 @@ public class ClearanceNotificationService {
     // 발송 완료 처리
     item.markClosingAlertSent(now);
     clearanceItemRepository.save(item);
+  }
+
+  /**
+   * 알림 대상자 조회 + dedup. 우선순위: ① 즐겨찾기(favoriteStore) → ② 현재위치(nearbyDeal) → ③ 주소지(nearbyDeal).
+   * LinkedHashMap 으로 삽입 순서 보존, putIfAbsent 로 상위 순위 보호.
+   *
+   * @param storeId 매장 ID
+   * @param lat 매장 위도
+   * @param lng 매장 경도
+   * @param now 기준 시각 (신선도 판단: now - 1시간)
+   * @return customerId → settingKey 매핑 (dedup 완료)
+   */
+  private Map<Long, String> resolveTargets(
+      Long storeId, double lat, double lng, LocalDateTime now) {
+    // ① 즐겨찾기
+    List<Long> favoriteIds = favoriteRepository.findCustomerIdsByStoreId(storeId);
+    // ② 현재위치 3km (1시간 이내 갱신된 소비자만)
+    List<Long> currentLocationIds =
+        customerLocationRepository.findCustomerIdsNear(lat, lng, NEARBY_METERS, now.minusHours(1));
+    // ③ 기본 주소지 3km
+    List<Long> defaultAddressIds =
+        addressRepository.findCustomerIdsWithDefaultAddressNear(lat, lng, NEARBY_METERS);
+
+    Map<Long, String> targets = new LinkedHashMap<>();
+    for (Long cid : favoriteIds) targets.put(cid, "favoriteStore");
+    for (Long cid : currentLocationIds) targets.putIfAbsent(cid, "nearbyDeal"); // ② 현재위치
+    for (Long cid : defaultAddressIds) targets.putIfAbsent(cid, "nearbyDeal"); // ③ 주소지
+    return targets;
   }
 }
