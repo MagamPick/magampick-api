@@ -89,4 +89,42 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
       @Param("storeId") Long storeId,
       @Param("start") LocalDateTime start,
       @Param("end") LocalDateTime end);
+
+  /**
+   * 소비자 마이페이지 통계용 — 이번 달 discountTotal 합계. completedAt KST [start, end) 범위.
+   *
+   * <p>마감할인(discountTotal)만 포함. 환불승인 제외. 결과 없으면 null — 호출 측에서 null→0 처리.
+   */
+  @Query(
+      "SELECT SUM(o.discountTotal) FROM Order o "
+          + "WHERE o.customer.id = :customerId "
+          + "AND o.status = com.magampick.order.domain.OrderStatus.COMPLETED "
+          + "AND o.completedAt >= :start AND o.completedAt < :end "
+          + "AND o.deletedAt IS NULL "
+          + "AND NOT EXISTS ("
+          + "  SELECT 1 FROM Refund rf "
+          + "  WHERE rf.order = o "
+          + "  AND rf.status = com.magampick.refund.domain.RefundStatus.APPROVED"
+          + ")")
+  BigDecimal sumMonthlyDiscountTotal(
+      @Param("customerId") Long customerId,
+      @Param("start") LocalDateTime start,
+      @Param("end") LocalDateTime end);
+
+  /**
+   * 소비자 마이페이지 통계용 — 누적 음식 구출 수량. 환불승인 제외.
+   *
+   * <p>OrderItem.quantity 총합. 결과 없으면 null — 호출 측에서 null→0 처리.
+   */
+  @Query(
+      "SELECT SUM(oi.quantity) FROM OrderItem oi "
+          + "WHERE oi.order.customer.id = :customerId "
+          + "AND oi.order.status = com.magampick.order.domain.OrderStatus.COMPLETED "
+          + "AND oi.order.deletedAt IS NULL "
+          + "AND NOT EXISTS ("
+          + "  SELECT 1 FROM Refund rf "
+          + "  WHERE rf.order = oi.order "
+          + "  AND rf.status = com.magampick.refund.domain.RefundStatus.APPROVED"
+          + ")")
+  Long sumCumulativeRescuedItemQuantity(@Param("customerId") Long customerId);
 }

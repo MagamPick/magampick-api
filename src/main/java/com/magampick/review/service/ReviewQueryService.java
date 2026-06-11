@@ -57,10 +57,12 @@ public class ReviewQueryService {
 
   /** 매장 리뷰 요약 (평균 + 1~5점 분포). */
   public ReviewSummaryResponse getReviewSummary(Long storeId) {
+    // 평점 통계 조회
     Object[] stats = reviewRepository.findStoreRatingStats(storeId).get(0);
     double average = stats[0] != null ? ((Number) stats[0]).doubleValue() : 0.0;
     long count = stats[1] != null ? ((Number) stats[1]).longValue() : 0L;
 
+    // 별점 분포 조회
     List<Object[]> distRows = reviewRepository.findRatingDistribution(storeId);
     Map<Integer, Long> distMap =
         distRows.stream()
@@ -68,6 +70,7 @@ public class ReviewQueryService {
                 Collectors.toMap(
                     row -> ((Number) row[0]).intValue(), row -> ((Number) row[1]).longValue()));
 
+    // 분포 응답 변환
     List<ReviewSummaryResponse.StarCount> distribution =
         IntStream.rangeClosed(1, 5)
             .boxed()
@@ -82,6 +85,7 @@ public class ReviewQueryService {
 
   /** 소비자 COMPLETED 주문 목록 (리뷰 작성 가능 화면용). reviewed/reviewId 포함. */
   public List<ReviewableOrderResponse> getReviewableOrders(Long customerId) {
+    // 완료 주문 조회
     List<Order> orders =
         orderRepository.findCompletedOrdersWithDetails(customerId, OrderStatus.COMPLETED);
 
@@ -89,11 +93,13 @@ public class ReviewQueryService {
       return List.of();
     }
 
+    // 주문별 리뷰 조회
     List<Long> orderIds = orders.stream().map(Order::getId).toList();
     Map<Long, Review> reviewByOrderId =
         reviewRepository.findByOrderIdInAndDeletedAtIsNull(orderIds).stream()
             .collect(Collectors.toMap(r -> r.getOrder().getId(), Function.identity()));
 
+    // 응답 변환
     return orders.stream().map(order -> toReviewableOrderResponse(order, reviewByOrderId)).toList();
   }
 

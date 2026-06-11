@@ -48,13 +48,16 @@ public class StoreMapQueryService {
    */
   public List<MapStoreResponse> getMapStores(
       double lat, double lng, int radiusKm, boolean dealsOnly) {
+    // 반경 유효성 검증
     if (!ALLOWED_RADIUS_KM.contains(radiusKm)) {
       throw new BusinessException(CommonErrorCode.INVALID_INPUT);
     }
 
+    // 오늘 요일 · 반경 계산
     String today = LocalDate.now().getDayOfWeek().name();
     int radiusMeters = radiusKm * 1000;
 
+    // PostGIS 후보 쿼리
     List<MapStoreCandidate> candidates =
         storeRepository.findMapStoresWithinRadius(lat, lng, radiusMeters, today);
 
@@ -68,6 +71,7 @@ public class StoreMapQueryService {
     Map<Long, RatingStats> ratingMap = reviewQueryService.getStoreRatings(storeIds);
     Map<Long, Object[]> dealMap = buildDealMap(storeIds);
 
+    // dealsOnly 필터 · 응답 매핑
     return candidates.stream()
         .map(c -> toResponse(c, ratingMap, dealMap))
         .filter(r -> !dealsOnly || r.activeDealCount() > 0)

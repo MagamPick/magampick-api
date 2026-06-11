@@ -43,10 +43,12 @@ public class SellerNotificationQueryService {
   /** 단건 알림 읽음 처리. 본인 알림이 아니면 NOTIFICATION_NOT_FOUND(404). */
   @Transactional
   public void markRead(Long sellerId, Long notificationId) {
+    // 알림 조회
     Notification notification =
         notificationRepository
             .findByIdAndReceiverTypeAndReceiverId(notificationId, Role.SELLER, sellerId)
             .orElseThrow(() -> new BusinessException(NotificationErrorCode.NOTIFICATION_NOT_FOUND));
+    // 읽음 처리
     notification.markAsRead();
     log.info("사장 알림 읽음 처리됨. sellerId={}, notificationId={}", sellerId, notificationId);
   }

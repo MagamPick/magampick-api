@@ -37,12 +37,14 @@ public class ClearanceNotificationService {
    */
   @Transactional
   public void notifyNewClearanceItem(ClearanceItem item) {
+    // 매장 및 상품 정보 추출
     Long storeId = item.getStore().getId();
     double lat = GeometryUtil.latitude(item.getStore().getLocation());
     double lng = GeometryUtil.longitude(item.getStore().getLocation());
     String storeName = item.getStore().getName();
     String itemName = item.getName();
 
+    // 알림 대상자 조회
     List<Long> favoriteCustomerIds = favoriteRepository.findCustomerIdsByStoreId(storeId);
     List<Long> nearbyCustomerIds =
         addressRepository.findCustomerIdsWithDefaultAddressNear(lat, lng, NEARBY_METERS);
@@ -56,6 +58,7 @@ public class ClearanceNotificationService {
       targets.putIfAbsent(cid, "nearbyDeal");
     }
 
+    // 알림 발송
     for (Map.Entry<Long, String> entry : targets.entrySet()) {
       Long customerId = entry.getKey();
       String settingKey = entry.getValue();
@@ -81,13 +84,16 @@ public class ClearanceNotificationService {
    */
   @Transactional
   public void sendClosingAlerts(LocalDateTime now) {
+    // 알림 시간 범위 설정
     LocalDateTime from = now.plusMinutes(55);
     LocalDateTime to = now.plusMinutes(65);
 
+    // 대상 떨이 조회
     List<ClearanceItem> targets =
         clearanceItemRepository.findAllByStatusAndClosingAlertSentAtIsNullAndPickupEndAtBetween(
             ClearanceItemStatus.OPEN, from, to);
 
+    // 알림 발송
     for (ClearanceItem item : targets) {
       sendClosingAlert(item, now);
     }
@@ -98,20 +104,24 @@ public class ClearanceNotificationService {
   }
 
   private void sendClosingAlert(ClearanceItem item, LocalDateTime now) {
+    // 매장 정보 추출
     Long storeId = item.getStore().getId();
     double lat = GeometryUtil.latitude(item.getStore().getLocation());
     double lng = GeometryUtil.longitude(item.getStore().getLocation());
     String storeName = item.getStore().getName();
     String itemName = item.getName();
 
+    // 알림 대상자 조회
     List<Long> favoriteCustomerIds = favoriteRepository.findCustomerIdsByStoreId(storeId);
     List<Long> nearbyCustomerIds =
         addressRepository.findCustomerIdsWithDefaultAddressNear(lat, lng, NEARBY_METERS);
 
+    // 대상자 합산
     Map<Long, String> targets = new LinkedHashMap<>();
     for (Long cid : favoriteCustomerIds) targets.put(cid, "favoriteStore");
     for (Long cid : nearbyCustomerIds) targets.putIfAbsent(cid, "nearbyDeal");
 
+    // 알림 발송
     String title = "마감 1시간 전!";
     String body = storeName + "의 " + itemName + "이(가) 곧 마감돼요.";
 
@@ -125,6 +135,7 @@ public class ClearanceNotificationService {
       }
     }
 
+    // 발송 완료 처리
     item.markClosingAlertSent(now);
     clearanceItemRepository.save(item);
   }

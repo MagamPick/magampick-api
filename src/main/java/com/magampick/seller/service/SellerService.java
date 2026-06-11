@@ -35,8 +35,11 @@ public class SellerService {
 
   @Transactional
   public SellerProfileResponse updateProfile(Long sellerId, SellerProfileUpdateRequest request) {
+    // 사장 조회
     Seller seller = findActiveSeller(sellerId);
+    // 이름 검증
     validateSellerName(request.name());
+    // 이름 변경
     seller.changeOwnerName(request.name());
     log.info("사장 이름 변경됨. sellerId={}", sellerId);
     return sellerMapper.toProfileResponse(seller);
@@ -44,10 +47,13 @@ public class SellerService {
 
   @Transactional
   public SellerProfileResponse updatePhone(Long sellerId, SellerPhoneUpdateRequest request) {
+    // 사장 조회
     Seller seller = findActiveSeller(sellerId);
+    // 본인인증 토큰 소비
     String verifiedPhone =
         phoneVerificationService.consumeVerificationToken(
             request.verificationToken(), request.phone());
+    // 휴대폰 변경
     seller.changePhone(verifiedPhone, LocalDateTime.now());
     log.info("사장 휴대폰 변경됨. sellerId={}", sellerId);
     return sellerMapper.toProfileResponse(seller);

@@ -45,10 +45,12 @@ public class NotificationService {
       String title,
       String body,
       String link) {
+    // 알림 설정 조회
     Optional<CustomerNotificationSetting> settingOpt =
         customerNotificationSettingRepository.findByCustomerId(customerId);
     if (settingOpt.isEmpty()) return;
 
+    // 설정 키 활성화 여부 확인
     CustomerNotificationSetting setting = settingOpt.get();
     boolean enabled =
         switch (settingKey) {
@@ -62,9 +64,11 @@ public class NotificationService {
         };
     if (!enabled) return;
 
+    // 알림 저장
     Notification saved =
         notificationRepository.save(
             Notification.create(Role.CUSTOMER, customerId, category, title, body, link));
+    // FCM 발송
     try {
       sendToOwner(Role.CUSTOMER, customerId, category, title, body, link, saved.getId());
     } catch (Exception e) {
@@ -87,10 +91,12 @@ public class NotificationService {
       String title,
       String body,
       String link) {
+    // 알림 설정 조회
     Optional<SellerNotificationSetting> settingOpt =
         sellerNotificationSettingRepository.findBySellerId(sellerId);
     if (settingOpt.isEmpty()) return;
 
+    // 설정 키 활성화 여부 확인
     SellerNotificationSetting setting = settingOpt.get();
     boolean enabled =
         switch (settingKey) {
@@ -104,9 +110,11 @@ public class NotificationService {
         };
     if (!enabled) return;
 
+    // 알림 저장
     Notification saved =
         notificationRepository.save(
             Notification.create(Role.SELLER, sellerId, category, title, body, link));
+    // FCM 발송
     try {
       sendToOwner(Role.SELLER, sellerId, category, title, body, link, saved.getId());
     } catch (Exception e) {
@@ -134,9 +142,11 @@ public class NotificationService {
       String title,
       String body,
       String link) {
+    // 알림 저장
     Notification saved =
         notificationRepository.save(
             Notification.create(ownerType, ownerId, category, title, body, link));
+    // FCM 발송
     try {
       sendToOwner(ownerType, ownerId, category, title, body, link, saved.getId());
     } catch (Exception e) {
@@ -162,15 +172,18 @@ public class NotificationService {
       String body,
       String link,
       Long notificationId) {
+    // 토큰 조회
     List<PushToken> tokens = pushTokenRepository.findByOwnerTypeAndOwnerId(ownerType, ownerId);
     if (tokens.isEmpty()) {
       log.info("발송 대상 토큰 없음. ownerType={}, ownerId={}", ownerType, ownerId);
       return 0;
     }
+    // FCM 멀티캐스트 발송
     List<String> tokenValues = tokens.stream().map(PushToken::getToken).toList();
     FcmSendResult result =
         fcmSender.sendEachToTokens(
             tokenValues, FcmSender.dataOf(title, body, category, notificationId, link));
+    // 죽은 토큰 정리
     if (!result.deadTokens().isEmpty()) {
       pushTokenRepository.deleteByTokenIn(result.deadTokens());
       log.info("죽은 FCM 토큰 정리됨. count={}", result.deadTokens().size());

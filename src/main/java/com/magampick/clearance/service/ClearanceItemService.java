@@ -44,26 +44,32 @@ public class ClearanceItemService {
   @Transactional
   public ClearanceItemResponse registerClearanceItem(
       Long sellerId, Long storeId, ClearanceItemCreateRequest request) {
+    // 소유권 확인
     Store store = storeService.requireOwnedStore(sellerId, storeId);
 
+    // 상품 조회
     Product product =
         productRepository
             .findByIdAndStoreIdAndDeletedAtIsNull(request.productId(), storeId)
             .orElseThrow(() -> new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND));
 
+    // 판매 가능 상태 확인
     if (!product.isOnSale()) {
       throw new BusinessException(ClearanceItemErrorCode.CLEARANCE_ITEM_PRODUCT_NOT_ON_SALE);
     }
 
+    // 중복 떨이 확인
     if (clearanceItemRepository.existsByProductIdAndStatus(
         request.productId(), ClearanceItemStatus.OPEN)) {
       throw new BusinessException(ClearanceItemErrorCode.CLEARANCE_ITEM_OPEN_EXISTS);
     }
 
+    // 판매가 검증
     if (request.salePrice().compareTo(product.getRegularPrice()) >= 0) {
       throw new BusinessException(ClearanceItemErrorCode.CLEARANCE_ITEM_SALE_PRICE_NOT_DISCOUNTED);
     }
 
+    // 픽업 시간 검증
     LocalDate today = LocalDate.now(KST);
     LocalDateTime nowKst = LocalDateTime.now(KST);
     if (!request.pickupEndAt().toLocalDate().equals(today)
@@ -71,6 +77,7 @@ public class ClearanceItemService {
       throw new BusinessException(ClearanceItemErrorCode.CLEARANCE_ITEM_INVALID_PICKUP_WINDOW);
     }
 
+    // 떨이 생성 및 저장
     ClearanceItem item =
         ClearanceItem.builder()
             .store(store)
@@ -95,6 +102,7 @@ public class ClearanceItemService {
         request.productId(),
         storeId,
         sellerId);
+    // 알림 발송
     clearanceNotificationService.notifyNewClearanceItem(item);
     return clearanceItemMapper.toResponse(item);
   }
@@ -120,22 +128,27 @@ public class ClearanceItemService {
   @Transactional
   public ClearanceItemResponse updateClearanceItem(
       Long sellerId, Long storeId, Long clearanceItemId, ClearanceItemUpdateRequest request) {
+    // 소유권 확인
     storeService.requireOwnedStore(sellerId, storeId);
 
+    // 떨이 조회
     ClearanceItem item =
         clearanceItemRepository
             .findByIdAndStoreId(clearanceItemId, storeId)
             .orElseThrow(
                 () -> new BusinessException(ClearanceItemErrorCode.CLEARANCE_ITEM_NOT_FOUND));
 
+    // 상태 검증
     if (!item.isOpen()) {
       throw new BusinessException(ClearanceItemErrorCode.CLEARANCE_ITEM_NOT_OPEN);
     }
 
+    // 판매가 검증
     if (request.salePrice() != null && request.salePrice().compareTo(item.getRegularPrice()) >= 0) {
       throw new BusinessException(ClearanceItemErrorCode.CLEARANCE_ITEM_SALE_PRICE_NOT_DISCOUNTED);
     }
 
+    // 픽업 시간 검증
     if (request.pickupEndAt() != null) {
       LocalDate today = LocalDate.now(KST);
       if (!request.pickupEndAt().toLocalDate().equals(today)
@@ -144,6 +157,7 @@ public class ClearanceItemService {
       }
     }
 
+    // 떨이 수정
     item.update(request.salePrice(), request.totalQuantity(), request.pickupEndAt());
 
     log.info(
@@ -157,14 +171,17 @@ public class ClearanceItemService {
   @Transactional
   public ClearanceItemResponse closeClearanceItem(
       Long sellerId, Long storeId, Long clearanceItemId) {
+    // 소유권 확인
     storeService.requireOwnedStore(sellerId, storeId);
 
+    // 떨이 조회
     ClearanceItem item =
         clearanceItemRepository
             .findByIdAndStoreId(clearanceItemId, storeId)
             .orElseThrow(
                 () -> new BusinessException(ClearanceItemErrorCode.CLEARANCE_ITEM_NOT_FOUND));
 
+    // 수동 마감 처리
     if (!item.isClosed()) {
       item.close(ClearanceCloseReason.MANUAL);
       log.info(

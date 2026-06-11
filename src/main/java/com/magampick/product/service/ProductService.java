@@ -45,16 +45,21 @@ public class ProductService {
   @Transactional
   public ProductResponse registerProduct(
       Long sellerId, Long storeId, ProductCreateRequest request, MultipartFile image) {
+    // 이미지 검증
     validateImage(image);
 
+    // 소유권 확인
     Store store = storeService.requireOwnedStore(sellerId, storeId);
 
+    // 상품명 중복 확인
     if (productRepository.existsByStoreIdAndNameAndDeletedAtIsNull(storeId, request.name())) {
       throw new BusinessException(ProductErrorCode.PRODUCT_NAME_DUPLICATE);
     }
 
+    // 이미지 업로드
     String imageUrl = hasImage(image) ? uploadProductImage(image) : null;
 
+    // 상품 생성 및 저장
     Product product =
         Product.builder()
             .store(store)
@@ -94,20 +99,25 @@ public class ProductService {
       Long productId,
       ProductUpdateRequest request,
       MultipartFile image) {
+    // 이미지 검증
     validateImage(image);
+    // 소유권 확인
     storeService.requireOwnedStore(sellerId, storeId);
 
+    // 상품 조회
     Product product =
         productRepository
             .findByIdAndStoreIdAndDeletedAtIsNull(productId, storeId)
             .orElseThrow(() -> new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND));
 
+    // 상품명 중복 확인
     if (request.name() != null
         && productRepository.existsByStoreIdAndNameAndDeletedAtIsNullAndIdNot(
             storeId, request.name(), productId)) {
       throw new BusinessException(ProductErrorCode.PRODUCT_NAME_DUPLICATE);
     }
 
+    // 이미지 업로드 및 상품 수정
     String oldImageUrl = product.getImageUrl();
     String imageUrl = hasImage(image) ? uploadProductImage(image) : null;
     product.updateInfo(
@@ -129,30 +139,37 @@ public class ProductService {
 
   @Transactional
   public void deleteProduct(Long sellerId, Long storeId, Long productId) {
+    // 소유권 확인
     storeService.requireOwnedStore(sellerId, storeId);
 
+    // 상품 조회
     Product product =
         productRepository
             .findByIdAndStoreIdAndDeletedAtIsNull(productId, storeId)
             .orElseThrow(() -> new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND));
 
+    // 활성 떨이 확인
     if (clearanceItemRepository.existsByProductIdAndStatus(productId, ClearanceItemStatus.OPEN)) {
       throw new BusinessException(ProductErrorCode.PRODUCT_HAS_ACTIVE_CLEARANCE);
     }
 
+    // 소프트 삭제
     product.softDelete();
     log.info("상품 삭제됨. productId={}, storeId={}, sellerId={}", productId, storeId, sellerId);
   }
 
   @Transactional
   public ProductResponse markSoldOut(Long sellerId, Long storeId, Long productId) {
+    // 소유권 확인
     storeService.requireOwnedStore(sellerId, storeId);
 
+    // 상품 조회
     Product product =
         productRepository
             .findByIdAndStoreIdAndDeletedAtIsNull(productId, storeId)
             .orElseThrow(() -> new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND));
 
+    // 품절 처리
     product.markSoldOut();
     log.info("상품 품절 처리됨. productId={}, storeId={}, sellerId={}", productId, storeId, sellerId);
     return productMapper.toResponse(product);
@@ -160,13 +177,16 @@ public class ProductService {
 
   @Transactional
   public ProductResponse restock(Long sellerId, Long storeId, Long productId) {
+    // 소유권 확인
     storeService.requireOwnedStore(sellerId, storeId);
 
+    // 상품 조회
     Product product =
         productRepository
             .findByIdAndStoreIdAndDeletedAtIsNull(productId, storeId)
             .orElseThrow(() -> new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND));
 
+    // 재입고 처리
     product.restock();
     log.info("상품 재입고 처리됨. productId={}, storeId={}, sellerId={}", productId, storeId, sellerId);
     return productMapper.toResponse(product);

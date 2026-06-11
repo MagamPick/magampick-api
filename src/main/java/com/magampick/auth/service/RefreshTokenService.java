@@ -25,9 +25,11 @@ public class RefreshTokenService {
 
   /** access + refresh 발급. refresh 는 Redis 에 세션으로 기록한다. */
   public IssuedTokens issueTokens(Long userId, Role role) {
+    // 토큰 생성
     String accessToken = jwtProvider.issueAccessToken(userId, role);
     String refreshToken = jwtProvider.issueRefreshToken(userId, role);
     JwtProvider.TokenPayload payload = jwtProvider.parsePayload(refreshToken);
+    // 세션 저장
     store.save(
         role,
         userId,
@@ -66,12 +68,14 @@ public class RefreshTokenService {
   }
 
   private JwtProvider.TokenPayload validate(String rawRefreshToken) {
+    // JWT 파싱
     JwtProvider.TokenPayload payload;
     try {
       payload = jwtProvider.parsePayload(rawRefreshToken);
     } catch (BusinessException e) {
       throw new BusinessException(AuthErrorCode.REFRESH_INVALID);
     }
+    // Redis 세션 검증
     if (!store.isValid(
         payload.role(), payload.userId(), payload.tokenId(), hashToken(rawRefreshToken))) {
       throw new BusinessException(AuthErrorCode.REFRESH_INVALID);

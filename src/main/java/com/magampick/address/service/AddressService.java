@@ -38,14 +38,17 @@ public class AddressService {
 
   @Transactional
   public AddressResponse create(Long customerId, AddressCreateRequest request) {
+    // 개수 제한 검증
     long currentCount = addressRepository.countByCustomerId(customerId);
     if (currentCount >= MAX_ADDRESSES_PER_CUSTOMER) {
       throw new BusinessException(AddressErrorCode.ADDRESS_LIMIT_EXCEEDED);
     }
     validateLabel(request.label());
     boolean isDefault = (currentCount == 0);
+    // 좌표 변환
     Point location = geocode(request.sigunguCode(), request.roadnameCode(), request.roadAddress());
 
+    // 주소지 저장
     // 가벼운 reference — 실제 SELECT 없이 FK 매핑. JWT 통과 customer_id 신뢰.
     Customer customerRef = customerRepository.getReferenceById(customerId);
     Address address =
@@ -119,13 +122,16 @@ public class AddressService {
   @Transactional
   public void delete(Long customerId, Long addressId) {
     Address target = findOwnedAddress(customerId, addressId);
+    // 마지막 주소지 삭제 방지
     long currentCount = addressRepository.countByCustomerId(customerId);
     if (currentCount <= 1) {
       throw new BusinessException(AddressErrorCode.LAST_ADDRESS_DELETE_BLOCKED);
     }
+    // 기본 주소지 삭제 방지
     if (target.isDefault()) {
       throw new BusinessException(AddressErrorCode.DEFAULT_ADDRESS_DELETE_BLOCKED);
     }
+    // 주소지 삭제
     addressRepository.delete(target);
     log.info("주소지 삭제됨. addressId={}, customerId={}", addressId, customerId);
   }

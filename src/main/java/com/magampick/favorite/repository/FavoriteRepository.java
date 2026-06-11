@@ -49,6 +49,9 @@ public interface FavoriteRepository extends JpaRepository<Favorite, Long> {
   @Query("SELECT f.customer.id FROM Favorite f WHERE f.store.id = :storeId")
   List<Long> findCustomerIdsByStoreId(@Param("storeId") Long storeId);
 
+  /** 소비자 즐겨찾기 매장 수. 마이페이지 통계(favoriteCount) 용. */
+  long countByCustomerId(Long customerId);
+
   /**
    * 소비자 단골 배치 조회 — N+1 방지. 후보 storeIds 중 customerId 의 즐겨찾기인 store_id 목록 반환.
    *

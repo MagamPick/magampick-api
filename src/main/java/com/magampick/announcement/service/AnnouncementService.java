@@ -65,10 +65,12 @@ public class AnnouncementService {
    */
   @Transactional
   public AnnouncementResponse update(Long announcementId, AdminAnnouncementUpdateRequest req) {
+    // 공지사항 조회
     Announcement announcement =
         announcementRepository
             .findById(announcementId)
             .orElseThrow(() -> new BusinessException(AnnouncementErrorCode.ANNOUNCEMENT_NOT_FOUND));
+    // 내용 수정
     announcement.update(req.tag(), req.pinned(), req.title(), req.body());
     return announcementMapper.toResponse(announcement);
   }
@@ -81,10 +83,12 @@ public class AnnouncementService {
    */
   @Transactional
   public void delete(Long announcementId) {
+    // 공지사항 조회
     Announcement announcement =
         announcementRepository
             .findById(announcementId)
             .orElseThrow(() -> new BusinessException(AnnouncementErrorCode.ANNOUNCEMENT_NOT_FOUND));
+    // 삭제
     announcementRepository.delete(announcement);
   }
 }

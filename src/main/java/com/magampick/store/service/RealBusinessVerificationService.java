@@ -51,9 +51,11 @@ public class RealBusinessVerificationService implements BusinessVerificationServ
 
   private void verifyByValidate(
       String businessNumber, String representativeName, LocalDate openDate) {
+    // API 호출
     ValidateResponse.Item item =
         firstItem(callValidate(businessNumber, representativeName, openDate));
 
+    // 영업 상태 검증
     ValidateResponse.Status status = item.status();
     if (status == null || isBlankCode(status.bSttCd())) {
       throw new BusinessException(StoreErrorCode.BUSINESS_NUMBER_NOT_ACTIVE); // 미등록
@@ -61,6 +63,7 @@ public class RealBusinessVerificationService implements BusinessVerificationServ
     if (!ACTIVE_STATUS_CODE.equals(status.bSttCd())) {
       throw new BusinessException(StoreErrorCode.BUSINESS_NUMBER_NOT_ACTIVE); // 휴업·폐업
     }
+    // 3요소 일치 검증
     if (!VALID_MATCH_CODE.equals(item.valid())) {
       throw new BusinessException(StoreErrorCode.BUSINESS_INFO_MISMATCH); // 3요소 불일치
     }
@@ -69,6 +72,7 @@ public class RealBusinessVerificationService implements BusinessVerificationServ
 
   private ValidateResponse callValidate(
       String businessNumber, String representativeName, LocalDate openDate) {
+    // 요청 바디 구성
     ValidateRequest body =
         new ValidateRequest(
             List.of(
@@ -76,6 +80,7 @@ public class RealBusinessVerificationService implements BusinessVerificationServ
                     businessNumber,
                     openDate.format(DateTimeFormatter.BASIC_ISO_DATE),
                     representativeName)));
+    // API 호출
     try {
       return ntsRestClient
           .post()
@@ -109,7 +114,9 @@ public class RealBusinessVerificationService implements BusinessVerificationServ
   }
 
   private StatusResponse callStatus(String businessNumber) {
+    // 요청 바디 구성
     StatusRequest body = new StatusRequest(List.of(businessNumber));
+    // API 호출
     try {
       return ntsRestClient
           .post()

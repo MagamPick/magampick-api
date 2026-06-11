@@ -125,14 +125,18 @@ public class RefundService {
   public RefundResponse approveRefund(Long sellerId, Long refundId) {
     Refund refund = findRefundForSeller(sellerId, refundId);
 
+    // 상태 확인
     if (!refund.isRequested()) {
       throw new BusinessException(RefundErrorCode.REFUND_ALREADY_PROCESSED);
     }
 
+    // 상태 전이
     refund.approve(LocalDateTime.now(clock));
     Refund saved = refundRepository.save(refund);
+    // 혜택 역전
     reverseBenefits(refund.getOrder());
 
+    // 알림 발송
     notificationService.notifyCustomer(
         refund.getOrder().getCustomer().getId(),
         "orderRefund",
@@ -155,13 +159,16 @@ public class RefundService {
 
     Refund refund = findRefundForSeller(sellerId, refundId);
 
+    // 상태 확인
     if (!refund.isRequested()) {
       throw new BusinessException(RefundErrorCode.REFUND_ALREADY_PROCESSED);
     }
 
+    // 상태 전이
     refund.reject(request.rejectReason(), LocalDateTime.now(clock));
     Refund saved = refundRepository.save(refund);
 
+    // 알림 발송
     notificationService.notifyCustomer(
         refund.getOrder().getCustomer().getId(),
         "orderRefund",
@@ -196,14 +203,17 @@ public class RefundService {
   /** 리마인드 발송 + reminderSentAt 기록. 독립 트랜잭션(스케줄러가 건별 호출). 이미 발송됐거나 처리된 건은 skip. */
   @Transactional
   public void sendReminderAndMark(Long refundId) {
+    // 환불 조회
     Refund refund =
         refundRepository
             .findById(refundId)
             .orElseThrow(() -> new BusinessException(RefundErrorCode.REFUND_NOT_FOUND));
+    // 처리 여부 확인
     if (!refund.isRequested() || refund.getReminderSentAt() != null) {
       return; // 이미 처리됐거나 리마인드 발송 완료 — skip
     }
 
+    // 리마인드 알림 발송
     Long sellerId = refund.getOrder().getStore().getSeller().getId();
     notificationService.notifySeller(
         sellerId,
@@ -213,6 +223,7 @@ public class RefundService {
         "내일까지 처리하지 않으면 자동 승인됩니다.",
         "/refunds");
 
+    // 리마인드 완료 기록
     refund.markReminderSent(LocalDateTime.now(clock));
     refundRepository.save(refund);
     log.info("환불 리마인드 발송됨. refundId={}", refundId);
@@ -221,17 +232,22 @@ public class RefundService {
   /** 단건 자동 승인 + 혜택 정리. 독립 트랜잭션(스케줄러가 건별 호출). */
   @Transactional
   public void approveAndReverse(Long refundId) {
+    // 환불 조회
     Refund refund =
         refundRepository
             .findById(refundId)
             .orElseThrow(() -> new BusinessException(RefundErrorCode.REFUND_NOT_FOUND));
+    // 처리 여부 확인
     if (!refund.isRequested()) {
       return; // 이미 처리됨 — skip
     }
+    // 상태 전이
     refund.approve(LocalDateTime.now(clock));
     refundRepository.save(refund);
+    // 혜택 역전
     reverseBenefits(refund.getOrder());
 
+    // 알림 발송
     notificationService.notifyCustomer(
         refund.getOrder().getCustomer().getId(),
         "orderRefund",

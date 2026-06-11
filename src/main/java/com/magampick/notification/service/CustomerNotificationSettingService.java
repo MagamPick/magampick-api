@@ -27,7 +27,9 @@ public class CustomerNotificationSettingService {
   @Transactional
   public CustomerNotificationSettingsResponse updateSetting(
       Long customerId, String key, boolean enabled) {
+    // 설정 조회
     CustomerNotificationSetting setting = requireSetting(customerId);
+    // 설정 키 변경
     setting.updateKey(key, enabled);
     log.info("소비자 알림 설정 변경됨. customerId={}, key={}, enabled={}", customerId, key, enabled);
     return CustomerNotificationSettingsResponse.from(setting);

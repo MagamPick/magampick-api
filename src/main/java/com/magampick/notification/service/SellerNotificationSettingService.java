@@ -27,7 +27,9 @@ public class SellerNotificationSettingService {
   @Transactional
   public SellerNotificationSettingsResponse updateSetting(
       Long sellerId, String key, boolean enabled) {
+    // 설정 조회
     SellerNotificationSetting setting = requireSetting(sellerId);
+    // 설정 키 변경
     setting.updateKey(key, enabled);
     log.info("사장 알림 설정 변경됨. sellerId={}, key={}, enabled={}", sellerId, key, enabled);
     return SellerNotificationSettingsResponse.from(setting);

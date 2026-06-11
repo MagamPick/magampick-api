@@ -97,6 +97,7 @@ public class AuthService {
    */
   @Transactional
   public IssuedTokens signupCustomer(CustomerSignupRequest request) {
+    // 입력 검증
     if (customerRepository.existsByEmail(request.email())) {
       throw new BusinessException(AuthErrorCode.EMAIL_ALREADY_EXISTS);
     }
@@ -106,8 +107,10 @@ public class AuthService {
       throw new BusinessException(AuthErrorCode.DEFAULT_ADDRESS_REQUIRED);
     }
 
+    // 본인인증 토큰 소비
     String verifiedPhone = consumePhoneVerification(request.verificationToken(), request.phone());
 
+    // 회원 저장
     Customer customer =
         customerRepository.save(
             Customer.builder()
@@ -118,43 +121,55 @@ public class AuthService {
                 .phoneVerifiedAt(LocalDateTime.now())
                 .build());
 
+    // 약관 동의 기록
     termService.recordAgreements(customer, request.agreedTermIds());
+    // 기본 주소 생성
     addressService.create(customer.getId(), request.address());
+    // 가입 쿠폰 지급
     couponService.grantSignupCoupon(customer);
+    // 알림 설정 초기화
     customerNotificationSettingService.createDefault(customer.getId());
 
+    // 토큰 발급
     log.info("소비자 회원가입 완료. customerId={}", customer.getId());
     return refreshTokenService.issueTokens(customer.getId(), Role.CUSTOMER);
   }
 
   @Transactional
   public IssuedTokens loginCustomer(LoginRequest request) {
+    // 소비자 조회
     Customer customer =
         customerRepository.findByEmail(request.email()).orElseThrow(this::invalidCredentials);
     if (customer.isDeleted() || customer.getPasswordHash() == null) {
       throw invalidCredentials();
     }
+    // 비밀번호 검증
     if (!passwordEncoder.matches(request.password(), customer.getPasswordHash())) {
       throw invalidCredentials();
     }
+    // 토큰 발급
     log.info("소비자 로그인 성공. customerId={}", customer.getId());
     return refreshTokenService.issueTokens(customer.getId(), Role.CUSTOMER);
   }
 
   public IssuedTokens signupSeller(SellerSignupRequest request, MultipartFile image) {
+    // 입력 검증
     if (sellerRepository.existsByEmail(request.email())) {
       throw new BusinessException(AuthErrorCode.EMAIL_ALREADY_EXISTS);
     }
     passwordValidator.validate(request.password());
     validateSellerName(request.ownerName());
 
+    // 매장 이미지 사전 준비
     PreparedStoreRegistration prepared =
         storeService.prepareStoreRegistration(request.store(), image);
+    // 본인인증 토큰 소비
     String verifiedPhone = consumePhoneVerification(request.verificationToken(), request.phone());
 
     try {
       return transactionTemplate.execute(
           status -> {
+            // 사장 저장
             Seller seller =
                 sellerRepository.save(
                     Seller.builder()
@@ -164,14 +179,19 @@ public class AuthService {
                         .phone(verifiedPhone)
                         .phoneVerifiedAt(LocalDateTime.now())
                         .build());
+            // 약관 동의 기록
             termService.recordSellerAgreements(seller, request.agreedTermIds());
+            // 매장 생성
             storeService.createStore(seller, prepared);
+            // 알림 설정 초기화
             sellerNotificationSettingService.createDefault(seller.getId());
 
+            // 토큰 발급
             log.info("사장 회원가입 완료. sellerId={}", seller.getId());
             return refreshTokenService.issueTokens(seller.getId(), Role.SELLER);
           });
     } catch (RuntimeException e) {
+      // 업로드 이미지 롤백
       storeService.deletePreparedImageBestEffort(prepared);
       throw e;
     }
@@ -179,25 +199,31 @@ public class AuthService {
 
   @Transactional
   public IssuedTokens loginSeller(LoginRequest request) {
+    // 사장 조회
     Seller seller =
         sellerRepository.findByEmail(request.email()).orElseThrow(this::invalidCredentials);
     if (seller.isDeleted()) {
       throw invalidCredentials();
     }
+    // 비밀번호 검증
     if (!passwordEncoder.matches(request.password(), seller.getPasswordHash())) {
       throw invalidCredentials();
     }
+    // 토큰 발급
     log.info("사장 로그인 성공. sellerId={}", seller.getId());
     return refreshTokenService.issueTokens(seller.getId(), Role.SELLER);
   }
 
   @Transactional
   public IssuedTokens loginAdmin(AdminLoginRequest request) {
+    // 관리자 조회
     Admin admin =
         adminRepository.findByUsername(request.username()).orElseThrow(this::invalidCredentials);
+    // 비밀번호 검증
     if (!passwordEncoder.matches(request.password(), admin.getPasswordHash())) {
       throw invalidCredentials();
     }
+    // 토큰 발급
     log.info("관리자 로그인 성공. adminId={}", admin.getId());
     return refreshTokenService.issueTokens(admin.getId(), Role.ADMIN);
   }
@@ -220,16 +246,21 @@ public class AuthService {
    */
   @Transactional
   public IssuedTokens signupSocial(SocialSignupRequest request) {
+    // 소셜 토큰 복원
     OAuthUserInfo userInfo = socialAuthStore.require(request.socialToken());
+    // 입력 검증
     rejectIfKakaoEmailTaken(userInfo.email());
     validateNickname(request.nickname());
     if (request.address() == null) {
       throw new BusinessException(AuthErrorCode.DEFAULT_ADDRESS_REQUIRED);
     }
 
+    // 본인인증 토큰 소비
     String verifiedPhone = consumePhoneVerification(request.verificationToken(), request.phone());
+    // 소셜 토큰 소비
     socialAuthStore.delete(request.socialToken());
 
+    // 회원 저장
     Customer customer =
         customerRepository.save(
             Customer.builder()
@@ -238,17 +269,23 @@ public class AuthService {
                 .phone(verifiedPhone)
                 .phoneVerifiedAt(LocalDateTime.now())
                 .build());
+    // OAuth 계정 연결
     customerOAuthAccountRepository.save(
         CustomerOAuthAccount.builder()
             .customer(customer)
             .provider(OAuthProviderType.KAKAO)
             .providerUserId(userInfo.providerUserId())
             .build());
+    // 약관 동의 기록
     termService.recordAgreements(customer, request.agreedTermIds());
+    // 기본 주소 생성
     addressService.create(customer.getId(), request.address());
+    // 가입 쿠폰 지급
     couponService.grantSignupCoupon(customer);
+    // 알림 설정 초기화
     customerNotificationSettingService.createDefault(customer.getId());
 
+    // 토큰 발급
     log.info("카카오 신규 회원 가입 완료. customerId={}", customer.getId());
     return refreshTokenService.issueTokens(customer.getId(), Role.CUSTOMER);
   }
@@ -266,18 +303,23 @@ public class AuthService {
   @Transactional
   public PasswordResetVerifyResponse verifyCustomerPasswordResetIdentity(
       PasswordResetVerifyRequest request) {
+    // 소비자 조회
     Customer customer =
         customerRepository
             .findByEmail(request.email())
             .filter(c -> !c.isDeleted())
             .orElseThrow(() -> new BusinessException(AuthErrorCode.RESET_VERIFICATION_FAILED));
+    // 소셜 전용 계정 차단
     if (customer.getPasswordHash() == null) {
       throw new BusinessException(AuthErrorCode.SOCIAL_ONLY_ACCOUNT);
     }
+    // 본인인증 토큰 소비
     String verifiedPhone = consumePasswordResetVerification(request);
+    // 번호 일치 확인
     if (!verifiedPhone.equals(customer.getPhone())) {
       throw new BusinessException(AuthErrorCode.RESET_VERIFICATION_FAILED);
     }
+    // 재설정 토큰 발급
     return new PasswordResetVerifyResponse(
         passwordResetStore.issueToken(Role.CUSTOMER, customer.getId()));
   }
@@ -285,23 +327,30 @@ public class AuthService {
   @Transactional
   public PasswordResetVerifyResponse verifySellerPasswordResetIdentity(
       PasswordResetVerifyRequest request) {
+    // 사장 조회
     Seller seller =
         sellerRepository
             .findByEmail(request.email())
             .filter(s -> !s.isDeleted())
             .orElseThrow(() -> new BusinessException(AuthErrorCode.RESET_VERIFICATION_FAILED));
+    // 본인인증 토큰 소비
     String verifiedPhone = consumePasswordResetVerification(request);
+    // 번호 일치 확인
     if (!verifiedPhone.equals(seller.getPhone())) {
       throw new BusinessException(AuthErrorCode.RESET_VERIFICATION_FAILED);
     }
+    // 재설정 토큰 발급
     return new PasswordResetVerifyResponse(
         passwordResetStore.issueToken(Role.SELLER, seller.getId()));
   }
 
   @Transactional
   public void resetPassword(PasswordResetConfirmRequest request) {
+    // 새 비밀번호 검증
     passwordValidator.validate(request.newPassword());
+    // 재설정 토큰 소비
     PasswordResetStore.Subject subject = passwordResetStore.consume(request.resetToken());
+    // 비밀번호 변경
     if (subject.role() == Role.SELLER) {
       Seller seller = findActiveSeller(subject.userId());
       seller.changePasswordHash(passwordEncoder.encode(request.newPassword()));
@@ -312,13 +361,16 @@ public class AuthService {
       }
       customer.changePasswordHash(passwordEncoder.encode(request.newPassword()));
     }
+    // 전체 세션 폐기
     refreshTokenService.revokeAll(subject.role(), subject.userId());
   }
 
   @Transactional
   public void changePassword(
       Role role, Long userId, String currentRefreshToken, PasswordChangeRequest request) {
+    // 새 비밀번호 검증
     passwordValidator.validate(request.newPassword());
+    // 비밀번호 변경
     if (role == Role.SELLER) {
       Seller seller = findActiveSeller(userId);
       changePasswordHash(seller.getPasswordHash(), request, seller::changePasswordHash);
@@ -329,6 +381,7 @@ public class AuthService {
       }
       changePasswordHash(customer.getPasswordHash(), request, customer::changePasswordHash);
     }
+    // 다른 세션 폐기
     refreshTokenService.revokeOtherSessions(currentRefreshToken);
   }
 

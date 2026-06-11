@@ -33,6 +33,7 @@ public class DbGeocodingService implements GeocodingService {
     if (query == null) {
       throw new BusinessException(GeocodeErrorCode.GEOCODING_FAILED);
     }
+    // 도로명 주소 파싱
     GeocodeKey key;
     try {
       key = RoadAddressParser.parse(query.sigunguCode(), query.roadnameCode(), query.roadAddress());
@@ -40,6 +41,7 @@ public class DbGeocodingService implements GeocodingService {
       log.info("정방향 지오코딩 파싱 실패. query={}", query, e);
       throw new BusinessException(GeocodeErrorCode.GEOCODING_FAILED);
     }
+    // DB 좌표 조회
     return geocodeBuildingRepository
         .findByRoadNameCodeAndUndergroundAndBuildingMainNoAndBuildingSubNo(
             key.roadNameCode(), key.underground(), key.buildingMainNo(), key.buildingSubNo())

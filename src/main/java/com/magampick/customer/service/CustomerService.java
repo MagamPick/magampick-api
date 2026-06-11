@@ -36,8 +36,11 @@ public class CustomerService {
   @Transactional
   public CustomerProfileResponse updateProfile(
       Long customerId, CustomerProfileUpdateRequest request) {
+    // 소비자 조회
     Customer customer = findActiveCustomer(customerId);
+    // 닉네임 검증
     validateNickname(request.nickname());
+    // 닉네임 변경
     customer.changeNickname(request.nickname());
     log.info("소비자 닉네임 변경됨. customerId={}", customerId);
     return customerMapper.toProfileResponse(customer);
@@ -45,10 +48,13 @@ public class CustomerService {
 
   @Transactional
   public CustomerProfileResponse updatePhone(Long customerId, CustomerPhoneUpdateRequest request) {
+    // 소비자 조회
     Customer customer = findActiveCustomer(customerId);
+    // 본인인증 토큰 소비
     String verifiedPhone =
         phoneVerificationService.consumeVerificationToken(
             request.verificationToken(), request.phone());
+    // 휴대폰 변경
     customer.changePhone(verifiedPhone, LocalDateTime.now());
     log.info("소비자 휴대폰 변경됨. customerId={}", customerId);
     return customerMapper.toProfileResponse(customer);

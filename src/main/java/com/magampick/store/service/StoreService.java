@@ -73,19 +73,23 @@ public class StoreService {
    */
   public StoreRegisterResponse registerStore(
       Long sellerId, StoreCreateRequest request, MultipartFile image) {
+    // 사전 준비 (사업자 검증·지오코딩·이미지 업로드)
     PreparedStoreRegistration prepared = prepareStoreRegistration(request, image);
 
     try {
+      // 사장 조회
       Seller seller =
           sellerRepository
               .findById(sellerId)
               .filter(s -> !s.isDeleted())
               .orElseThrow(() -> new BusinessException(SellerErrorCode.SELLER_NOT_FOUND));
+      // 매장 생성
       Store store = createStore(seller, prepared);
 
       log.info("매장 등록됨. storeId={}, sellerId={}", store.getId(), sellerId);
       return new StoreRegisterResponse(store.getId(), store.getOperationStatus());
     } catch (RuntimeException e) {
+      // 이미지 롤백 (best effort)
       deletePreparedImageBestEffort(prepared);
       throw e;
     }
@@ -93,14 +97,18 @@ public class StoreService {
 
   public PreparedStoreRegistration prepareStoreRegistration(
       StoreCreateRequest request, MultipartFile image) {
+    // 입력 검증
     String businessNumber = normalizeBusinessNumber(request.businessNumber());
     validateOptionalImage(image);
 
+    // 사업자 검증
     businessVerificationService.verify(
         businessNumber, request.representativeName(), request.openDate());
+    // 지오코딩
     Point location =
         geocodingService.geocode(
             new GeocodeQuery(request.sigunguCode(), request.roadnameCode(), request.roadAddress()));
+    // 이미지 업로드
     String imageUrl = uploadOptionalStoreImage(image);
     return new PreparedStoreRegistration(
         businessNumber,
@@ -162,8 +170,10 @@ public class StoreService {
    */
   public StoreDetailResponse updateStore(
       Long sellerId, Long storeId, StoreUpdateRequest request, MultipartFile image) {
+    // 소유권 확인
     Store store = requireOwnedStore(sellerId, storeId);
 
+    // 변경 항목 감지
     boolean addressChanged =
         request.roadAddress() != null && !request.roadAddress().equals(store.getRoadAddress());
     boolean photoChanged = hasImage(image);
@@ -171,19 +181,23 @@ public class StoreService {
       validateImage(image);
     }
 
+    // 지오코딩 (주소 변경 시)
     Point newLocation =
         addressChanged
             ? geocodingService.geocode(
                 new GeocodeQuery(
                     request.sigunguCode(), request.roadnameCode(), request.roadAddress()))
             : null;
+    // 이미지 업로드 (사진 변경 시)
     String newImageUrl = photoChanged ? uploadStoreImage(image) : null;
     String oldImageUrl = photoChanged ? store.getImageUrl() : null;
 
+    // 변경 적용 · 저장
     applyUpdate(store, request, addressChanged, newLocation, photoChanged, newImageUrl);
     Store updated = storeRepository.save(store);
     log.info("매장 정보 수정. storeId={}, sellerId={}", store.getId(), sellerId);
 
+    // 기존 이미지 삭제
     if (photoChanged) {
       deleteImageBestEffort(oldImageUrl);
     }
@@ -245,9 +259,13 @@ public class StoreService {
   @Transactional
   public OperationStatusResponse transitionOperationStatus(
       Long sellerId, Long storeId, OperationStatus to) {
+    // 소유권 확인
     Store store = requireOwnedStore(sellerId, storeId);
+    // 오늘 영업시간 조회
     Optional<StoreBusinessHour> todayHour = findTodayBusinessHour(store.getId());
+    // 전이 유효성 검증
     validateTransition(store.getOperationStatus(), to, todayHour.isPresent());
+    // 상태 전이
     store.changeOperationStatus(to);
     log.info("매장 영업 상태 전이. storeId={}, sellerId={}, to={}", store.getId(), sellerId, to);
     return toOperationStatusResponse(store, todayHour);
@@ -270,14 +288,18 @@ public class StoreService {
   @Transactional
   public List<BusinessHourPayload> saveBusinessHours(
       Long sellerId, Long storeId, List<BusinessHourPayload> hours) {
+    // 입력 유효성 검증
     validateRanges(hours);
     validateNoDuplicates(hours);
 
+    // 소유권 확인
     Store store = requireOwnedStore(sellerId, storeId);
 
+    // 기존 영업시간 조회 · 잠금 검증
     List<StoreBusinessHour> prev = storeBusinessHourRepository.findByStoreId(store.getId());
     validateTodayLockIfOpen(store, prev, hours);
 
+    // 전체 교체 (delete-all + save-all)
     storeBusinessHourRepository.deleteByStoreId(store.getId());
     List<StoreBusinessHour> next =
         hours.stream()

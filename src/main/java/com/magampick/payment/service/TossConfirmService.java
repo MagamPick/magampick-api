@@ -35,32 +35,39 @@ public class TossConfirmService {
 
   @Transactional
   public OrderResponse confirmPayment(Long customerId, TossConfirmRequest request) {
+    // 주문 조회
     Order order =
         orderRepository
             .findById(request.orderId())
             .orElseThrow(() -> new BusinessException(PaymentErrorCode.PAYMENT_ORDER_NOT_FOUND));
 
+    // 소유권 확인
     if (!order.isOwnedBy(customerId)) {
       throw new BusinessException(PaymentErrorCode.PAYMENT_ORDER_FORBIDDEN);
     }
 
+    // 결제 상태 확인
     if (!order.isAwaitingPayment()) {
       throw new BusinessException(PaymentErrorCode.PAYMENT_STATUS_MISMATCH);
     }
 
+    // 결제 금액 검증
     if (order.getFinalAmount().compareTo(request.amount()) != 0) {
       throw new BusinessException(PaymentErrorCode.PAYMENT_AMOUNT_MISMATCH);
     }
 
+    // PG 승인 요청
     PaymentCommand command =
         new PaymentCommand(
             request.paymentKey(), "order-" + order.getId(), order.getFinalAmount(), "toss");
     PaymentApproval approval = paymentGateway.approve(command);
 
+    // PG 응답 확인
     if (approval.status() != PaymentStatus.APPROVED) {
       throw new BusinessException(PaymentErrorCode.PAYMENT_GATEWAY_ERROR);
     }
 
+    // 혜택 차감 및 주문 활성화
     if (order.hasCoupon()) couponService.use(order.getUserCouponId());
     if (order.hasUsedPoints()) pointService.use(order, order.getPointUsed());
     order.activate();
@@ -68,6 +75,7 @@ public class TossConfirmService {
     // 명시적 save 로 PENDING 상태를 DB 에 반영한다.
     orderRepository.save(order);
 
+    // 결제 정보 저장
     Payment payment =
         Payment.builder()
             .order(order)
@@ -80,6 +88,7 @@ public class TossConfirmService {
             .build();
     paymentRepository.save(payment);
 
+    // 알림 발송
     notificationService.notifySeller(
         order.getStore().getSeller().getId(),
         "newOrder",

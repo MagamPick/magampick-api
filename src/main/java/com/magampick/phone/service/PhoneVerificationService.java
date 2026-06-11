@@ -32,17 +32,22 @@ public class PhoneVerificationService {
 
   /** 인증번호 발송. 형식·일일 한도·재발송 쿨다운 검사 후 SMS 발송하고 OTP 를 저장한다. */
   public void requestCode(String rawPhone) {
+    // 번호 정규화
     String phone = normalize(rawPhone);
     LocalDate today = LocalDate.now(KST);
 
+    // 일일 발송 한도 확인
     if (store.currentDailyCount(phone, today) >= DAILY_SEND_LIMIT) {
       throw new BusinessException(PhoneVerificationErrorCode.OTP_DAILY_LIMIT);
     }
+    // 재발송 쿨다운 확인
     if (!store.tryAcquireResendCooldown(phone)) {
       throw new BusinessException(PhoneVerificationErrorCode.OTP_RESEND_LIMIT);
     }
 
+    // 인증번호 생성
     String code = codeGenerator.generate();
+    // SMS 발송
     try {
       smsSender.sendVerificationCode(phone, code);
     } catch (RuntimeException e) {
@@ -50,6 +55,7 @@ public class PhoneVerificationService {
       throw new BusinessException(PhoneVerificationErrorCode.SMS_SEND_FAILED, e);
     }
 
+    // OTP 저장
     store.saveOtp(phone, code);
     store.incrementDailyCount(phone, today);
     log.info("본인인증 번호 발송. phone={}", phone);
@@ -57,19 +63,23 @@ public class PhoneVerificationService {
 
   /** 인증번호 검증. 성공 시 OTP 를 소비하고 본인인증 토큰(15분)을 발급한다. mock 모드에서 000000 입력 시 OTP 없이 토큰 발급. */
   public String verifyCode(String rawPhone, String code) {
+    // 번호 정규화
     String phone = normalize(rawPhone);
 
+    // mock 우회 처리
     if (smsConfig.isMockEnabled() && MOCK_BYPASS_CODE.equals(code)) {
       String token = store.issueToken(phone);
       log.info("본인인증 mock 우회(000000). phone={}", phone);
       return token;
     }
 
+    // OTP 코드 조회
     String savedCode =
         store
             .findOtpCode(phone)
             .orElseThrow(() -> new BusinessException(PhoneVerificationErrorCode.OTP_EXPIRED));
 
+    // 코드 불일치 처리
     if (!savedCode.equals(code)) {
       long attempts = store.incrementOtpAttempts(phone);
       if (attempts >= MAX_VERIFY_ATTEMPTS) {
@@ -79,6 +89,7 @@ public class PhoneVerificationService {
       throw new BusinessException(PhoneVerificationErrorCode.OTP_INVALID);
     }
 
+    // OTP 소비 및 토큰 발급
     store.deleteOtp(phone);
     String token = store.issueToken(phone);
     log.info("본인인증 성공, 토큰 발급. phone={}", phone);
@@ -90,15 +101,19 @@ public class PhoneVerificationService {
    * 번호를 반환한다.
    */
   public String consumeVerificationToken(String token, String rawPhone) {
+    // 번호 정규화
     String phone = normalize(rawPhone);
+    // 토큰 유효성 확인
     String verifiedPhone =
         store
             .findTokenPhone(token)
             .orElseThrow(
                 () -> new BusinessException(PhoneVerificationErrorCode.PHONE_VERIFICATION_EXPIRED));
+    // 번호 일치 확인
     if (!verifiedPhone.equals(phone)) {
       throw new BusinessException(PhoneVerificationErrorCode.PHONE_VERIFICATION_EXPIRED);
     }
+    // 토큰 소비
     store.deleteToken(token);
     return verifiedPhone;
   }

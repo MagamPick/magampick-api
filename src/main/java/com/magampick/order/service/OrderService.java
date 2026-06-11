@@ -433,20 +433,27 @@ public class OrderService {
   /** 소비자 주문 취소. PENDING → CANCELLED. 토스 환불 후 상태 전이. */
   @Transactional
   public OrderResponse cancelOrder(Long customerId, Long orderId) {
+    // 주문 조회
     Order order =
         orderRepository
             .findById(orderId)
             .orElseThrow(() -> new BusinessException(OrderErrorCode.ORDER_NOT_FOUND));
+    // 소유권 확인
     if (!order.isOwnedBy(customerId)) {
       throw new BusinessException(OrderErrorCode.ORDER_FORBIDDEN);
     }
+    // 상태 전이 가능 여부 확인
     if (!order.isPending()) {
       throw new BusinessException(OrderErrorCode.INVALID_ORDER_TRANSITION);
     }
+    // 결제 환불
     refundPayment(orderId, "고객 취소");
+    // 상태 전이
     order.cancel(LocalDateTime.now(clock));
+    // 혜택 복원
     restoreBenefits(order);
     Order saved = orderRepository.save(order);
+    // 알림 발송
     notificationService.notifySeller(
         order.getStore().getSeller().getId(),
         "orderCancel",
@@ -461,11 +468,14 @@ public class OrderService {
   @Transactional
   public SellerOrderResponse acceptOrder(Long sellerId, Long orderId) {
     Order order = findOrderForSeller(sellerId, orderId);
+    // 상태 전이 가능 여부 확인
     if (!order.isPending()) {
       throw new BusinessException(OrderErrorCode.INVALID_ORDER_TRANSITION);
     }
+    // 상태 전이
     order.accept(LocalDateTime.now(clock));
     Order saved = orderRepository.save(order);
+    // 알림 발송
     notificationService.notifyCustomer(
         order.getCustomer().getId(),
         "orderRefund",
@@ -480,13 +490,18 @@ public class OrderService {
   @Transactional
   public SellerOrderResponse rejectOrder(Long sellerId, Long orderId) {
     Order order = findOrderForSeller(sellerId, orderId);
+    // 상태 전이 가능 여부 확인
     if (!order.isPending()) {
       throw new BusinessException(OrderErrorCode.INVALID_ORDER_TRANSITION);
     }
+    // 결제 환불
     refundPayment(orderId, "사장 거절");
+    // 상태 전이
     order.reject(LocalDateTime.now(clock));
+    // 혜택 복원
     restoreBenefits(order);
     Order saved = orderRepository.save(order);
+    // 알림 발송
     notificationService.notifyCustomer(
         order.getCustomer().getId(),
         "orderRefund",
@@ -501,11 +516,14 @@ public class OrderService {
   @Transactional
   public SellerOrderResponse readyOrder(Long sellerId, Long orderId) {
     Order order = findOrderForSeller(sellerId, orderId);
+    // 상태 전이 가능 여부 확인
     if (!order.isPreparing()) {
       throw new BusinessException(OrderErrorCode.INVALID_ORDER_TRANSITION);
     }
+    // 상태 전이
     order.markReady(LocalDateTime.now(clock));
     Order saved = orderRepository.save(order);
+    // 알림 발송
     notificationService.notifyCustomer(
         order.getCustomer().getId(),
         "orderRefund",
@@ -520,12 +538,16 @@ public class OrderService {
   @Transactional
   public SellerOrderResponse completeOrder(Long sellerId, Long orderId) {
     Order order = findOrderForSeller(sellerId, orderId);
+    // 상태 전이 가능 여부 확인
     if (!order.isReady()) {
       throw new BusinessException(OrderErrorCode.INVALID_ORDER_TRANSITION);
     }
+    // 상태 전이
     order.complete(LocalDateTime.now(clock));
+    // 포인트 적립
     if (order.hasEarnedPoints()) pointService.earn(order, order.getEarnedPoints());
     Order saved = orderRepository.save(order);
+    // 알림 발송
     notificationService.notifyCustomer(
         order.getCustomer().getId(),
         "orderRefund",
@@ -540,9 +562,11 @@ public class OrderService {
   @Transactional
   public SellerOrderResponse noShowOrder(Long sellerId, Long orderId) {
     Order order = findOrderForSeller(sellerId, orderId);
+    // 상태 전이 가능 여부 확인
     if (!order.isReady()) {
       throw new BusinessException(OrderErrorCode.INVALID_ORDER_TRANSITION);
     }
+    // 상태 전이
     order.noShow();
     Order saved = orderRepository.save(order);
     return orderMapper.toSellerResponse(saved);

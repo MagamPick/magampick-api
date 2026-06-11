@@ -72,6 +72,7 @@ public class TermService {
   @Transactional
   public void recordAgreements(Customer customer, List<Long> agreedTermIds) {
     Set<Long> agreedIds = new HashSet<>(agreedTermIds);
+    // 필수 약관 검증
     Set<Long> requiredIds =
         termRepository
             .findByRequiredTrueAndTypeInAndRole(CUSTOMER_SIGNUP_TYPES, TermRole.CUSTOMER)
@@ -82,11 +83,13 @@ public class TermService {
       throw new BusinessException(TermErrorCode.REQUIRED_TERMS_NOT_AGREED);
     }
 
+    // 약관 존재 검증
     List<Term> agreedTerms = termRepository.findAllById(agreedIds);
     if (agreedTerms.size() != agreedIds.size()) {
       throw new BusinessException(TermErrorCode.INVALID_TERM);
     }
 
+    // 동의 기록 저장
     customerTermsAgreementRepository.saveAll(
         agreedTerms.stream()
             .map(term -> CustomerTermsAgreement.builder().customer(customer).term(term).build())
@@ -96,6 +99,7 @@ public class TermService {
   @Transactional
   public void recordSellerAgreements(Seller seller, List<Long> agreedTermIds) {
     Set<Long> agreedIds = new HashSet<>(agreedTermIds);
+    // 필수 약관 검증
     Set<Long> requiredIds =
         termRepository
             .findByRequiredTrueAndTypeInAndRole(SELLER_SIGNUP_TYPES, TermRole.SELLER)
@@ -106,11 +110,13 @@ public class TermService {
       throw new BusinessException(TermErrorCode.REQUIRED_TERMS_NOT_AGREED);
     }
 
+    // 약관 존재 검증
     List<Term> agreedTerms = termRepository.findAllById(agreedIds);
     if (agreedTerms.size() != agreedIds.size()) {
       throw new BusinessException(TermErrorCode.INVALID_TERM);
     }
 
+    // 동의 기록 저장
     sellerTermsAgreementRepository.saveAll(
         agreedTerms.stream()
             .map(term -> SellerTermsAgreement.builder().seller(seller).term(term).build())

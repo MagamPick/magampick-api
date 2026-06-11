@@ -125,15 +125,18 @@ public class SupportService {
    */
   @Transactional
   public InquiryResponse answerInquiry(Long inquiryId, AdminInquiryAnswerRequest req) {
+    // 문의 조회
     Inquiry inquiry =
         inquiryRepository
             .findById(inquiryId)
             .orElseThrow(() -> new BusinessException(SupportErrorCode.INQUIRY_NOT_FOUND));
 
+    // 중복 답변 검증
     if (inquiry.getStatus() == InquiryStatus.ANSWERED) {
       throw new BusinessException(SupportErrorCode.INQUIRY_ALREADY_ANSWERED);
     }
 
+    // 답변 처리
     inquiry.answer(req.content(), LocalDateTime.now(clock));
 
     // 답변 알림 — always-on (설정 토글 무관)

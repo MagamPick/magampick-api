@@ -88,6 +88,7 @@ public class ReviewCommandService {
       }
     }
 
+    // 저장 및 알림 발송
     Review saved = reviewRepository.save(review);
     notificationService.notifySeller(
         order.getStore().getSeller().getId(),
@@ -103,6 +104,7 @@ public class ReviewCommandService {
   @Transactional
   public MyReviewResponse updateReview(
       Long customerId, Long reviewId, UpdateReviewRequest request) {
+    // 리뷰 조회
     Review review =
         reviewRepository
             .findById(reviewId)
@@ -137,6 +139,7 @@ public class ReviewCommandService {
   /** 리뷰 삭제 (soft). */
   @Transactional
   public void deleteReview(Long customerId, Long reviewId) {
+    // 리뷰 조회
     Review review =
         reviewRepository
             .findById(reviewId)
@@ -159,11 +162,13 @@ public class ReviewCommandService {
   @Transactional
   public StoreReviewResponse replyToReview(
       Long sellerId, Long reviewId, ReviewReplyRequest request) {
+    // 셀러 조회
     Seller seller =
         sellerRepository
             .findById(sellerId)
             .orElseThrow(() -> new BusinessException(ReviewErrorCode.REVIEW_NOT_FOUND));
 
+    // 리뷰 조회
     Review review =
         reviewRepository
             .findById(reviewId)
@@ -184,6 +189,7 @@ public class ReviewCommandService {
         ReviewReply.builder().review(review).seller(seller).content(request.content()).build();
     reviewReplyRepository.save(reply);
 
+    // 알림 발송
     notificationService.notifyCustomer(
         review.getCustomer().getId(),
         "reviewReply",

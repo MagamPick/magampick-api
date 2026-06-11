@@ -55,12 +55,15 @@ public class AnalyticsService {
    * @param period 집계 기간 단위
    */
   public AnalyticsResponse getAnalytics(Long sellerId, Long storeId, AnalyticsPeriod period) {
+    // 소유권 확인
     storeService.requireOwnedStore(sellerId, storeId);
 
+    // 기간 범위 계산
     LocalDate today = LocalDate.now(clock);
     DateRange range = computeRange(period, today);
     DateRange prevRange = computePrevRange(period, today);
 
+    // 데이터 조회
     List<Order> completedOrders =
         orderRepository.findCompletedForAnalytics(storeId, range.start(), range.end());
     BigDecimal prevTotalOrNull =
@@ -69,6 +72,7 @@ public class AnalyticsService {
         orderRepository.countOrdersByStatus(storeId, range.start(), range.end());
     List<Review> reviews = reviewRepository.findForAnalytics(storeId, range.start(), range.end());
 
+    // 지표 집계
     SalesMetrics sales = buildSalesMetrics(completedOrders, prevTotalOrNull, period, range);
     OrderMetrics orders = buildOrderMetrics(statusCounts);
     ClearanceMetrics clearance = buildClearanceMetrics(completedOrders);
@@ -126,15 +130,20 @@ public class AnalyticsService {
 
   private SalesMetrics buildSalesMetrics(
       List<Order> orders, BigDecimal prevTotalOrNull, AnalyticsPeriod period, DateRange range) {
+    // 총 매출 집계
     long totalSales = orders.stream().mapToLong(o -> o.getTotalPrice().longValue()).sum();
 
+    // 전기 대비 증감률 계산
     long prevTotal = prevTotalOrNull != null ? prevTotalOrNull.longValue() : 0L;
     int deltaPct =
         prevTotal == 0 ? 0 : (int) Math.round((double) (totalSales - prevTotal) / prevTotal * 100);
 
+    // 차트 데이터 생성
     List<SalesBar> chart = buildChart(orders, period, range);
+    // 평균 주문금액 계산
     long avgOrderValue = orders.isEmpty() ? 0L : Math.round((double) totalSales / orders.size());
 
+    // 피크 시간대 계산
     String peakHour = buildPeakHour(orders);
 
     return new SalesMetrics(totalSales, deltaPct, chart, avgOrderValue, peakHour);
@@ -263,18 +272,23 @@ public class AnalyticsService {
   // ── 떨이 지표 ─────────────────────────────────────────────────────────────────
 
   private ClearanceMetrics buildClearanceMetrics(List<Order> orders) {
+    // 떨이 상품 필터링
     List<OrderItem> dealItems =
         orders.stream()
             .flatMap(o -> o.getOrderItems().stream())
             .filter(i -> ItemKind.DEAL == i.getItemKind())
             .toList();
 
+    // 판매 수량 집계
     int soldQty = dealItems.stream().mapToInt(OrderItem::getQuantity).sum();
 
+    // 할인 금액 집계
     long savedAmount = dealItems.stream().mapToLong(i -> i.discountAmount().longValue()).sum();
 
+    // 원가 집계
     long totalOriginal = dealItems.stream().mapToLong(i -> i.originalLineTotal().longValue()).sum();
 
+    // 평균 할인율 계산
     int avgDiscountRate =
         totalOriginal == 0 ? 0 : (int) Math.round((double) savedAmount / totalOriginal * 100);
 
@@ -284,22 +298,27 @@ public class AnalyticsService {
   // ── 리뷰 지표 ─────────────────────────────────────────────────────────────────
 
   private ReviewMetrics buildReviewMetrics(List<Review> reviews) {
+    // 신규 리뷰 수 집계
     int newCount = reviews.size();
 
+    // 평균 별점 계산
     double avgRating = 0.0;
     if (newCount > 0) {
       double raw = reviews.stream().mapToInt(Review::getRating).average().orElse(0.0);
       avgRating = Math.round(raw * 10.0) / 10.0;
     }
 
+    // 답변율 계산
     int replyCount = (int) reviews.stream().filter(Review::hasReply).count();
     int replyRate = newCount == 0 ? 0 : (int) Math.round((double) replyCount / newCount * 100);
 
+    // 태그 집계
     Map<ReviewTag, Long> tagCounts =
         reviews.stream()
             .flatMap(r -> r.getTags().stream())
             .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
 
+    // 태그 정렬
     List<ReviewTagCount> tags =
         Arrays.stream(ReviewTag.values())
             .sorted(

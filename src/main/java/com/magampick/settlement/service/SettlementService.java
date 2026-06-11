@@ -48,11 +48,14 @@ public class SettlementService {
    */
   @Transactional
   public int processBatch(LocalDate targetDate) {
+    // 반월 회차 결정
     HalfPeriod period = computeHalfPeriod(targetDate);
 
+    // 기간 경계 계산
     LocalDateTime periodStartDt = period.start().atStartOfDay();
     LocalDateTime periodEndDt = period.end().atTime(23, 59, 59);
 
+    // 완료 주문 집계 조회
     List<Object[]> aggregates =
         settlementRepository.findGrossAmountByPeriodRaw(periodStartDt, periodEndDt);
 
@@ -75,6 +78,7 @@ public class SettlementService {
         continue;
       }
 
+      // 수수료 및 순지급액 계산
       BigDecimal feeAmount = grossAmount.multiply(FEE_RATE).setScale(0, RoundingMode.DOWN);
       BigDecimal netAmount = grossAmount.subtract(feeAmount);
 
@@ -84,6 +88,7 @@ public class SettlementService {
               ? SettlementStatus.DEPOSITED
               : SettlementStatus.SCHEDULED;
 
+      // 정산 생성
       Store store = storeRepository.getReferenceById(storeId);
 
       Settlement settlement =

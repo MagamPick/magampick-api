@@ -47,17 +47,20 @@ public class FavoriteService {
 
   @Transactional
   public FavoriteAddResponse addFavorite(Long customerId, Long storeId) {
+    // 매장 조회
     Store store =
         storeRepository
             .findById(storeId)
             .orElseThrow(() -> new BusinessException(StoreErrorCode.STORE_NOT_FOUND));
 
+    // 중복 확인
     Optional<Favorite> existing =
         favoriteRepository.findByCustomerIdAndStoreId(customerId, storeId);
     if (existing.isPresent()) {
       return favoriteMapper.toAddResponse(existing.get());
     }
 
+    // 즐겨찾기 등록
     Customer customer = customerRepository.getReferenceById(customerId);
     Favorite favorite = Favorite.builder().customer(customer).store(store).build();
     favoriteRepository.save(favorite);

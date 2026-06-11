@@ -94,10 +94,12 @@ public class PointService {
       return;
     }
     LocalDateTime now = LocalDateTime.now(clock);
+    // ACTIVE lot 조회
     List<PointAccrual> lots =
         pointAccrualRepository.findByCustomerIdAndStatusOrderByEarnedAtAscIdAsc(
             order.getCustomer().getId(), PointAccrualStatus.ACTIVE);
 
+    // FIFO 차감
     long need = amount;
     for (PointAccrual lot : lots) {
       long take = Math.min(lot.getRemainingAmount(), need);
@@ -107,10 +109,12 @@ public class PointService {
         break;
       }
     }
+    // 잔액 부족 확인
     if (need > 0) {
       throw new BusinessException(PointErrorCode.INSUFFICIENT_POINTS);
     }
 
+    // 변경 저장
     pointAccrualRepository.saveAll(lots);
     pointTransactionRepository.save(
         PointTransaction.builder()
@@ -150,8 +154,10 @@ public class PointService {
    */
   @Transactional
   public void clawback(Order order) {
+    // 적립 lot 조회
     List<PointAccrual> lots = pointAccrualRepository.findByOrderId(order.getId());
     long reclaimed = 0;
+    // 잔여 포인트 차감
     for (PointAccrual lot : lots) {
       long r = lot.getRemainingAmount();
       if (r > 0) {
@@ -159,6 +165,7 @@ public class PointService {
         reclaimed += r;
       }
     }
+    // 회수 내역 저장
     if (reclaimed > 0) {
       pointAccrualRepository.saveAll(lots);
       pointTransactionRepository.save(
@@ -182,8 +189,10 @@ public class PointService {
   @Transactional
   public int expireAccruals() {
     LocalDateTime now = LocalDateTime.now(clock);
+    // 만료 lot 조회
     List<PointAccrual> lots =
         pointAccrualRepository.findByStatusAndExpiresAtBefore(PointAccrualStatus.ACTIVE, now);
+    // 소멸 처리
     for (PointAccrual lot : lots) {
       long r = lot.getRemainingAmount();
       lot.expire();
@@ -199,6 +208,7 @@ public class PointService {
                 .build());
       }
     }
+    // 변경 저장
     if (!lots.isEmpty()) {
       pointAccrualRepository.saveAll(lots);
     }
@@ -215,6 +225,7 @@ public class PointService {
   public void notifyExpiringAccruals() {
     LocalDateTime now = LocalDateTime.now(clock);
     LocalDateTime thirtyDaysLater = now.plusDays(30);
+    // 대상 lot 조회
     List<PointAccrual> lots =
         pointAccrualRepository.findExpiringForAlert(
             PointAccrualStatus.ACTIVE, now, thirtyDaysLater);
@@ -231,6 +242,7 @@ public class PointService {
       lotsByCustomer.computeIfAbsent(cid, k -> new ArrayList<>()).add(lot);
     }
 
+    // 알림 발송
     for (Map.Entry<Long, Long> entry : sumByCustomer.entrySet()) {
       Long cid = entry.getKey();
       try {
@@ -250,6 +262,7 @@ public class PointService {
 
   /** 새 ACTIVE 포인트 lot + 거래 내역 공통 저장. earn/restore 에서 재사용. */
   private void recordAccrual(Order order, long amount, PointReason reason, LocalDateTime now) {
+    // 포인트 lot 저장
     pointAccrualRepository.save(
         PointAccrual.builder()
             .customer(order.getCustomer())
@@ -260,6 +273,7 @@ public class PointService {
             .expiresAt(now.plusYears(1))
             .status(PointAccrualStatus.ACTIVE)
             .build());
+    // 거래 내역 저장
     pointTransactionRepository.save(
         PointTransaction.builder()
             .customer(order.getCustomer())

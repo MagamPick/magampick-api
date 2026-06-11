@@ -142,6 +142,7 @@ public class SearchQueryService {
 
     String trimmed = q.trim();
 
+    // origin 추출
     Point defaultLocation = addressService.requireDefaultLocation(customerId);
     double lat = GeometryUtil.latitude(defaultLocation);
     double lng = GeometryUtil.longitude(defaultLocation);
@@ -184,6 +185,7 @@ public class SearchQueryService {
                       (a, b) -> a.similarity() >= b.similarity() ? a : b));
     }
 
+    // 제안 정렬 및 반환
     return merged.values().stream()
         .sorted(
             Comparator.comparingDouble(ScoredSuggestion::similarity)

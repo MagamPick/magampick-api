@@ -97,11 +97,13 @@ public class CouponService {
    */
   @Transactional
   public CouponResponse claim(Long customerId, Long couponId) {
+    // 쿠폰 조회
     Coupon coupon =
         couponRepository
             .findById(couponId)
             .orElseThrow(() -> new BusinessException(CouponErrorCode.COUPON_NOT_FOUND));
 
+    // 이벤트·활성 확인
     if (!coupon.isEvent() || !coupon.isActive()) {
       throw new BusinessException(CouponErrorCode.COUPON_NOT_AVAILABLE);
     }
@@ -109,15 +111,18 @@ public class CouponService {
     if (!coupon.isOngoing(today)) {
       throw new BusinessException(CouponErrorCode.COUPON_NOT_AVAILABLE);
     }
+    // 중복 발급 확인
     if (userCouponRepository.existsByCustomerIdAndCouponId(customerId, couponId)) {
       throw new BusinessException(CouponErrorCode.COUPON_ALREADY_CLAIMED);
     }
 
+    // 선착순 수량 확인
     int updated = couponRepository.incrementIssuedCountIfAvailable(couponId);
     if (updated == 0) {
       throw new BusinessException(CouponErrorCode.COUPON_SOLD_OUT);
     }
 
+    // 쿠폰 발급
     Customer customer = customerRepository.getReferenceById(customerId);
 
     LocalDate expiresAt = coupon.getValidUntil();
@@ -140,6 +145,7 @@ public class CouponService {
     }
 
     log.info("쿠폰 발급됨. customerId={}, couponId={}", customerId, couponId);
+    // 발급 알림
     notifyIssued(customerId, coupon.getLabel(), userCoupon.getExpiresAt());
     return couponMapper.toResponse(userCoupon, CouponStatus.USABLE);
   }
@@ -152,12 +158,15 @@ public class CouponService {
    */
   @Transactional
   public AdminCouponResponse createEvent(AdminCouponCreateRequest req) {
+    // 할인율 검증
     if (req.discountType() == CouponDiscountType.RATE && (req.value() < 1 || req.value() > 100)) {
       throw new BusinessException(CouponErrorCode.INVALID_DISCOUNT_RATE);
     }
+    // 기간 검증
     if (req.displayStartAt().isAfter(req.displayEndAt())) {
       throw new BusinessException(CouponErrorCode.INVALID_EVENT_PERIOD);
     }
+    // 쿠폰 생성
     Coupon coupon =
         couponRepository.save(
             Coupon.builder()
@@ -198,6 +207,7 @@ public class CouponService {
    */
   @Transactional
   public AdminCouponResponse updateEvent(Long couponId, AdminCouponUpdateRequest req) {
+    // 쿠폰 조회
     Coupon coupon =
         couponRepository
             .findById(couponId)
@@ -224,6 +234,7 @@ public class CouponService {
       throw new BusinessException(CouponErrorCode.INVALID_EVENT_PERIOD);
     }
 
+    // 쿠폰 수정
     coupon.updateEvent(
         req.label(),
         req.discountType(),
@@ -245,6 +256,7 @@ public class CouponService {
    */
   @Transactional
   public AdminCouponResponse endEvent(Long couponId) {
+    // 쿠폰 조회
     Coupon coupon =
         couponRepository
             .findById(couponId)
@@ -252,6 +264,7 @@ public class CouponService {
     if (!coupon.isEvent()) {
       throw new BusinessException(CouponErrorCode.COUPON_NOT_FOUND);
     }
+    // 쿠폰 종료
     coupon.end();
     return mapToAdminResponse(coupon, LocalDate.now(clock));
   }
@@ -264,13 +277,16 @@ public class CouponService {
    */
   @Transactional
   public void use(Long userCouponId) {
+    // 쿠폰 조회
     UserCoupon uc =
         userCouponRepository
             .findById(userCouponId)
             .orElseThrow(() -> new BusinessException(CouponErrorCode.COUPON_NOT_FOUND));
+    // 만료 확인
     if (uc.isExpiredAt(LocalDate.now(clock))) {
       throw new BusinessException(CouponErrorCode.COUPON_NOT_AVAILABLE);
     }
+    // 사용 처리
     int updated = userCouponRepository.markUsed(userCouponId, LocalDateTime.now(clock));
     if (updated == 0) { // 동시 사용 / 이미 USED
       throw new BusinessException(CouponErrorCode.COUPON_NOT_AVAILABLE);
@@ -286,13 +302,16 @@ public class CouponService {
    */
   @Transactional
   public void restore(Long userCouponId) {
+    // 쿠폰 조회
     UserCoupon uc =
         userCouponRepository
             .findById(userCouponId)
             .orElseThrow(() -> new BusinessException(CouponErrorCode.COUPON_NOT_FOUND));
+    // 만료 확인
     if (uc.getExpiresAt().isBefore(LocalDate.now(clock))) {
       return; // 만료된 쿠폰은 복원 X
     }
+    // 쿠폰 복원
     if (uc.getStatus() == CouponStatus.USED) {
       uc.restore();
     }
@@ -308,13 +327,16 @@ public class CouponService {
    */
   @Transactional(readOnly = true)
   public UserCoupon getUsableForOrder(Long userCouponId, Long customerId) {
+    // 쿠폰 조회
     UserCoupon uc =
         userCouponRepository
             .findByIdWithCoupon(userCouponId)
             .orElseThrow(() -> new BusinessException(CouponErrorCode.COUPON_NOT_FOUND));
+    // 소유권 확인
     if (!uc.isOwnedBy(customerId)) {
       throw new BusinessException(CouponErrorCode.COUPON_NOT_AVAILABLE);
     }
+    // 사용 가능 확인
     if (uc.getStatus() != CouponStatus.USABLE || uc.isExpiredAt(LocalDate.now(clock))) {
       throw new BusinessException(CouponErrorCode.COUPON_NOT_AVAILABLE);
     }
@@ -342,12 +364,14 @@ public class CouponService {
   public void notifyExpiringCoupons() {
     LocalDate today = LocalDate.now(clock);
     LocalDate sevenDaysLater = today.plusDays(7);
+    // 만료 예정 쿠폰 조회
     List<UserCoupon> targets =
         userCouponRepository.findExpiringForAlert(CouponStatus.USABLE, today, sevenDaysLater);
     if (targets.isEmpty()) {
       return;
     }
     LocalDateTime now = LocalDateTime.now(clock);
+    // 알림 발송
     for (UserCoupon uc : targets) {
       try {
         notificationService.notifyCustomer(
@@ -390,7 +414,9 @@ public class CouponService {
         .findFirstByKindAndActiveTrueOrderByIdAsc(CouponKind.SIGNUP)
         .ifPresentOrElse(
             master -> {
+              // 만료일 계산
               LocalDate expiresAt = LocalDate.now(clock).plusDays(master.getValidityDays());
+              // 쿠폰 발급
               userCouponRepository.save(
                   UserCoupon.builder()
                       .customer(customer)
@@ -402,6 +428,7 @@ public class CouponService {
                       .discountValue(master.getDiscountValue())
                       .minOrder(master.getMinOrder())
                       .build());
+              // 발급 알림
               notifyIssued(customer.getId(), master.getLabel(), expiresAt);
             },
             () -> log.warn("가입 축하 쿠폰 마스터 없음 — 발급 건너뜀. customerId={}", customer.getId()));
