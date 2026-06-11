@@ -94,6 +94,18 @@ jobs:
           source: "docker-compose.yml,docker-compose.prod.yml,nginx/"
           target: "~/magampick-api/"
 
+      - name: Write Firebase service account
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEV_SERVER_HOST }}
+          username: ubuntu
+          key: ${{ secrets.DEV_SERVER_SSH_KEY }}
+          script: |
+            mkdir -p ~/magampick-api
+            cat > ~/magampick-api/firebase-service-account.json << 'FBEOF'
+            ${{ secrets.DEV_FIREBASE_SERVICE_ACCOUNT }}
+            FBEOF
+
       - name: Deploy
         uses: appleboy/ssh-action@v1
         with:
@@ -119,7 +131,10 @@ jobs:
             NTS_BUSINESS_API_KEY=${{ secrets.DEV_NTS_BUSINESS_API_KEY }}
             ADMIN_USERNAME=${{ secrets.DEV_ADMIN_USERNAME }}
             ADMIN_PASSWORD=${{ secrets.DEV_ADMIN_PASSWORD }}
+            TOSS_SECRET_KEY=${{ secrets.DEV_TOSS_SECRET_KEY }}
+            FCM_MOCK_ENABLED=false
             ENVEOF
+            echo "FCM_CREDENTIALS=$(base64 -w 0 ~/magampick-api/firebase-service-account.json)" >> .env
             docker login -u kasto6329 -p '${{ secrets.DOCKERHUB_TOKEN }}'
             docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
             docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans
