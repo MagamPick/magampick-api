@@ -23,6 +23,9 @@ services:
       NTS_BUSINESS_API_KEY: ${NTS_BUSINESS_API_KEY:-}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      TOSS_SECRET_KEY: ${TOSS_SECRET_KEY:-}
+      FCM_MOCK_ENABLED: ${FCM_MOCK_ENABLED:-true}
+      FCM_CREDENTIALS: ${FCM_CREDENTIALS:-}
     restart: unless-stopped
     networks:
       - magampick
