@@ -196,7 +196,7 @@ public class ReviewCommandService {
         NotificationCategory.REVIEW,
         "사장님이 리뷰에 답글을 남겼어요",
         request.content().substring(0, Math.min(50, request.content().length())),
-        "/my/reviews");
+        "/reviews/my");
 
     return reviewMapper.toResponse(review);
   }

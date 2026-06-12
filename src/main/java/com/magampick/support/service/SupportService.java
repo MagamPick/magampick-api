@@ -140,7 +140,7 @@ public class SupportService {
     inquiry.answer(req.content(), LocalDateTime.now(clock));
 
     // 답변 알림 — always-on (설정 토글 무관)
-    String link = "/support/inquiries/" + inquiry.getId();
+    String link = "/support/inquiry/" + inquiry.getId();
     notificationService.notifyAlways(
         inquiry.getAuthorRole(),
         inquiry.getAuthorId(),

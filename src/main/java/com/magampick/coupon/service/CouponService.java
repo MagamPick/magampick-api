@@ -380,7 +380,7 @@ public class CouponService {
             NotificationCategory.BENEFIT,
             "쿠폰이 곧 만료돼요",
             "'" + uc.getCoupon().getLabel() + "' 쿠폰이 7일 내에 만료됩니다. 지금 사용해보세요!",
-            "/coupons");
+            "/mypage/coupons");
         uc.markExpiryAlertSent(now);
       } catch (Exception e) {
         log.warn("쿠폰 소멸 예정 알림 발송 실패. userCouponId={}", uc.getId(), e);
@@ -397,7 +397,7 @@ public class CouponService {
           NotificationCategory.BENEFIT,
           "쿠폰이 발급됐어요",
           "'" + couponLabel + "' 쿠폰이 발급됐습니다. " + expiresAt + "까지 사용 가능해요!",
-          "/coupons");
+          "/mypage/coupons");
     } catch (Exception e) {
       log.warn("쿠폰 발급 알림 발송 실패. customerId={}", customerId, e);
     }

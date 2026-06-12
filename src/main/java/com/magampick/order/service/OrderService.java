@@ -460,7 +460,7 @@ public class OrderService {
         NotificationCategory.ORDER,
         "주문이 취소되었어요",
         order.getCustomer().getNickname() + "님이 주문을 취소했어요.",
-        "/orders");
+        "/orders/" + saved.getId());
     return orderMapper.toResponse(saved);
   }
 
@@ -482,7 +482,7 @@ public class OrderService {
         NotificationCategory.ORDER,
         "주문이 수락되었어요",
         order.getStore().getName() + "에서 주문을 수락했어요.",
-        "/orders");
+        "/orders/" + saved.getId());
     return orderMapper.toSellerResponse(saved);
   }
 
@@ -508,7 +508,7 @@ public class OrderService {
         NotificationCategory.ORDER,
         "주문이 거절되었어요",
         order.getStore().getName() + "에서 주문을 거절했어요.",
-        "/orders");
+        "/orders/" + saved.getId());
     return orderMapper.toSellerResponse(saved);
   }
 
@@ -530,7 +530,7 @@ public class OrderService {
         NotificationCategory.ORDER,
         "픽업 준비가 완료되었어요",
         order.getStore().getName() + "에서 픽업 준비가 완료되었어요.",
-        "/orders");
+        "/orders/" + saved.getId());
     return orderMapper.toSellerResponse(saved);
   }
 
@@ -554,7 +554,7 @@ public class OrderService {
         NotificationCategory.ORDER,
         "픽업이 완료되었어요",
         order.getStore().getName() + " 픽업 완료.",
-        "/orders");
+        "/orders/" + saved.getId());
     return orderMapper.toSellerResponse(saved);
   }
 

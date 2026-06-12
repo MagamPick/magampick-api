@@ -95,7 +95,7 @@ public class TossConfirmService {
         NotificationCategory.ORDER,
         "새 주문이 들어왔어요",
         order.getCustomer().getNickname() + "님이 주문했어요.",
-        "/orders");
+        "/orders/" + order.getId());
 
     log.info(
         "토스 결제 확인 완료. orderId={}, customerId={}, paymentKey={}",

@@ -1378,7 +1378,12 @@ class OrderServiceTest {
     then(notificationService)
         .should()
         .notifyCustomer(
-            eq(1L), eq("orderRefund"), eq(NotificationCategory.ORDER), any(), any(), eq("/orders"));
+            eq(1L),
+            eq("orderRefund"),
+            eq(NotificationCategory.ORDER),
+            any(),
+            any(),
+            eq("/orders/42"));
   }
 
   @Test
@@ -1400,7 +1405,12 @@ class OrderServiceTest {
     then(notificationService)
         .should()
         .notifyCustomer(
-            eq(1L), eq("orderRefund"), eq(NotificationCategory.ORDER), any(), any(), eq("/orders"));
+            eq(1L),
+            eq("orderRefund"),
+            eq(NotificationCategory.ORDER),
+            any(),
+            any(),
+            eq("/orders/42"));
   }
 
   @Test
@@ -1422,7 +1432,12 @@ class OrderServiceTest {
     then(notificationService)
         .should()
         .notifyCustomer(
-            eq(1L), eq("orderRefund"), eq(NotificationCategory.ORDER), any(), any(), eq("/orders"));
+            eq(1L),
+            eq("orderRefund"),
+            eq(NotificationCategory.ORDER),
+            any(),
+            any(),
+            eq("/orders/42"));
   }
 
   @Test
@@ -1443,7 +1458,12 @@ class OrderServiceTest {
     then(notificationService)
         .should()
         .notifySeller(
-            eq(2L), eq("orderCancel"), eq(NotificationCategory.ORDER), any(), any(), eq("/orders"));
+            eq(2L),
+            eq("orderCancel"),
+            eq(NotificationCategory.ORDER),
+            any(),
+            any(),
+            eq("/orders/42"));
   }
 
   @Test
@@ -1465,6 +1485,11 @@ class OrderServiceTest {
     then(notificationService)
         .should()
         .notifyCustomer(
-            eq(1L), eq("orderRefund"), eq(NotificationCategory.ORDER), any(), any(), eq("/orders"));
+            eq(1L),
+            eq("orderRefund"),
+            eq(NotificationCategory.ORDER),
+            any(),
+            any(),
+            eq("/orders/42"));
   }
 }

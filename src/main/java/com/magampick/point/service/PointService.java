@@ -252,7 +252,7 @@ public class PointService {
             NotificationCategory.BENEFIT,
             "포인트가 곧 소멸돼요",
             entry.getValue() + "P이 30일 내에 만료됩니다. 지금 사용해보세요!",
-            "/points");
+            "/mypage/points");
         lotsByCustomer.get(cid).forEach(lot -> lot.markExpiryAlertSent(now));
       } catch (Exception e) {
         log.warn("포인트 소멸 예정 알림 발송 실패. customerId={}", cid, e);

@@ -191,7 +191,7 @@ class TossConfirmServiceTest {
     then(notificationService)
         .should()
         .notifySeller(
-            eq(2L), eq("newOrder"), eq(NotificationCategory.ORDER), any(), any(), eq("/orders"));
+            eq(2L), eq("newOrder"), eq(NotificationCategory.ORDER), any(), any(), eq("/orders/42"));
   }
 
   @Test

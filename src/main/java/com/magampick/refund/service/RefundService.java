@@ -143,7 +143,7 @@ public class RefundService {
         NotificationCategory.ORDER,
         "환불이 완료되었어요",
         refund.getOrder().getStore().getName() + " 주문 환불이 완료되었어요.",
-        "/orders");
+        "/orders/" + refund.getOrder().getId());
 
     log.info("환불 승인됨. refundId={}, sellerId={}", refundId, sellerId);
     return refundMapper.toResponse(saved);
@@ -175,7 +175,7 @@ public class RefundService {
         NotificationCategory.ORDER,
         "환불이 거부되었어요",
         refund.getRejectReason(),
-        "/orders");
+        "/orders/" + refund.getOrder().getId());
 
     log.info("환불 거부됨. refundId={}, sellerId={}", refundId, sellerId);
     return refundMapper.toResponse(saved);
@@ -254,7 +254,7 @@ public class RefundService {
         NotificationCategory.ORDER,
         "환불이 완료되었어요",
         refund.getOrder().getStore().getName() + " 주문 환불이 완료되었어요.",
-        "/orders");
+        "/orders/" + refund.getOrder().getId());
 
     log.info("환불 자동 승인됨. refundId={}", refundId);
   }

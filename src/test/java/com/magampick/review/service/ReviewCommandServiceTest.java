@@ -479,6 +479,6 @@ class ReviewCommandServiceTest {
             eq(NotificationCategory.REVIEW),
             any(),
             any(),
-            eq("/my/reviews"));
+            eq("/reviews/my"));
   }
 }

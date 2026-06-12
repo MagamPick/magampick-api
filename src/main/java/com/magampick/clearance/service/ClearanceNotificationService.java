@@ -61,7 +61,7 @@ public class ClearanceNotificationService {
       String body = storeName + "에 " + itemName + "이(가) 등록됐어요.";
       try {
         notificationService.notifyCustomer(
-            customerId, settingKey, NotificationCategory.DEAL, title, body, "/");
+            customerId, settingKey, NotificationCategory.DEAL, title, body, "/store/" + storeId);
       } catch (Exception e) {
         log.warn("떨이 등록 알림 발송 실패. customerId={}, clearanceItemId={}", customerId, item.getId(), e);
       }
@@ -115,7 +115,12 @@ public class ClearanceNotificationService {
     for (Map.Entry<Long, String> entry : targets.entrySet()) {
       try {
         notificationService.notifyCustomer(
-            entry.getKey(), entry.getValue(), NotificationCategory.DEAL, title, body, "/");
+            entry.getKey(),
+            entry.getValue(),
+            NotificationCategory.DEAL,
+            title,
+            body,
+            "/store/" + storeId);
       } catch (Exception e) {
         log.warn(
             "마감 임박 알림 발송 실패. customerId={}, clearanceItemId={}", entry.getKey(), item.getId(), e);
