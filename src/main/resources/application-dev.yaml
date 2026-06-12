@@ -23,6 +23,8 @@ cors:
   allowed-origins:
     - https://dev.magampick.com
     - https://api.dev.magampick.com
+    - https://owner.dev.magampick.com
+    - https://admin.dev.magampick.com
     - http://localhost:5173
 
 auth:
