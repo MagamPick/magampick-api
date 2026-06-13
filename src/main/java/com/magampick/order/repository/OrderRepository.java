@@ -5,7 +5,9 @@ import com.magampick.order.domain.OrderStatus;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -127,4 +129,54 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
           + "  AND rf.status = com.magampick.refund.domain.RefundStatus.APPROVED"
           + ")")
   Long sumCumulativeRescuedItemQuantity(@Param("customerId") Long customerId);
+
+  /**
+   * 고객별 AWAITING_PAYMENT 주문 — orderItems·clearanceItem 함께 fetch. cancelAwaitingPaymentOrder 에서
+   * 재고복원용.
+   *
+   * @param customerId 소비자 ID
+   * @param status {@link OrderStatus#AWAITING_PAYMENT}
+   * @return orderItems 초기화된 Order 목록
+   */
+  @EntityGraph(attributePaths = {"orderItems", "orderItems.clearanceItem"})
+  List<Order> findByCustomerIdAndStatus(Long customerId, OrderStatus status);
+
+  /**
+   * 만료된 AWAITING_PAYMENT 주문 ID 목록 — 배치 스케줄러용. createdAt < cutoff 이고 AWAITING_PAYMENT 상태. deletedAt
+   * IS NULL.
+   *
+   * @param cutoff 기준 시각 (now - TTL)
+   * @return 만료된 주문 ID 목록
+   */
+  @Query(
+      "SELECT o.id FROM Order o "
+          + "WHERE o.status = com.magampick.order.domain.OrderStatus.AWAITING_PAYMENT "
+          + "AND o.createdAt < :cutoff "
+          + "AND o.deletedAt IS NULL")
+  List<Long> findExpiredAwaitingOrderIds(@Param("cutoff") LocalDateTime cutoff);
+
+  /**
+   * 단건 조회 + orderItems·clearanceItem 함께 fetch — cancelExpiredAwaitingOrder 에서 재고복원용.
+   *
+   * @param id 주문 ID
+   * @return orderItems 초기화된 Order
+   */
+  @EntityGraph(attributePaths = {"orderItems", "orderItems.clearanceItem"})
+  @Query("SELECT o FROM Order o WHERE o.id = :id")
+  java.util.Optional<Order> findByIdWithOrderItems(@Param("id") Long id);
+
+  /**
+   * 조건부 원자적 AWAITING_PAYMENT → CANCELLED 전이. WHERE status = AWAITING_PAYMENT 조건으로 멱등 보장. confirm
+   * 레이스에서 TossConfirmService 의 isAwaitingPayment 가드와 함께 안전.
+   *
+   * @param id 주문 ID
+   * @param now 취소 시각
+   * @return 영향 행 수 (1 = 전이 성공, 0 = 이미 전이됨)
+   */
+  @Modifying(clearAutomatically = true)
+  @Query(
+      "UPDATE Order o SET o.status = com.magampick.order.domain.OrderStatus.CANCELLED,"
+          + " o.cancelledAt = :now"
+          + " WHERE o.id = :id AND o.status = com.magampick.order.domain.OrderStatus.AWAITING_PAYMENT")
+  int cancelIfAwaitingPayment(@Param("id") Long id, @Param("now") LocalDateTime now);
 }

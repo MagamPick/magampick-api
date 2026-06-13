@@ -53,6 +53,11 @@ public class ReviewCommandService {
       throw new BusinessException(ReviewErrorCode.REVIEW_NOT_ELIGIBLE);
     }
 
+    // 주문 소유권 검증 (타인 주문에 리뷰 작성 차단)
+    if (!order.isOwnedBy(customerId)) {
+      throw new BusinessException(ReviewErrorCode.REVIEW_FORBIDDEN);
+    }
+
     // 중복 검증
     if (reviewRepository.findByOrderId(orderId).isPresent()) {
       throw new BusinessException(ReviewErrorCode.REVIEW_ALREADY_EXISTS);
