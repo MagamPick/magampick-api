@@ -1278,7 +1278,7 @@ class OrderServiceTest {
     givenStoreOpen();
     givenProduct();
     given(customerRepository.getReferenceById(CUSTOMER_ID)).willReturn(OrderFixture.aCustomer());
-    given(pointService.getSummary(CUSTOMER_ID)).willReturn(new PointSummaryResponse(1000L));
+    given(pointService.getSummary(CUSTOMER_ID)).willReturn(new PointSummaryResponse(1000L, 0L));
 
     ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
     given(orderRepository.save(orderCaptor.capture()))

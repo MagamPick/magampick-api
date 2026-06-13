@@ -425,9 +425,11 @@ class CheckoutBenefitsIntegrationTest {
     assertThat(earnTxList).hasSize(1);
     assertThat(earnTxList.get(0).getAmount()).isEqualTo(10L);
 
-    // 잔액 증가 확인 (1000 - 500 + 10 = 510)
+    // D1 설계: earn() → PENDING — 환불윈도우(3일) 종료 전까진 사용가능잔액에 미포함
     long balance = pointAccrualRepository.sumActiveRemainingByCustomerId(customer.getId());
-    assertThat(balance).isEqualTo(510L);
+    assertThat(balance).isEqualTo(500L); // 1000 - 500(사용) = 500 (PENDING 10P 제외)
+    long pending = pointAccrualRepository.sumPendingRemainingByCustomerId(customer.getId());
+    assertThat(pending).isEqualTo(10L); // earn 10P → PENDING (confirm 배치 후 ACTIVE)
   }
 
   @Test
