@@ -52,7 +52,7 @@ class AddressIntegrationTest {
   private long createAddress(String token, String label) throws Exception {
     AddressCreateRequest request =
         new AddressCreateRequest(
-            label, "서울특별시 강남구 테헤란로 427", null, null, "06158", "11680", "3179999");
+            label, "서울특별시 강남구 테헤란로 427", null, null, "06158", "11680", "3179999", null, null);
 
     MvcResult result =
         mockMvc

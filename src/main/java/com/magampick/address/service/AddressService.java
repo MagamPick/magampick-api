@@ -45,8 +45,8 @@ public class AddressService {
     }
     validateLabel(request.label());
     boolean isDefault = (currentCount == 0);
-    // 좌표 변환
-    Point location = geocode(request.sigunguCode(), request.roadnameCode(), request.roadAddress());
+    // 좌표 확보 — GPS 경로(좌표 직접) 또는 검색 경로(코드 기반 정방향 지오코딩)
+    Point location = resolveLocation(request);
 
     // 주소지 저장
     // 가벼운 reference — 실제 SELECT 없이 FK 매핑. JWT 통과 customer_id 신뢰.
@@ -161,6 +161,17 @@ public class AddressService {
       throw new BusinessException(CommonErrorCode.FORBIDDEN);
     }
     return address;
+  }
+
+  /**
+   * 좌표 확보 전략. GPS 경로는 클라이언트가 보낸 좌표를 그대로 저장하고, 검색 경로는 다음 위젯 코드로 정방향 지오코딩한다. (요청 검증에서 둘 중 한 쌍은 보장됨 —
+   * {@link AddressCreateRequest#isLocationSourceValid()})
+   */
+  private Point resolveLocation(AddressCreateRequest request) {
+    if (request.latitude() != null && request.longitude() != null) {
+      return GeometryUtil.toPoint(request.latitude(), request.longitude());
+    }
+    return geocode(request.sigunguCode(), request.roadnameCode(), request.roadAddress());
   }
 
   private Point geocode(String sigunguCode, String roadnameCode, String roadAddress) {
