@@ -408,6 +408,27 @@ class CouponServiceTest {
     then(couponRepository).should(never()).save(any());
   }
 
+  @Test
+  void createEvent_만료일이_노출종료일보다_앞서면_400() {
+    // given: validUntil(2026-06-30) < displayEndAt(2026-12-31) → 발급 즉시 죽은 쿠폰
+    AdminCouponCreateRequest req =
+        new AdminCouponCreateRequest(
+            "만료일 빠른 쿠폰",
+            CouponDiscountType.AMOUNT,
+            1000,
+            0,
+            LocalDate.of(2026, 6, 30),
+            null,
+            LocalDate.of(2026, 6, 9),
+            LocalDate.of(2026, 12, 31));
+
+    // when / then
+    assertThatThrownBy(() -> couponService.createEvent(req))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", CouponErrorCode.INVALID_COUPON_VALIDITY);
+    then(couponRepository).should(never()).save(any());
+  }
+
   // ── listEvents ───────────────────────────────────────────────────────────────
 
   @Test
@@ -488,6 +509,36 @@ class CouponServiceTest {
     assertThatThrownBy(() -> couponService.updateEvent(1L, req))
         .isInstanceOf(BusinessException.class)
         .hasFieldOrPropertyWithValue("errorCode", CouponErrorCode.COUPON_NOT_FOUND);
+  }
+
+  @Test
+  void updateEvent_만료일을_노출종료일보다_앞으로_수정하면_400() {
+    // given: 기존 displayEndAt=2026-12-31. validUntil 만 2026-06-30 으로 수정 → 검증 실패
+    Coupon coupon = CouponFixture.anEventCoupon(); // id=2, displayEndAt=2026-12-31
+    given(couponRepository.findById(2L)).willReturn(Optional.of(coupon));
+    AdminCouponUpdateRequest req =
+        new AdminCouponUpdateRequest(
+            null, null, null, null, LocalDate.of(2026, 6, 30), null, null, null);
+
+    // when / then
+    assertThatThrownBy(() -> couponService.updateEvent(2L, req))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", CouponErrorCode.INVALID_COUPON_VALIDITY);
+  }
+
+  @Test
+  void updateEvent_노출종료일을_기존만료일보다_뒤로_수정하면_400() {
+    // given: 기존 validUntil=2026-12-31. displayEndAt 만 2027-06-30 으로 수정 → effectiveEnd 기준 검증 실패
+    Coupon coupon = CouponFixture.anEventCoupon(); // id=2, validUntil=2026-12-31
+    given(couponRepository.findById(2L)).willReturn(Optional.of(coupon));
+    AdminCouponUpdateRequest req =
+        new AdminCouponUpdateRequest(
+            null, null, null, null, null, null, null, LocalDate.of(2027, 6, 30));
+
+    // when / then
+    assertThatThrownBy(() -> couponService.updateEvent(2L, req))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", CouponErrorCode.INVALID_COUPON_VALIDITY);
   }
 
   // ── endEvent ─────────────────────────────────────────────────────────────────

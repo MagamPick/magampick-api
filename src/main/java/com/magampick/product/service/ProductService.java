@@ -51,8 +51,11 @@ public class ProductService {
     // 소유권 확인
     Store store = storeService.requireOwnedStore(sellerId, storeId);
 
+    // 상품명 trim (공백 변형 우회 방지 — 비교·저장 모두 trim 값 사용)
+    String name = request.name().trim();
+
     // 상품명 중복 확인
-    if (productRepository.existsByStoreIdAndNameAndDeletedAtIsNull(storeId, request.name())) {
+    if (productRepository.existsByStoreIdAndNameAndDeletedAtIsNull(storeId, name)) {
       throw new BusinessException(ProductErrorCode.PRODUCT_NAME_DUPLICATE);
     }
 
@@ -63,7 +66,7 @@ public class ProductService {
     Product product =
         Product.builder()
             .store(store)
-            .name(request.name())
+            .name(name)
             .regularPrice(request.regularPrice())
             .imageUrl(imageUrl)
             .status(request.status() != null ? request.status() : ProductStatus.ON_SALE)
@@ -110,10 +113,13 @@ public class ProductService {
             .findByIdAndStoreIdAndDeletedAtIsNull(productId, storeId)
             .orElseThrow(() -> new BusinessException(ProductErrorCode.PRODUCT_NOT_FOUND));
 
+    // 상품명 trim (공백 변형 우회 방지 — null 이면 미수정)
+    String name = request.name() != null ? request.name().trim() : null;
+
     // 상품명 중복 확인
-    if (request.name() != null
+    if (name != null
         && productRepository.existsByStoreIdAndNameAndDeletedAtIsNullAndIdNot(
-            storeId, request.name(), productId)) {
+            storeId, name, productId)) {
       throw new BusinessException(ProductErrorCode.PRODUCT_NAME_DUPLICATE);
     }
 
@@ -121,7 +127,7 @@ public class ProductService {
     String oldImageUrl = product.getImageUrl();
     String imageUrl = hasImage(image) ? uploadProductImage(image) : null;
     product.updateInfo(
-        request.name(),
+        name,
         request.regularPrice(),
         imageUrl,
         request.description(),

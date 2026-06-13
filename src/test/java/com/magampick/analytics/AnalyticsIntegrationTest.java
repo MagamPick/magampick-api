@@ -191,9 +191,11 @@ class AnalyticsIntegrationTest {
     // 매출: order1(10000) + order2(15000) = 25000. order3(환불승인)은 제외
     assertThat(data.path("sales").path("totalSales").asLong()).isEqualTo(25000L);
 
-    // 주문: total=7(COMPLETED3+CANCELLED1+REJECTED1+NO_SHOW1+PENDING1), AWAITING_PAYMENT 제외
-    assertThat(data.path("orders").path("total").asInt()).isEqualTo(7);
-    assertThat(data.path("orders").path("pickedUp").asInt()).isEqualTo(3); // COMPLETED 3건
+    // 주문: total=6(COMPLETED2+CANCELLED1+REJECTED1+NO_SHOW1+PENDING1), AWAITING_PAYMENT·환불승인(order3)
+    // 제외
+    assertThat(data.path("orders").path("total").asInt()).isEqualTo(6);
+    assertThat(data.path("orders").path("pickedUp").asInt())
+        .isEqualTo(2); // COMPLETED 2건 (order3 환불승인 제외 — 매출 모집단과 일치)
     assertThat(data.path("orders").path("canceled").asInt()).isEqualTo(2); // CANCELLED+REJECTED
     assertThat(data.path("orders").path("noShow").asInt()).isEqualTo(1);
 
