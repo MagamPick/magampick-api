@@ -1,10 +1,12 @@
 package com.magampick.refund.mapper;
 
+import com.magampick.order.domain.Order;
 import com.magampick.order.domain.OrderItem;
 import com.magampick.refund.domain.Refund;
 import com.magampick.refund.dto.RefundInfoResponse;
 import com.magampick.refund.dto.RefundItemResponse;
 import com.magampick.refund.dto.RefundResponse;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -29,7 +31,7 @@ public interface RefundMapper {
   @Mapping(target = "storeId", source = "order.store.id")
   @Mapping(target = "customerName", source = "order.customer.nickname")
   @Mapping(target = "items", expression = "java(mapItems(refund))")
-  @Mapping(target = "amount", source = "order.totalPrice")
+  @Mapping(target = "amount", expression = "java(refundCashAmount(refund.getOrder()))")
   @Mapping(target = "pickupCompletedAt", source = "order.completedAt", qualifiedByName = "toKst")
   @Mapping(target = "status", expression = "java(refund.getStatus().name())")
   @Mapping(target = "requestedAt", source = "requestedAt", qualifiedByName = "toKst")
@@ -45,6 +47,16 @@ public interface RefundMapper {
   @Named("toKst")
   default OffsetDateTime toKst(LocalDateTime ldt) {
     return ldt == null ? null : ldt.atOffset(ZoneOffset.ofHours(9));
+  }
+
+  /**
+   * 현금 환불액 = 실 결제 현금(finalAmount). 혜택 미적용 구주문 등 finalAmount 가 null 이면 totalPrice 로 폴백.
+   *
+   * <p>쿠폰·포인트 복원(reverseBenefits)은 별도로 수행되므로, 현금 환불을 totalPrice(혜택 전)로 잡으면 복원분과 합쳐져 과환불이 된다. 실 결제
+   * 현금 기준으로 환불해야 복원분과 합쳐 정확히 totalPrice 만 고객에게 환원된다.
+   */
+  default BigDecimal refundCashAmount(Order order) {
+    return order.getFinalAmount() != null ? order.getFinalAmount() : order.getTotalPrice();
   }
 
   default List<RefundItemResponse> mapItems(Refund refund) {

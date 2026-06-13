@@ -166,6 +166,10 @@ public class CouponService {
     if (req.displayStartAt().isAfter(req.displayEndAt())) {
       throw new BusinessException(CouponErrorCode.INVALID_EVENT_PERIOD);
     }
+    // 만료일 검증 — 만료일이 노출 종료일보다 앞서면 발급 즉시 EXPIRED 인 죽은 쿠폰
+    if (req.validUntil().isBefore(req.displayEndAt())) {
+      throw new BusinessException(CouponErrorCode.INVALID_COUPON_VALIDITY);
+    }
     // 쿠폰 생성
     Coupon coupon =
         couponRepository.save(
@@ -232,6 +236,15 @@ public class CouponService {
         req.displayEndAt() != null ? req.displayEndAt() : coupon.getDisplayEndAt();
     if (effectiveStart != null && effectiveEnd != null && effectiveStart.isAfter(effectiveEnd)) {
       throw new BusinessException(CouponErrorCode.INVALID_EVENT_PERIOD);
+    }
+
+    // 만료일 검증 — 수정 후 적용될 만료일이 노출 종료일보다 앞서면 안 됨
+    LocalDate effectiveValidUntil =
+        req.validUntil() != null ? req.validUntil() : coupon.getValidUntil();
+    if (effectiveValidUntil != null
+        && effectiveEnd != null
+        && effectiveValidUntil.isBefore(effectiveEnd)) {
+      throw new BusinessException(CouponErrorCode.INVALID_COUPON_VALIDITY);
     }
 
     // 쿠폰 수정

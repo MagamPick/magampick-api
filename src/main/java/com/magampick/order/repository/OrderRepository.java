@@ -76,9 +76,11 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
       @Param("end") LocalDateTime end);
 
   /**
-   * 통계용 주문 상태별 건수. createdAt [start, end) 범위, AWAITING_PAYMENT 제외.
+   * 통계용 주문 상태별 건수. createdAt [start, end) 범위, AWAITING_PAYMENT 제외, APPROVED 환불 제외.
    *
-   * <p>결과 행: [OrderStatus, Long count]. AWAITING_PAYMENT 상태는 제외됨.
+   * <p>결과 행: [OrderStatus, Long count]. AWAITING_PAYMENT 상태는 제외됨. 시간기준은 주문 접수(createdAt) — 매출 쿼리(픽업
+   * 시각 completedAt)와 모집단 의도가 다르다(접수 기준 퍼널 vs 실현 매출). 환불은 COMPLETED 에만 걸리므로 NOT EXISTS 로 pickedUp
+   * 모집단을 매출과 일치시킨다.
    */
   @Query(
       "SELECT o.status, COUNT(o) FROM Order o "
@@ -86,6 +88,11 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
           + "AND o.createdAt >= :start AND o.createdAt < :end "
           + "AND o.deletedAt IS NULL "
           + "AND o.status <> com.magampick.order.domain.OrderStatus.AWAITING_PAYMENT "
+          + "AND NOT EXISTS ("
+          + "  SELECT 1 FROM Refund rf "
+          + "  WHERE rf.order = o "
+          + "  AND rf.status = com.magampick.refund.domain.RefundStatus.APPROVED"
+          + ") "
           + "GROUP BY o.status")
   List<Object[]> countOrdersByStatus(
       @Param("storeId") Long storeId,

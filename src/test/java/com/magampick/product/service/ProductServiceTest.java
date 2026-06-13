@@ -14,6 +14,7 @@ import com.magampick.global.storage.StorageService;
 import com.magampick.product.domain.Product;
 import com.magampick.product.domain.ProductCategory;
 import com.magampick.product.domain.ProductStatus;
+import com.magampick.product.dto.ProductCreateRequest;
 import com.magampick.product.dto.ProductResponse;
 import com.magampick.product.dto.ProductUpdateRequest;
 import com.magampick.product.exception.ProductErrorCode;
@@ -31,6 +32,7 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -771,5 +773,63 @@ class ProductServiceTest {
 
     // then
     assertThat(product.getDescription()).isEqualTo("새 설명");
+  }
+
+  // ── 상품명 trim (A2-3) ─────────────────────────────────────────────────────────
+
+  @Test
+  void 등록_상품명_앞뒤공백_trim_후_중복확인_및_저장() {
+    // given — 이름 앞뒤에 공백이 있는 등록 요청
+    Store store = store();
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
+    given(productRepository.existsByStoreIdAndNameAndDeletedAtIsNull(STORE_ID, "크로아상"))
+        .willReturn(false);
+    given(productRepository.save(any(Product.class)))
+        .willAnswer(
+            inv -> {
+              Product p = inv.getArgument(0);
+              ReflectionTestUtils.setField(p, "id", PRODUCT_ID);
+              return p;
+            });
+    given(productMapper.toResponse(any(Product.class)))
+        .willReturn(ProductFixture.aResponse(PRODUCT_ID));
+    ProductCreateRequest request =
+        new ProductCreateRequest(
+            "  크로아상  ", new BigDecimal("4500"), ProductCategory.BAKERY, null, null);
+
+    // when
+    productService.registerProduct(SELLER_ID, STORE_ID, request, null);
+
+    // then — 중복확인·저장 모두 trim 된 이름으로 수행
+    then(productRepository).should().existsByStoreIdAndNameAndDeletedAtIsNull(STORE_ID, "크로아상");
+    ArgumentCaptor<Product> captor = ArgumentCaptor.forClass(Product.class);
+    then(productRepository).should().save(captor.capture());
+    assertThat(captor.getValue().getName()).isEqualTo("크로아상");
+  }
+
+  @Test
+  void 수정_상품명_앞뒤공백_trim_후_중복확인_및_적용() {
+    // given — 이름 앞뒤에 공백이 있는 수정 요청
+    Store store = store();
+    Product product = ProductFixture.aProduct(store);
+    ReflectionTestUtils.setField(product, "id", PRODUCT_ID);
+    ProductUpdateRequest request = new ProductUpdateRequest("  바게트  ", null, null, null, null);
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
+    given(productRepository.findByIdAndStoreIdAndDeletedAtIsNull(PRODUCT_ID, STORE_ID))
+        .willReturn(Optional.of(product));
+    given(
+            productRepository.existsByStoreIdAndNameAndDeletedAtIsNullAndIdNot(
+                STORE_ID, "바게트", PRODUCT_ID))
+        .willReturn(false);
+    given(productMapper.toResponse(product)).willReturn(ProductFixture.aResponse(PRODUCT_ID));
+
+    // when
+    productService.updateProduct(SELLER_ID, STORE_ID, PRODUCT_ID, request, null);
+
+    // then — 중복확인·적용 모두 trim 된 이름으로 수행
+    then(productRepository)
+        .should()
+        .existsByStoreIdAndNameAndDeletedAtIsNullAndIdNot(STORE_ID, "바게트", PRODUCT_ID);
+    assertThat(product.getName()).isEqualTo("바게트");
   }
 }

@@ -16,6 +16,8 @@ public enum CouponErrorCode implements BaseErrorCode {
   INVALID_DISCOUNT_RATE(HttpStatus.BAD_REQUEST, "INVALID_DISCOUNT_RATE", "할인율은 1~100 사이여야 합니다"),
   INVALID_EVENT_PERIOD(
       HttpStatus.BAD_REQUEST, "INVALID_EVENT_PERIOD", "이벤트 노출 종료일이 시작일보다 앞설 수 없습니다"),
+  INVALID_COUPON_VALIDITY(
+      HttpStatus.BAD_REQUEST, "INVALID_COUPON_VALIDITY", "쿠폰 만료일은 노출 종료일 이후여야 합니다"),
   ;
 
   private final HttpStatus status;

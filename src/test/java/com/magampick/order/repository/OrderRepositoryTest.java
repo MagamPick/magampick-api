@@ -13,6 +13,8 @@ import com.magampick.order.domain.Order;
 import com.magampick.order.domain.OrderItem;
 import com.magampick.order.domain.OrderStatus;
 import com.magampick.order.domain.PickupType;
+import com.magampick.refund.domain.Refund;
+import com.magampick.refund.repository.RefundRepository;
 import com.magampick.seller.domain.Seller;
 import com.magampick.seller.repository.SellerRepository;
 import com.magampick.store.domain.OperationStatus;
@@ -21,6 +23,7 @@ import com.magampick.store.repository.StoreRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,6 +43,7 @@ class OrderRepositoryTest {
   @Autowired SellerRepository sellerRepository;
   @Autowired StoreRepository storeRepository;
   @Autowired CustomerRepository customerRepository;
+  @Autowired RefundRepository refundRepository;
 
   private Store store;
   private Customer customer;
@@ -115,6 +119,46 @@ class OrderRepositoryTest {
 
     ClearanceItem restored = clearanceItemRepository.findById(ci.getId()).orElseThrow();
     assertThat(restored.getRemainingQuantity()).isEqualTo(5);
+  }
+
+  @Test
+  void countOrdersByStatus_APPROVED환불_COMPLETED주문_제외() {
+    // given — 같은 매장에 COMPLETED 3건: 환불 없음 / APPROVED 환불 / REQUESTED 환불, + CANCELLED 1건
+    LocalDateTime start = LocalDateTime.now().minusDays(1);
+    LocalDateTime end = LocalDateTime.now().plusDays(1);
+
+    orderRepository.save(orderWithStatus(OrderStatus.COMPLETED)); // 카운트됨
+    Order approvedRefunded = orderRepository.save(orderWithStatus(OrderStatus.COMPLETED));
+    saveApprovedRefund(approvedRefunded); // 제외돼야 함
+    Order requestedRefunded = orderRepository.save(orderWithStatus(OrderStatus.COMPLETED));
+    saveRequestedRefund(requestedRefunded); // APPROVED 아님 → 카운트됨
+    orderRepository.save(orderWithStatus(OrderStatus.CANCELLED)); // 환불 무관, 카운트됨
+
+    // when
+    List<Object[]> rows = orderRepository.countOrdersByStatus(store.getId(), start, end);
+
+    // then — COMPLETED 는 APPROVED 환불 1건 제외하고 2건, CANCELLED 1건은 그대로
+    assertThat(countOf(rows, OrderStatus.COMPLETED)).isEqualTo(2L);
+    assertThat(countOf(rows, OrderStatus.CANCELLED)).isEqualTo(1L);
+  }
+
+  private long countOf(List<Object[]> rows, OrderStatus status) {
+    return rows.stream()
+        .filter(r -> r[0] == status)
+        .mapToLong(r -> ((Number) r[1]).longValue())
+        .sum();
+  }
+
+  private void saveApprovedRefund(Order order) {
+    Refund refund =
+        Refund.builder().order(order).reason("환불 사유").requestedAt(LocalDateTime.now()).build();
+    refund.approve(LocalDateTime.now());
+    refundRepository.save(refund);
+  }
+
+  private void saveRequestedRefund(Order order) {
+    refundRepository.save(
+        Refund.builder().order(order).reason("환불 사유").requestedAt(LocalDateTime.now()).build());
   }
 
   // ── helper ───────────────────────────────────────────────────────────────────
