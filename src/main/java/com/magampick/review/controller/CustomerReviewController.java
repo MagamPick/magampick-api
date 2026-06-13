@@ -16,6 +16,7 @@ import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -23,8 +24,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 /** 소비자 리뷰 작성·수정·삭제·조회 API. */
 @RestController
@@ -66,33 +68,45 @@ public class CustomerReviewController {
     return ResponseEntity.ok(reviewQueryService.getMyReviews(userDetails.getUserId()));
   }
 
-  @PostMapping("/api/v1/orders/{orderId}/reviews")
-  @Operation(summary = "리뷰 작성", description = "픽업 완료(COMPLETED) 주문에만 작성 가능. 201 + 생성된 리뷰 반환.")
+  @PostMapping(
+      value = "/api/v1/orders/{orderId}/reviews",
+      consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+  @Operation(
+      summary = "리뷰 작성",
+      description =
+          "픽업 완료(COMPLETED) 주문에만 작성 가능. 텍스트는 request JSON 파트, 사진은 photos File 파트(최대 3장)로 전송하면 OCI 업로드 후 URL 저장. 201 + 생성된 리뷰 반환.")
   @ApiResponses({
     @ApiResponse(responseCode = "201", description = "리뷰 작성 성공"),
+    @ApiResponse(responseCode = "400", description = "입력 검증 실패 / 사진 3장 초과 / 이미지 규격 위반"),
     @ApiResponse(responseCode = "409", description = "이미 리뷰 존재 / COMPLETED 아님")
   })
   public ResponseEntity<MyReviewResponse> createReview(
       @AuthenticationPrincipal CustomUserDetails userDetails,
       @Parameter(description = "주문 ID") @PathVariable Long orderId,
-      @Valid @RequestBody CreateReviewRequest request) {
+      @RequestPart("request") @Valid CreateReviewRequest request,
+      @RequestPart(value = "photos", required = false) List<MultipartFile> photos) {
     MyReviewResponse result =
-        reviewCommandService.createReview(userDetails.getUserId(), orderId, request);
+        reviewCommandService.createReview(userDetails.getUserId(), orderId, request, photos);
     return ResponseEntity.created(URI.create("/api/v1/reviews/" + result.id())).body(result);
   }
 
-  @PutMapping("/api/v1/reviews/{reviewId}")
-  @Operation(summary = "리뷰 수정", description = "본인 리뷰, 사장 답글 없는 경우만 수정 가능. 200 + 수정된 리뷰 반환.")
+  @PutMapping(value = "/api/v1/reviews/{reviewId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+  @Operation(
+      summary = "리뷰 수정",
+      description =
+          "본인 리뷰, 사장 답글 없는 경우만 수정 가능. request JSON 파트의 keepImageUrls 로 유지할 기존 사진을 지정하고, 새 사진은 photos File 파트로 전송. 최종 사진 = 유지 URL + 새 업로드 URL(합 최대 3장). 200 + 수정된 리뷰 반환.")
   @ApiResponses({
     @ApiResponse(responseCode = "200", description = "수정 성공"),
+    @ApiResponse(responseCode = "400", description = "입력 검증 실패 / 사진 3장 초과 / 이미지 규격 위반"),
     @ApiResponse(responseCode = "409", description = "답글 잠금")
   })
   public ResponseEntity<MyReviewResponse> updateReview(
       @AuthenticationPrincipal CustomUserDetails userDetails,
       @Parameter(description = "리뷰 ID") @PathVariable Long reviewId,
-      @Valid @RequestBody UpdateReviewRequest request) {
+      @RequestPart("request") @Valid UpdateReviewRequest request,
+      @RequestPart(value = "photos", required = false) List<MultipartFile> photos) {
     return ResponseEntity.ok(
-        reviewCommandService.updateReview(userDetails.getUserId(), reviewId, request));
+        reviewCommandService.updateReview(userDetails.getUserId(), reviewId, request, photos));
   }
 
   @DeleteMapping("/api/v1/reviews/{reviewId}")

@@ -16,6 +16,13 @@ public enum ReviewErrorCode implements BaseErrorCode {
   REVIEW_NOT_ELIGIBLE(HttpStatus.CONFLICT, "REVIEW_NOT_ELIGIBLE", "픽업 완료된 주문만 리뷰를 작성할 수 있습니다"),
   REPLY_ALREADY_EXISTS(HttpStatus.CONFLICT, "REPLY_ALREADY_EXISTS", "이미 답글이 등록된 리뷰입니다"),
   REPLY_STORE_FORBIDDEN(HttpStatus.FORBIDDEN, "REPLY_STORE_FORBIDDEN", "본인 매장 리뷰에만 답글을 달 수 있습니다"),
+  REVIEW_IMAGE_TOO_MANY(HttpStatus.BAD_REQUEST, "REVIEW_IMAGE_TOO_MANY", "사진은 최대 3장까지 첨부할 수 있습니다"),
+  REVIEW_IMAGE_TOO_LARGE(
+      HttpStatus.BAD_REQUEST, "REVIEW_IMAGE_TOO_LARGE", "이미지 파일은 최대 5MB까지 업로드할 수 있습니다"),
+  REVIEW_IMAGE_INVALID_TYPE(
+      HttpStatus.BAD_REQUEST, "REVIEW_IMAGE_INVALID_TYPE", "jpg, png, webp 형식의 이미지만 업로드할 수 있습니다"),
+  REVIEW_IMAGE_UPLOAD_FAILED(
+      HttpStatus.INTERNAL_SERVER_ERROR, "REVIEW_IMAGE_UPLOAD_FAILED", "리뷰 이미지 업로드에 실패했습니다"),
   ;
 
   private final HttpStatus status;

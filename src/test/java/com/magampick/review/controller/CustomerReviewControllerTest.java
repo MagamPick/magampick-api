@@ -8,8 +8,7 @@ import static org.mockito.BDDMockito.willThrow;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -29,6 +28,7 @@ import com.magampick.review.dto.UpdateReviewRequest;
 import com.magampick.review.exception.ReviewErrorCode;
 import com.magampick.review.service.ReviewCommandService;
 import com.magampick.review.service.ReviewQueryService;
+import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -39,8 +39,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 @WebMvcTest(CustomerReviewController.class)
 @Import({SecurityConfig.class, JwtAuthenticationEntryPoint.class, JwtAccessDeniedHandler.class})
@@ -54,6 +56,23 @@ class CustomerReviewControllerTest {
 
   private static final CustomUserDetails CUSTOMER = new CustomUserDetails(1L, Role.CUSTOMER);
   private static final CustomUserDetails SELLER = new CustomUserDetails(2L, Role.SELLER);
+
+  /** multipart 의 JSON {@code request} 파트. */
+  private MockMultipartFile requestPart(String json) {
+    return new MockMultipartFile(
+        "request",
+        "request",
+        MediaType.APPLICATION_JSON_VALUE,
+        json.getBytes(StandardCharsets.UTF_8));
+  }
+
+  /** multipart() 는 기본 POST — PUT 매핑에 맞춰 메서드를 덮어쓴다. */
+  private static RequestPostProcessor asPut() {
+    return request -> {
+      request.setMethod("PUT");
+      return request;
+    };
+  }
 
   // ── GET /api/v1/orders/reviewable ─────────────────────────────────────────────
 
@@ -137,17 +156,16 @@ class CustomerReviewControllerTest {
 
   @Test
   void 리뷰_작성_201() throws Exception {
-    CreateReviewRequest req = new CreateReviewRequest(4, "맛있어요", Set.of(), List.of());
+    CreateReviewRequest req = new CreateReviewRequest(4, "맛있어요", Set.of());
     MyReviewResponse resp = buildMyReviewResponse(20L);
 
-    given(reviewCommandService.createReview(eq(1L), eq(10L), any())).willReturn(resp);
+    given(reviewCommandService.createReview(eq(1L), eq(10L), any(), any())).willReturn(resp);
 
     mockMvc
         .perform(
-            post("/api/v1/orders/10/reviews")
-                .with(user(CUSTOMER))
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(req)))
+            multipart("/api/v1/orders/10/reviews")
+                .file(requestPart(objectMapper.writeValueAsString(req)))
+                .with(user(CUSTOMER)))
         .andExpect(status().isCreated())
         .andExpect(header().string("Location", "/api/v1/reviews/20"))
         .andExpect(jsonPath("$.data.id").value(20));
@@ -156,20 +174,18 @@ class CustomerReviewControllerTest {
   @Test
   void 리뷰_작성_미인증_401() throws Exception {
     mockMvc
-        .perform(
-            post("/api/v1/orders/10/reviews").contentType(MediaType.APPLICATION_JSON).content("{}"))
+        .perform(multipart("/api/v1/orders/10/reviews").file(requestPart("{}")))
         .andExpect(status().isUnauthorized());
   }
 
   @Test
   void 리뷰_작성_사장권한_403() throws Exception {
-    CreateReviewRequest req = new CreateReviewRequest(4, "맛있어요", Set.of(), List.of());
+    CreateReviewRequest req = new CreateReviewRequest(4, "맛있어요", Set.of());
     mockMvc
         .perform(
-            post("/api/v1/orders/10/reviews")
-                .with(user(SELLER))
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(req)))
+            multipart("/api/v1/orders/10/reviews")
+                .file(requestPart(objectMapper.writeValueAsString(req)))
+                .with(user(SELLER)))
         .andExpect(status().isForbidden());
   }
 
@@ -178,27 +194,25 @@ class CustomerReviewControllerTest {
     // rating=null → @NotNull 위반
     mockMvc
         .perform(
-            post("/api/v1/orders/10/reviews")
-                .with(user(CUSTOMER))
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"content\":\"맛있어요\"}"))
+            multipart("/api/v1/orders/10/reviews")
+                .file(requestPart("{\"content\":\"맛있어요\"}"))
+                .with(user(CUSTOMER)))
         .andExpect(status().isBadRequest());
   }
 
   @Test
   void 리뷰_이미_존재_409() throws Exception {
-    CreateReviewRequest req = new CreateReviewRequest(4, "맛있어요", Set.of(), List.of());
+    CreateReviewRequest req = new CreateReviewRequest(4, "맛있어요", Set.of());
 
     willThrow(new BusinessException(ReviewErrorCode.REVIEW_ALREADY_EXISTS))
         .given(reviewCommandService)
-        .createReview(any(), any(), any());
+        .createReview(any(), any(), any(), any());
 
     mockMvc
         .perform(
-            post("/api/v1/orders/10/reviews")
-                .with(user(CUSTOMER))
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(req)))
+            multipart("/api/v1/orders/10/reviews")
+                .file(requestPart(objectMapper.writeValueAsString(req)))
+                .with(user(CUSTOMER)))
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.error.code").value("REVIEW_ALREADY_EXISTS"));
   }
@@ -210,14 +224,14 @@ class CustomerReviewControllerTest {
     UpdateReviewRequest req = new UpdateReviewRequest(5, "더 맛있어요", Set.of(), List.of());
     MyReviewResponse resp = buildMyReviewResponse(20L);
 
-    given(reviewCommandService.updateReview(eq(1L), eq(20L), any())).willReturn(resp);
+    given(reviewCommandService.updateReview(eq(1L), eq(20L), any(), any())).willReturn(resp);
 
     mockMvc
         .perform(
-            put("/api/v1/reviews/20")
-                .with(user(CUSTOMER))
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(req)))
+            multipart("/api/v1/reviews/20")
+                .file(requestPart(objectMapper.writeValueAsString(req)))
+                .with(asPut())
+                .with(user(CUSTOMER)))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.data.id").value(20));
   }
@@ -225,7 +239,7 @@ class CustomerReviewControllerTest {
   @Test
   void 리뷰_수정_미인증_401() throws Exception {
     mockMvc
-        .perform(put("/api/v1/reviews/20").contentType(MediaType.APPLICATION_JSON).content("{}"))
+        .perform(multipart("/api/v1/reviews/20").file(requestPart("{}")).with(asPut()))
         .andExpect(status().isUnauthorized());
   }
 
@@ -234,10 +248,10 @@ class CustomerReviewControllerTest {
     UpdateReviewRequest req = new UpdateReviewRequest(5, "더 맛있어요", Set.of(), List.of());
     mockMvc
         .perform(
-            put("/api/v1/reviews/20")
-                .with(user(SELLER))
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(req)))
+            multipart("/api/v1/reviews/20")
+                .file(requestPart(objectMapper.writeValueAsString(req)))
+                .with(asPut())
+                .with(user(SELLER)))
         .andExpect(status().isForbidden());
   }
 
@@ -247,14 +261,14 @@ class CustomerReviewControllerTest {
 
     willThrow(new BusinessException(ReviewErrorCode.REVIEW_LOCKED))
         .given(reviewCommandService)
-        .updateReview(any(), any(), any());
+        .updateReview(any(), any(), any(), any());
 
     mockMvc
         .perform(
-            put("/api/v1/reviews/20")
-                .with(user(CUSTOMER))
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(req)))
+            multipart("/api/v1/reviews/20")
+                .file(requestPart(objectMapper.writeValueAsString(req)))
+                .with(asPut())
+                .with(user(CUSTOMER)))
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.error.code").value("REVIEW_LOCKED"));
   }
