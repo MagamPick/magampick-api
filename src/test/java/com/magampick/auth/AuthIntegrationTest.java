@@ -104,7 +104,15 @@ class AuthIntegrationTest {
             verificationToken,
             requiredTermIds,
             new AddressCreateRequest(
-                "집", "서울특별시 강남구 테헤란로 427", null, "101동 1502호", "06158", "11680", "3179999"));
+                "집",
+                "서울특별시 강남구 테헤란로 427",
+                null,
+                "101동 1502호",
+                "06158",
+                "11680",
+                "3179999",
+                null,
+                null));
 
     return mockMvc
         .perform(
@@ -359,7 +367,15 @@ class AuthIntegrationTest {
             verificationToken,
             requiredTermIds,
             new AddressCreateRequest(
-                "집", "서울특별시 강남구 테헤란로 427", null, "101동 1502호", "06158", "11680", "3179999"));
+                "집",
+                "서울특별시 강남구 테헤란로 427",
+                null,
+                "101동 1502호",
+                "06158",
+                "11680",
+                "3179999",
+                null,
+                null));
     MvcResult signup =
         mockMvc
             .perform(

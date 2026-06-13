@@ -66,7 +66,7 @@ class AddressControllerTest {
 
   private AddressCreateRequest validCreateReq() {
     return new AddressCreateRequest(
-        "집", "서울특별시 강남구 테헤란로 427", null, "101호", "06158", "11680", "3179999");
+        "집", "서울특별시 강남구 테헤란로 427", null, "101호", "06158", "11680", "3179999", null, null);
   }
 
   @Test
@@ -90,7 +90,7 @@ class AddressControllerTest {
   void POST_addresses_400_label_누락() throws Exception {
     AddressCreateRequest req =
         new AddressCreateRequest(
-            null, "서울특별시 강남구 테헤란로 427", null, null, "06158", "11680", "3179999");
+            null, "서울특별시 강남구 테헤란로 427", null, null, "06158", "11680", "3179999", null, null);
 
     mockMvc
         .perform(
@@ -105,7 +105,8 @@ class AddressControllerTest {
   @Test
   void POST_addresses_400_도로명코드_누락() throws Exception {
     AddressCreateRequest req =
-        new AddressCreateRequest("집", "서울특별시 강남구 테헤란로 427", null, null, "06158", "11680", null);
+        new AddressCreateRequest(
+            "집", "서울특별시 강남구 테헤란로 427", null, null, "06158", "11680", null, null, null);
 
     mockMvc
         .perform(
@@ -121,7 +122,7 @@ class AddressControllerTest {
   void POST_addresses_400_zonecode_형식_위반() throws Exception {
     AddressCreateRequest req =
         new AddressCreateRequest(
-            "집", "서울특별시 강남구 테헤란로 427", null, null, "ABCDE", "11680", "3179999");
+            "집", "서울특별시 강남구 테헤란로 427", null, null, "ABCDE", "11680", "3179999", null, null);
 
     mockMvc
         .perform(
@@ -169,6 +170,42 @@ class AddressControllerTest {
                 .content(objectMapper.writeValueAsString(validCreateReq())))
         .andExpect(status().isForbidden())
         .andExpect(jsonPath("$.error.code").value("FORBIDDEN"));
+  }
+
+  @Test
+  void POST_addresses_201_GPS_좌표만_코드_없이_성공() throws Exception {
+    given(addressService.create(eq(1L), any(AddressCreateRequest.class)))
+        .willReturn(stubResponse(13L, true));
+
+    AddressCreateRequest req =
+        new AddressCreateRequest(
+            "집", "서울특별시 중구 세종대로 110", null, "5층", "04524", null, null, 37.5665, 126.9780);
+
+    mockMvc
+        .perform(
+            post("/api/v1/customers/me/addresses")
+                .with(user(CUSTOMER_USER))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data.id").value(13));
+  }
+
+  @Test
+  void POST_addresses_400_좌표도_코드도_없음() throws Exception {
+    AddressCreateRequest req =
+        new AddressCreateRequest(
+            "집", "서울특별시 중구 세종대로 110", null, "5층", "04524", null, null, null, null);
+
+    mockMvc
+        .perform(
+            post("/api/v1/customers/me/addresses")
+                .with(user(CUSTOMER_USER))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(req)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
   }
 
   @Test

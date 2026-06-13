@@ -70,7 +70,13 @@ class AddressServiceTest {
 
   private AddressCreateRequest createReq() {
     return new AddressCreateRequest(
-        "집", "서울특별시 강남구 테헤란로 427", null, "101호", "06158", "11680", "3179999");
+        "집", "서울특별시 강남구 테헤란로 427", null, "101호", "06158", "11680", "3179999", null, null);
+  }
+
+  /** GPS 경로 — 좌표 직접 전송, 코드 없음. 역지오코딩 도로명을 라벨용 roadAddress 로 보냄. */
+  private AddressCreateRequest gpsCreateReq() {
+    return new AddressCreateRequest(
+        "집", "서울특별시 중구 세종대로 110", null, "5층", "04524", null, null, 37.5665, 126.9780);
   }
 
   private AddressResponse stubResponse(Address a) {
@@ -158,7 +164,15 @@ class AddressServiceTest {
     // given
     AddressCreateRequest request =
         new AddressCreateRequest(
-            "가".repeat(21), "서울특별시 강남구 테헤란로 427", null, null, "06158", "11680", "3179999");
+            "가".repeat(21),
+            "서울특별시 강남구 테헤란로 427",
+            null,
+            null,
+            "06158",
+            "11680",
+            "3179999",
+            null,
+            null);
     given(addressRepository.countByCustomerId(CUSTOMER_ID)).willReturn(0L);
 
     // when / then
@@ -180,6 +194,33 @@ class AddressServiceTest {
         .isInstanceOf(BusinessException.class)
         .hasFieldOrPropertyWithValue("errorCode", AddressErrorCode.GEOCODING_FAILED);
     then(addressRepository).should(never()).save(any());
+  }
+
+  @Test
+  void 주소지_등록_성공_GPS_좌표_직접저장_정방향_지오코딩_없음() {
+    // given — GPS 경로: 좌표를 직접 전송하므로 코드 기반 정방향 지오코딩이 불필요
+    given(addressRepository.countByCustomerId(CUSTOMER_ID)).willReturn(0L);
+    given(customerRepository.getReferenceById(CUSTOMER_ID)).willReturn(customerRef(CUSTOMER_ID));
+    given(addressRepository.save(any(Address.class)))
+        .willAnswer(
+            inv -> {
+              Address a = inv.getArgument(0);
+              ReflectionTestUtils.setField(a, "id", 12L);
+              return a;
+            });
+    given(addressMapper.toResponse(any(Address.class)))
+        .willAnswer(inv -> stubResponse(inv.getArgument(0)));
+
+    // when
+    AddressResponse response = addressService.create(CUSTOMER_ID, gpsCreateReq());
+
+    // then — 전송된 좌표 그대로 저장, roadAddress 는 라벨로 보존, 지오코딩 호출 안 함
+    assertThat(response.id()).isEqualTo(12L);
+    assertThat(response.isDefault()).isTrue();
+    assertThat(response.latitude()).isEqualTo(37.5665);
+    assertThat(response.longitude()).isEqualTo(126.9780);
+    assertThat(response.roadAddress()).isEqualTo("서울특별시 중구 세종대로 110");
+    then(geocodingService).should(never()).geocode(any());
   }
 
   @Test

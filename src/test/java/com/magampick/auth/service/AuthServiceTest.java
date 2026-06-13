@@ -100,7 +100,7 @@ class AuthServiceTest {
 
   private AddressCreateRequest validAddress() {
     return new AddressCreateRequest(
-        "집", "서울특별시 강남구 테헤란로 427", null, "101동 1502호", "06158", "11680", "3179999");
+        "집", "서울특별시 강남구 테헤란로 427", null, "101동 1502호", "06158", "11680", "3179999", null, null);
   }
 
   private CustomerSignupRequest validRequest() {
