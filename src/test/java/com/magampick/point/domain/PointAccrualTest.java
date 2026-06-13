@@ -46,4 +46,57 @@ class PointAccrualTest {
     assertThat(accrual.getRemainingAmount()).isEqualTo(0L);
     assertThat(accrual.getStatus()).isEqualTo(PointAccrualStatus.EXHAUSTED);
   }
+
+  @Test
+  void isPending_PENDING_상태_true() {
+    // given
+    PointAccrual pending =
+        PointAccrual.builder()
+            .customer(null)
+            .order(null)
+            .initialAmount(500L)
+            .remainingAmount(500L)
+            .earnedAt(null)
+            .expiresAt(null)
+            .status(PointAccrualStatus.PENDING)
+            .build();
+
+    // then
+    assertThat(pending.isPending()).isTrue();
+    assertThat(buildAccrual(100L).isPending()).isFalse();
+  }
+
+  @Test
+  void confirm_PENDING에서_ACTIVE전이_earnedAt_expiresAt_설정() {
+    // given
+    PointAccrual pending =
+        PointAccrual.builder()
+            .customer(null)
+            .order(null)
+            .initialAmount(500L)
+            .remainingAmount(500L)
+            .earnedAt(null)
+            .expiresAt(null)
+            .status(PointAccrualStatus.PENDING)
+            .build();
+    LocalDateTime now = LocalDateTime.of(2026, 6, 13, 12, 0);
+
+    // when
+    pending.confirm(now);
+
+    // then
+    assertThat(pending.getStatus()).isEqualTo(PointAccrualStatus.ACTIVE);
+    assertThat(pending.getEarnedAt()).isEqualTo(now);
+    assertThat(pending.getExpiresAt()).isEqualTo(now.plusYears(1));
+  }
+
+  @Test
+  void confirm_ACTIVE_lot에_호출하면_예외() {
+    // given
+    PointAccrual active = buildAccrual(200L);
+
+    // when / then
+    org.junit.jupiter.api.Assertions.assertThrows(
+        IllegalStateException.class, () -> active.confirm(LocalDateTime.now()));
+  }
 }

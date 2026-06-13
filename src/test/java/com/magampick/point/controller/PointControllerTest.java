@@ -43,14 +43,15 @@ class PointControllerTest {
   @Test
   void 잔액_조회_성공() throws Exception {
     // given
-    given(pointService.getSummary(eq(1L))).willReturn(new PointSummaryResponse(3000L));
+    given(pointService.getSummary(eq(1L))).willReturn(new PointSummaryResponse(3000L, 500L));
 
     // when / then
     mockMvc
         .perform(get("/api/v1/customers/me/points/summary").with(user(CUSTOMER_USER)))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
-        .andExpect(jsonPath("$.data.balance").value(3000));
+        .andExpect(jsonPath("$.data.balance").value(3000))
+        .andExpect(jsonPath("$.data.pendingPoints").value(500));
   }
 
   @Test

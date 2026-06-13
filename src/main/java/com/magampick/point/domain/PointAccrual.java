@@ -48,12 +48,12 @@ public class PointAccrual extends BaseEntity {
   @Column(name = "remaining_amount", nullable = false)
   private Long remainingAmount;
 
-  /** 적립 발생 시각. */
-  @Column(name = "earned_at", nullable = false)
+  /** 적립 확정 시각. PENDING 동안은 null — confirm 시점에 설정된다. */
+  @Column(name = "earned_at")
   private LocalDateTime earnedAt;
 
-  /** 유효기간 만료 시각. earned_at + 1년. */
-  @Column(name = "expires_at", nullable = false)
+  /** 유효기간 만료 시각. PENDING 동안은 null — confirm 시점에 earnedAt + 1년으로 설정된다. */
+  @Column(name = "expires_at")
   private LocalDateTime expiresAt;
 
   @Enumerated(EnumType.STRING)
@@ -66,6 +66,25 @@ public class PointAccrual extends BaseEntity {
 
   public void markExpiryAlertSent(LocalDateTime now) {
     this.expiryAlertSentAt = now;
+  }
+
+  /** PENDING 상태 여부. */
+  public boolean isPending() {
+    return this.status == PointAccrualStatus.PENDING;
+  }
+
+  /**
+   * PENDING → ACTIVE 전이. earnedAt/expiresAt 을 confirm 시점으로 확정한다.
+   *
+   * <p>멱등: PENDING 상태가 아닌 lot 에 호출하면 IllegalStateException.
+   */
+  public void confirm(LocalDateTime now) {
+    if (this.status != PointAccrualStatus.PENDING) {
+      throw new IllegalStateException("PENDING 상태가 아닌 lot 에 confirm 호출. status=" + this.status);
+    }
+    this.earnedAt = now;
+    this.expiresAt = now.plusYears(1);
+    this.status = PointAccrualStatus.ACTIVE;
   }
 
   /**

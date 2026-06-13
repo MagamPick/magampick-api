@@ -4,6 +4,7 @@ import com.magampick.global.exception.BusinessException;
 import com.magampick.notification.domain.NotificationCategory;
 import com.magampick.notification.service.NotificationService;
 import com.magampick.order.domain.Order;
+import com.magampick.order.domain.OrderStatus;
 import com.magampick.point.domain.PointAccrual;
 import com.magampick.point.domain.PointAccrualStatus;
 import com.magampick.point.domain.PointReason;
@@ -15,6 +16,8 @@ import com.magampick.point.exception.PointErrorCode;
 import com.magampick.point.mapper.PointTransactionMapper;
 import com.magampick.point.repository.PointAccrualRepository;
 import com.magampick.point.repository.PointTransactionRepository;
+import com.magampick.refund.domain.RefundStatus;
+import com.magampick.refund.repository.RefundRepository;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -33,21 +36,26 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class PointService {
 
+  private static final List<RefundStatus> ACTIVE_REFUND_STATUSES =
+      List.of(RefundStatus.REQUESTED, RefundStatus.APPROVED);
+
   private final PointAccrualRepository pointAccrualRepository;
   private final PointTransactionRepository pointTransactionRepository;
   private final PointTransactionMapper pointTransactionMapper;
   private final NotificationService notificationService;
+  private final RefundRepository refundRepository;
   private final Clock clock;
 
   /**
-   * 소비자 포인트 잔액 조회. ACTIVE lot 잔량 합산.
+   * 소비자 포인트 잔액 조회. ACTIVE lot 잔량 합산 + PENDING lot 합산.
    *
    * @param customerId 소비자 ID
-   * @return 사용 가능 포인트 잔액
+   * @return 포인트 요약 (사용 가능 잔액 + 적립 예정)
    */
   public PointSummaryResponse getSummary(Long customerId) {
     long balance = pointAccrualRepository.sumActiveRemainingByCustomerId(customerId);
-    return new PointSummaryResponse(balance);
+    long pending = pointAccrualRepository.sumPendingRemainingByCustomerId(customerId);
+    return new PointSummaryResponse(balance, pending);
   }
 
   /**
@@ -64,9 +72,9 @@ public class PointService {
   }
 
   /**
-   * 주문 완료 시 포인트 적립. amount ≤ 0 이면 무시.
+   * 주문 완료 시 포인트 적립 예정 생성. amount ≤ 0 이면 무시.
    *
-   * <p>새 ACTIVE lot + EARN 내역을 저장한다.
+   * <p>PENDING lot + EARN 내역을 저장한다. 실제 사용 가능 전환은 confirm 배치(completedAt+3일)가 담당한다.
    *
    * @param order 적립 출처 주문
    * @param amount 적립 포인트 (양수여야 함)
@@ -77,8 +85,71 @@ public class PointService {
       return;
     }
     LocalDateTime now = LocalDateTime.now(clock);
-    recordAccrual(order, amount, PointReason.EARN, now);
-    log.info("포인트 적립됨. orderId={}, amount={}", order.getId(), amount);
+    // PENDING lot — earnedAt/expiresAt 은 confirm 시점에 결정
+    pointAccrualRepository.save(
+        PointAccrual.builder()
+            .customer(order.getCustomer())
+            .order(order)
+            .initialAmount(amount)
+            .remainingAmount(amount)
+            .earnedAt(null)
+            .expiresAt(null)
+            .status(PointAccrualStatus.PENDING)
+            .build());
+    pointTransactionRepository.save(
+        PointTransaction.builder()
+            .customer(order.getCustomer())
+            .order(order)
+            .reason(PointReason.EARN)
+            .amount(amount)
+            .storeName(order.getStore().getName())
+            .occurredAt(now)
+            .build());
+    log.info("포인트 적립 예정 생성됨. orderId={}, amount={}", order.getId(), amount);
+  }
+
+  /**
+   * PENDING 적립 lot 확정. completedAt+3일 경과 + 미환불 주문에 대해 PENDING → ACTIVE 전이.
+   *
+   * <p>멱등: PENDING lot 없으면 no-op. 환불 요청/승인 있으면 skip.
+   *
+   * @param orderId 확정 대상 주문 ID
+   */
+  @Transactional
+  public void confirm(Long orderId) {
+    List<PointAccrual> pending =
+        pointAccrualRepository.findByOrderIdAndStatus(orderId, PointAccrualStatus.PENDING);
+    if (pending.isEmpty()) {
+      return; // 이미 확정됐거나 대상 없음
+    }
+    // 환불 요청/승인 있으면 skip — 환불 승인 시 clawback 이 void 처리함
+    if (refundRepository.existsByOrderIdAndStatusIn(orderId, ACTIVE_REFUND_STATUSES)) {
+      log.info("환불 요청/승인 있어 포인트 확정 스킵. orderId={}", orderId);
+      return;
+    }
+    LocalDateTime now = LocalDateTime.now(clock);
+    for (PointAccrual lot : pending) {
+      lot.confirm(now);
+    }
+    pointAccrualRepository.saveAll(pending);
+    log.info("포인트 적립 확정됨. orderId={}, lots={}", orderId, pending.size());
+  }
+
+  /**
+   * 확정 배치 대상 주문 ID 목록 조회. PENDING lot 보유 + COMPLETED + completedAt &lt; threshold 주문.
+   *
+   * @param threshold 기준 시각 (completedAt 이 이보다 이전인 주문만 포함)
+   * @return 확정 대상 주문 ID 목록 (중복 제거)
+   */
+  @Transactional(readOnly = true)
+  public List<Long> findConfirmTargetOrderIds(LocalDateTime threshold) {
+    return pointAccrualRepository
+        .findByStatusAndOrderStatusAndOrderCompletedAtBefore(
+            PointAccrualStatus.PENDING, OrderStatus.COMPLETED, threshold)
+        .stream()
+        .map(a -> a.getOrder().getId())
+        .distinct()
+        .toList();
   }
 
   /**
@@ -145,16 +216,18 @@ public class PointService {
   }
 
   /**
-   * 픽업 후 환불 시 해당 주문 적립분(EARN lot) 회수. 0 floor — 이미 사용한 잔량은 회수 불가.
+   * 픽업 후 환불 시 해당 주문 적립분(PENDING/EARN lot) 회수. 0 floor — 이미 사용한 잔량은 회수 불가.
    *
    * <p>IMPORTANT: clawback 은 restore 보다 먼저 실행해야 한다. findByOrderId 는 EARN lot 과 (나중에 생성될) RESTORE
    * lot 을 모두 반환하므로, restore 로 새 lot 이 생기기 전에 호출해야 EARN lot 만 대상이 된다.
+   *
+   * <p>PENDING lot(미사용 전액): deduct → EXHAUSTED 로 void 처리.
    *
    * @param order 환불 대상 주문
    */
   @Transactional
   public void clawback(Order order) {
-    // 적립 lot 조회
+    // 적립 lot 조회 (PENDING 포함)
     List<PointAccrual> lots = pointAccrualRepository.findByOrderId(order.getId());
     long reclaimed = 0;
     // 잔여 포인트 차감
@@ -260,7 +333,7 @@ public class PointService {
     }
   }
 
-  /** 새 ACTIVE 포인트 lot + 거래 내역 공통 저장. earn/restore 에서 재사용. */
+  /** 새 ACTIVE 포인트 lot + 거래 내역 공통 저장. restore 에서 재사용. */
   private void recordAccrual(Order order, long amount, PointReason reason, LocalDateTime now) {
     // 포인트 lot 저장
     pointAccrualRepository.save(
