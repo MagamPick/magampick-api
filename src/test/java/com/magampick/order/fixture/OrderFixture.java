@@ -320,6 +320,21 @@ public class OrderFixture {
         clearanceItem.getSalePrice());
   }
 
+  /**
+   * MENU OrderItem 픽스처. review 도메인 테스트에서 일반 상품 주문 항목 연결 시 사용. cascade 저장 전에 order.addOrderItem() 또는
+   * order.getOrderItems().add(item) 필요.
+   */
+  public static OrderItem aMenuOrderItem(Order order, Product product) {
+    return OrderItem.forMenu(
+        order,
+        product,
+        product.getName(),
+        product.getRegularPrice(),
+        product.getImageUrl(),
+        1,
+        product.getRegularPrice());
+  }
+
   // ── Response ─────────────────────────────────────────────────────────────────
 
   public static OrderResponse anOrderResponse(Long orderId) {
