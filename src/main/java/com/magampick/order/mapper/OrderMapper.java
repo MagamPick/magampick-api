@@ -6,6 +6,7 @@ import com.magampick.order.domain.PickupType;
 import com.magampick.order.dto.OrderResponse;
 import com.magampick.order.dto.SellerOrderResponse;
 import com.magampick.refund.dto.RefundInfoResponse;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -111,7 +112,17 @@ public interface OrderMapper {
   }
 
   default OrderResponse.OrderAmountsResponse toAmountsResponse(Order order) {
+    BigDecimal couponDiscount =
+        order.getCouponDiscount() != null ? order.getCouponDiscount() : BigDecimal.ZERO;
+    Long pointUsed = order.getPointUsed() != null ? order.getPointUsed() : 0L;
+    BigDecimal finalAmount =
+        order.getFinalAmount() != null ? order.getFinalAmount() : order.getTotalPrice();
     return new OrderResponse.OrderAmountsResponse(
-        order.getNormalTotal(), order.getDiscountTotal(), order.getTotalPrice());
+        order.getNormalTotal(),
+        order.getDiscountTotal(),
+        order.getTotalPrice(),
+        couponDiscount,
+        pointUsed,
+        finalAmount);
   }
 }

@@ -56,5 +56,8 @@ public record OrderResponse(
   public record OrderAmountsResponse(
       @Schema(description = "정상가 합계", example = "9000") BigDecimal normalTotal,
       @Schema(description = "할인 합계", example = "3000") BigDecimal discountTotal,
-      @Schema(description = "결제액", example = "6000") BigDecimal payTotal) {}
+      @Schema(description = "결제액 (혜택 적용 전)", example = "6000") BigDecimal payTotal,
+      @Schema(description = "쿠폰 할인액", example = "1000") BigDecimal couponDiscount,
+      @Schema(description = "포인트 사용액", example = "500") Long pointUsed,
+      @Schema(description = "실결제액 (최종 토스 청구액)", example = "4500") BigDecimal finalAmount) {}
 }
