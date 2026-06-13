@@ -16,10 +16,10 @@ import com.magampick.address.service.AddressService;
 import com.magampick.clearance.domain.ClearanceItemStatus;
 import com.magampick.clearance.repository.ClearanceItemRepository;
 import com.magampick.customer.domain.Customer;
-import com.magampick.customer.repository.CustomerRepository;
 import com.magampick.favorite.domain.Favorite;
 import com.magampick.favorite.dto.FavoriteAddResponse;
 import com.magampick.favorite.dto.FavoriteListResponse;
+import com.magampick.favorite.exception.FavoriteErrorCode;
 import com.magampick.favorite.fixture.FavoriteFixture;
 import com.magampick.favorite.mapper.FavoriteMapper;
 import com.magampick.favorite.repository.FavoriteRepository;
@@ -42,6 +42,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
@@ -49,8 +50,8 @@ class FavoriteServiceTest {
 
   @Mock FavoriteRepository favoriteRepository;
   @Mock StoreRepository storeRepository;
-  @Mock CustomerRepository customerRepository;
   @Mock FavoriteMapper favoriteMapper;
+  @Mock FavoriteInserter favoriteInserter;
   @Mock AddressService addressService;
   @Mock ReviewQueryService reviewQueryService;
   @Mock ClearanceItemRepository clearanceItemRepository;
@@ -66,22 +67,19 @@ class FavoriteServiceTest {
   @Test
   void 즐겨찾기_등록_성공() {
     // given
-    Store store = store(STORE_ID);
-    Customer customer = customer();
-    given(storeRepository.findById(STORE_ID)).willReturn(Optional.of(store));
+    given(storeRepository.existsById(STORE_ID)).willReturn(true);
     given(favoriteRepository.findByCustomerIdAndStoreId(CUSTOMER_ID, STORE_ID))
         .willReturn(Optional.empty());
-    given(customerRepository.getReferenceById(CUSTOMER_ID)).willReturn(customer);
-    given(favoriteRepository.save(any(Favorite.class))).willAnswer(inv -> inv.getArgument(0));
+    given(favoriteRepository.countByCustomerId(CUSTOMER_ID)).willReturn(5L);
     FavoriteAddResponse expected = FavoriteFixture.aAddResponse(STORE_ID);
-    given(favoriteMapper.toAddResponse(any())).willReturn(expected);
+    given(favoriteInserter.insert(CUSTOMER_ID, STORE_ID)).willReturn(expected);
 
     // when
     FavoriteAddResponse response = favoriteService.addFavorite(CUSTOMER_ID, STORE_ID);
 
     // then
     assertThat(response.storeId()).isEqualTo(STORE_ID);
-    then(favoriteRepository).should().save(any(Favorite.class));
+    then(favoriteInserter).should().insert(CUSTOMER_ID, STORE_ID);
   }
 
   @Test
@@ -90,7 +88,7 @@ class FavoriteServiceTest {
     Store store = store(STORE_ID);
     Customer customer = customer();
     Favorite existing = FavoriteFixture.aFavorite(customer, store);
-    given(storeRepository.findById(STORE_ID)).willReturn(Optional.of(store));
+    given(storeRepository.existsById(STORE_ID)).willReturn(true);
     given(favoriteRepository.findByCustomerIdAndStoreId(CUSTOMER_ID, STORE_ID))
         .willReturn(Optional.of(existing));
     given(favoriteMapper.toAddResponse(existing))
@@ -101,19 +99,76 @@ class FavoriteServiceTest {
 
     // then
     assertThat(response.storeId()).isEqualTo(STORE_ID);
-    then(favoriteRepository).should(never()).save(any());
+    then(favoriteInserter).should(never()).insert(any(), any());
   }
 
   @Test
   void 존재하지_않는_매장_즐겨찾기_등록_실패_STORE_NOT_FOUND() {
     // given
-    given(storeRepository.findById(STORE_ID)).willReturn(Optional.empty());
+    given(storeRepository.existsById(STORE_ID)).willReturn(false);
 
     // when / then
     assertThatThrownBy(() -> favoriteService.addFavorite(CUSTOMER_ID, STORE_ID))
         .isInstanceOf(BusinessException.class)
         .hasFieldOrPropertyWithValue("errorCode", StoreErrorCode.STORE_NOT_FOUND);
-    then(favoriteRepository).should(never()).save(any());
+    then(favoriteInserter).should(never()).insert(any(), any());
+  }
+
+  @Test
+  void 단골_50개_초과_등록_실패_FAVORITE_LIMIT_REACHED() {
+    // given — 이미 50개(상한) 등록된 상태에서 신규 매장 추가 시도
+    given(storeRepository.existsById(STORE_ID)).willReturn(true);
+    given(favoriteRepository.findByCustomerIdAndStoreId(CUSTOMER_ID, STORE_ID))
+        .willReturn(Optional.empty());
+    given(favoriteRepository.countByCustomerId(CUSTOMER_ID)).willReturn(50L);
+
+    // when / then
+    assertThatThrownBy(() -> favoriteService.addFavorite(CUSTOMER_ID, STORE_ID))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", FavoriteErrorCode.FAVORITE_LIMIT_REACHED);
+    then(favoriteInserter).should(never()).insert(any(), any());
+  }
+
+  @Test
+  void 한도_도달해도_이미_단골이면_재추가_멱등_성공() {
+    // given — 50개 한도 상태라도 이미 단골인 매장 재추가는 한도 체크를 건너뛰고 성공해야 함
+    Store store = store(STORE_ID);
+    Customer customer = customer();
+    Favorite existing = FavoriteFixture.aFavorite(customer, store);
+    given(storeRepository.existsById(STORE_ID)).willReturn(true);
+    given(favoriteRepository.findByCustomerIdAndStoreId(CUSTOMER_ID, STORE_ID))
+        .willReturn(Optional.of(existing));
+    given(favoriteMapper.toAddResponse(existing))
+        .willReturn(FavoriteFixture.aAddResponse(STORE_ID));
+
+    // when
+    FavoriteAddResponse response = favoriteService.addFavorite(CUSTOMER_ID, STORE_ID);
+
+    // then — 한도 체크(count)·등록(insert) 모두 건너뜀
+    assertThat(response.storeId()).isEqualTo(STORE_ID);
+    then(favoriteRepository).should(never()).countByCustomerId(any());
+    then(favoriteInserter).should(never()).insert(any(), any());
+  }
+
+  @Test
+  void 동시_추가_레이스_unique_위반시_멱등_성공() {
+    // given — 사전 중복체크는 통과(empty)했으나 INSERT 시 다른 트랜잭션이 선점해 unique 위반
+    Store store = store(STORE_ID);
+    Customer customer = customer();
+    Favorite winner = FavoriteFixture.aFavorite(customer, store);
+    given(storeRepository.existsById(STORE_ID)).willReturn(true);
+    given(favoriteRepository.findByCustomerIdAndStoreId(CUSTOMER_ID, STORE_ID))
+        .willReturn(Optional.empty(), Optional.of(winner)); // 사전체크 empty → 위반 후 재조회 present
+    given(favoriteRepository.countByCustomerId(CUSTOMER_ID)).willReturn(3L);
+    given(favoriteInserter.insert(CUSTOMER_ID, STORE_ID))
+        .willThrow(new DataIntegrityViolationException("uk_favorites_customer_store"));
+    given(favoriteMapper.toAddResponse(winner)).willReturn(FavoriteFixture.aAddResponse(STORE_ID));
+
+    // when
+    FavoriteAddResponse response = favoriteService.addFavorite(CUSTOMER_ID, STORE_ID);
+
+    // then — 500 이 아니라 멱등 성공으로 수렴
+    assertThat(response.storeId()).isEqualTo(STORE_ID);
   }
 
   // ── 즐겨찾기 해제 ────────────────────────────────────────────────────────────

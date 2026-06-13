@@ -3,12 +3,11 @@ package com.magampick.favorite.service;
 import com.magampick.address.service.AddressService;
 import com.magampick.clearance.domain.ClearanceItemStatus;
 import com.magampick.clearance.repository.ClearanceItemRepository;
-import com.magampick.customer.domain.Customer;
-import com.magampick.customer.repository.CustomerRepository;
 import com.magampick.favorite.domain.Favorite;
 import com.magampick.favorite.dto.FavoriteAddResponse;
 import com.magampick.favorite.dto.FavoriteListResponse;
 import com.magampick.favorite.dto.FavoriteStoreResponse;
+import com.magampick.favorite.exception.FavoriteErrorCode;
 import com.magampick.favorite.mapper.FavoriteMapper;
 import com.magampick.favorite.repository.FavoriteRepository;
 import com.magampick.favorite.repository.FavoriteStoreCandidate;
@@ -16,7 +15,6 @@ import com.magampick.global.common.GeometryUtil;
 import com.magampick.global.exception.BusinessException;
 import com.magampick.review.service.RatingStats;
 import com.magampick.review.service.ReviewQueryService;
-import com.magampick.store.domain.Store;
 import com.magampick.store.exception.StoreErrorCode;
 import com.magampick.store.repository.StoreRepository;
 import java.util.ArrayList;
@@ -28,6 +26,7 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.locationtech.jts.geom.Point;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,35 +36,50 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class FavoriteService {
 
+  /** 한 소비자가 등록할 수 있는 단골 매장 최대 개수 (정책 — 노션 "단골매장 추가/해제"). */
+  private static final int MAX_FAVORITES_PER_CUSTOMER = 50;
+
   private final FavoriteRepository favoriteRepository;
   private final StoreRepository storeRepository;
-  private final CustomerRepository customerRepository;
   private final FavoriteMapper favoriteMapper;
+  private final FavoriteInserter favoriteInserter;
   private final AddressService addressService;
   private final ReviewQueryService reviewQueryService;
   private final ClearanceItemRepository clearanceItemRepository;
 
   @Transactional
   public FavoriteAddResponse addFavorite(Long customerId, Long storeId) {
-    // 매장 조회
-    Store store =
-        storeRepository
-            .findById(storeId)
-            .orElseThrow(() -> new BusinessException(StoreErrorCode.STORE_NOT_FOUND));
+    // 매장 존재 검증
+    if (!storeRepository.existsById(storeId)) {
+      throw new BusinessException(StoreErrorCode.STORE_NOT_FOUND);
+    }
 
-    // 중복 확인
+    // 이미 단골이면 멱등 성공 — 한도 체크 건너뜀 (한도 도달 상태에서도 재추가는 통과)
     Optional<Favorite> existing =
         favoriteRepository.findByCustomerIdAndStoreId(customerId, storeId);
     if (existing.isPresent()) {
       return favoriteMapper.toAddResponse(existing.get());
     }
 
-    // 즐겨찾기 등록
-    Customer customer = customerRepository.getReferenceById(customerId);
-    Favorite favorite = Favorite.builder().customer(customer).store(store).build();
-    favoriteRepository.save(favorite);
-    log.info("즐겨찾기 등록됨. customerId={}, storeId={}", customerId, storeId);
-    return favoriteMapper.toAddResponse(favorite);
+    // 신규 등록 — 한도(50개) 검증 (주소지 한도와 동일한 count 패턴)
+    long currentCount = favoriteRepository.countByCustomerId(customerId);
+    if (currentCount >= MAX_FAVORITES_PER_CUSTOMER) {
+      throw new BusinessException(FavoriteErrorCode.FAVORITE_LIMIT_REACHED);
+    }
+
+    // 단골 등록 — 동시 추가 레이스(unique 위반)는 멱등 성공으로 수렴.
+    // INSERT 를 별도 트랜잭션(FavoriteInserter, REQUIRES_NEW)으로 격리해 위반이 바깥 트랜잭션을 오염시키지 않게 한다.
+    try {
+      FavoriteAddResponse response = favoriteInserter.insert(customerId, storeId);
+      log.info("즐겨찾기 등록됨. customerId={}, storeId={}", customerId, storeId);
+      return response;
+    } catch (DataIntegrityViolationException e) {
+      log.info("즐겨찾기 동시 추가 레이스 감지 — 멱등 처리. customerId={}, storeId={}", customerId, storeId);
+      return favoriteRepository
+          .findByCustomerIdAndStoreId(customerId, storeId)
+          .map(favoriteMapper::toAddResponse)
+          .orElseThrow(() -> e);
+    }
   }
 
   @Transactional

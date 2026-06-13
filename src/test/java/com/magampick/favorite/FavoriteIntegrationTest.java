@@ -2,6 +2,7 @@ package com.magampick.favorite;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -15,6 +16,7 @@ import com.magampick.clearance.repository.ClearanceItemRepository;
 import com.magampick.customer.domain.Customer;
 import com.magampick.customer.repository.CustomerRepository;
 import com.magampick.favorite.domain.Favorite;
+import com.magampick.favorite.dto.FavoriteAddRequest;
 import com.magampick.favorite.repository.FavoriteRepository;
 import com.magampick.global.common.GeometryUtil;
 import com.magampick.global.security.JwtProvider;
@@ -33,6 +35,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -157,6 +160,61 @@ class FavoriteIntegrationTest {
   @Test
   void 미인증_401() throws Exception {
     mockMvc.perform(get("/api/v1/customers/me/favorites")).andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void 단골_등록_성공_후_재등록은_멱등() throws Exception {
+    Customer customer = customerRepository.save(newCustomer());
+    Seller seller = sellerRepository.save(newSeller());
+    Store store = storeRepository.save(newStore(seller, "단골대상", NEAR_LAT, NEAR_LNG));
+    String token = jwtProvider.issueAccessToken(customer.getId(), Role.CUSTOMER);
+    String body = objectMapper.writeValueAsString(new FavoriteAddRequest(store.getId()));
+
+    // 최초 등록 → 201, 실제 저장 검증 (REQUIRES_NEW INSERT 커밋 확인)
+    mockMvc
+        .perform(
+            post("/api/v1/customers/me/favorites")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+        .andExpect(status().isCreated());
+    assertThat(favoriteRepository.countByCustomerId(customer.getId())).isEqualTo(1L);
+
+    // 재등록 → 201(멱등), 개수 그대로
+    mockMvc
+        .perform(
+            post("/api/v1/customers/me/favorites")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body))
+        .andExpect(status().isCreated());
+    assertThat(favoriteRepository.countByCustomerId(customer.getId())).isEqualTo(1L);
+  }
+
+  @Test
+  void 단골_50개_초과_등록시_409_FAVORITE_LIMIT_REACHED() throws Exception {
+    Customer customer = customerRepository.save(newCustomer());
+    Seller seller = sellerRepository.save(newSeller());
+    // 상한(50개)까지 단골 시드
+    for (int i = 0; i < 50; i++) {
+      Store s = storeRepository.save(newStore(seller, "매장" + i, NEAR_LAT, NEAR_LNG));
+      favoriteRepository.save(Favorite.builder().customer(customer).store(s).build());
+    }
+    // 51번째 신규 매장 등록 시도 → 409
+    Store extra = storeRepository.save(newStore(seller, "초과매장", NEAR_LAT, NEAR_LNG));
+    String token = jwtProvider.issueAccessToken(customer.getId(), Role.CUSTOMER);
+
+    mockMvc
+        .perform(
+            post("/api/v1/customers/me/favorites")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new FavoriteAddRequest(extra.getId()))))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.error.code").value("FAVORITE_LIMIT_REACHED"));
+
+    // 한도 초과분은 저장되지 않음
+    assertThat(favoriteRepository.countByCustomerId(customer.getId())).isEqualTo(50L);
   }
 
   // ── helper ───────────────────────────────────────────────────────────────────────────────────
