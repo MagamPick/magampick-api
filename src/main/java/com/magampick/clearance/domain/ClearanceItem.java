@@ -115,13 +115,14 @@ public class ClearanceItem extends BaseEntity {
         .setScale(2, RoundingMode.HALF_UP);
   }
 
-  public void update(BigDecimal salePrice, Integer totalQuantity, LocalDateTime pickupEndAt) {
+  public void update(BigDecimal salePrice, Integer remainingQuantity, LocalDateTime pickupEndAt) {
     if (salePrice != null) this.salePrice = salePrice;
-    if (totalQuantity != null) {
-      this.totalQuantity = totalQuantity;
-      // 주문 도메인 연결 전 — remainingQuantity 는 항상 totalQuantity 와 동일
-      // orders 계층 5 연결 시 remaining = total - sold 로 재검토
-      this.remainingQuantity = totalQuantity;
+    if (remainingQuantity != null) {
+      // 사장은 "남은 개수"만 수정 — 판매분(sold)은 보존하고 등록 수량을 재계산한다.
+      // sold = 변경 전 등록 수량 − 변경 전 남은 수량 (불변식: total = sold + remaining)
+      int sold = this.totalQuantity - this.remainingQuantity;
+      this.remainingQuantity = remainingQuantity;
+      this.totalQuantity = sold + remainingQuantity;
     }
     if (pickupEndAt != null) this.pickupEndAt = pickupEndAt;
   }

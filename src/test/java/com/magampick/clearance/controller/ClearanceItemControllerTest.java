@@ -183,6 +183,21 @@ class ClearanceItemControllerTest {
   }
 
   @Test
+  void PATCH_clearance_items_400_남은수량_0_거부() throws Exception {
+    // 남은 수량 0 은 @Min(1) 위반 → 400. 품절 마감은 close 엔드포인트 담당.
+    String json = objectMapper.writeValueAsString(new ClearanceItemUpdateRequest(null, 0, null));
+
+    mockMvc
+        .perform(
+            patch("/api/v1/seller/stores/10/clearance-items/200")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json)
+                .with(user(SELLER_USER)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
+  }
+
+  @Test
   void PATCH_clearance_items_401_미인증() throws Exception {
     String json =
         objectMapper.writeValueAsString(
