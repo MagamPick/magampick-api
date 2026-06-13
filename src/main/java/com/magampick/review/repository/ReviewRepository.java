@@ -65,6 +65,15 @@ public interface ReviewRepository extends JpaRepository<Review, Long> {
           + "WHERE oi.clearanceItem.id = :clearanceItemId AND r.deletedAt IS NULL")
   List<Object[]> findClearanceItemRatingStats(@Param("clearanceItemId") Long clearanceItemId);
 
+  /** 일반 상품 평점/건수 집계 (soft-delete 제외). 상품 평점 = 해당 상품을 주문한 리뷰의 평균. 결과: [avg, count]. */
+  @Query(
+      "SELECT AVG(CAST(r.rating AS double)), COUNT(r) "
+          + "FROM Review r "
+          + "JOIN r.order o "
+          + "JOIN o.orderItems oi "
+          + "WHERE oi.product.id = :productId AND r.deletedAt IS NULL")
+  List<Object[]> findMenuProductRatingStats(@Param("productId") Long productId);
+
   /** 주문별 리뷰 조회 (soft-delete 제외). */
   Optional<Review> findByOrderIdAndDeletedAtIsNull(Long orderId);
 

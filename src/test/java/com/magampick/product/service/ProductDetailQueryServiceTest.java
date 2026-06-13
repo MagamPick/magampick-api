@@ -13,6 +13,8 @@ import com.magampick.product.domain.ProductStatus;
 import com.magampick.product.dto.MenuProductDetailResponse;
 import com.magampick.product.exception.ProductErrorCode;
 import com.magampick.product.repository.ProductRepository;
+import com.magampick.review.service.RatingStats;
+import com.magampick.review.service.ReviewQueryService;
 import com.magampick.seller.domain.Seller;
 import com.magampick.store.domain.OperationStatus;
 import com.magampick.store.domain.Store;
@@ -33,6 +35,7 @@ class ProductDetailQueryServiceTest {
 
   @Mock ProductRepository productRepository;
   @Mock StorePreviewHelper storePreviewHelper;
+  @Mock ReviewQueryService reviewQueryService;
   @InjectMocks ProductDetailQueryService service;
 
   private static final Long PRODUCT_ID = 50L;
@@ -76,6 +79,7 @@ class ProductDetailQueryServiceTest {
         .willReturn(Optional.of(product));
     given(storePreviewHelper.buildStorePreview(STORE_ID, CUSTOMER_ID))
         .willReturn(new StorePreviewInfo(0.8, "20:00"));
+    given(reviewQueryService.getMenuProductRating(PRODUCT_ID)).willReturn(RatingStats.EMPTY);
 
     MenuProductDetailResponse response = service.getDetail(PRODUCT_ID, CUSTOMER_ID);
 
@@ -93,15 +97,31 @@ class ProductDetailQueryServiceTest {
     assertThat(response.isOnSale()).isTrue();
   }
 
-  // ── rating/reviewCount 항상 0 ─────────────────────────────────────────────────────────────────
+  // ── rating/reviewCount 주문·리뷰 집계 배선 ───────────────────────────────────────────────────────
 
   @Test
-  void rating_항상_0() {
+  void rating_reviewCount_집계값_배선() {
     Product product = stubProduct(ProductStatus.ON_SALE, null);
     given(productRepository.findByIdAndDeletedAtIsNull(PRODUCT_ID))
         .willReturn(Optional.of(product));
     given(storePreviewHelper.buildStorePreview(STORE_ID, CUSTOMER_ID))
         .willReturn(new StorePreviewInfo(0.5, null));
+    given(reviewQueryService.getMenuProductRating(PRODUCT_ID)).willReturn(new RatingStats(4.5, 2L));
+
+    MenuProductDetailResponse response = service.getDetail(PRODUCT_ID, CUSTOMER_ID);
+
+    assertThat(response.rating()).isEqualTo(4.5);
+    assertThat(response.reviewCount()).isEqualTo(2L);
+  }
+
+  @Test
+  void 리뷰_없는_일반상품_rating_0() {
+    Product product = stubProduct(ProductStatus.ON_SALE, null);
+    given(productRepository.findByIdAndDeletedAtIsNull(PRODUCT_ID))
+        .willReturn(Optional.of(product));
+    given(storePreviewHelper.buildStorePreview(STORE_ID, CUSTOMER_ID))
+        .willReturn(new StorePreviewInfo(0.5, null));
+    given(reviewQueryService.getMenuProductRating(PRODUCT_ID)).willReturn(RatingStats.EMPTY);
 
     MenuProductDetailResponse response = service.getDetail(PRODUCT_ID, CUSTOMER_ID);
 
@@ -118,6 +138,7 @@ class ProductDetailQueryServiceTest {
         .willReturn(Optional.of(product));
     given(storePreviewHelper.buildStorePreview(STORE_ID, CUSTOMER_ID))
         .willReturn(new StorePreviewInfo(0.5, null));
+    given(reviewQueryService.getMenuProductRating(PRODUCT_ID)).willReturn(RatingStats.EMPTY);
 
     MenuProductDetailResponse response = service.getDetail(PRODUCT_ID, CUSTOMER_ID);
 
@@ -131,6 +152,7 @@ class ProductDetailQueryServiceTest {
         .willReturn(Optional.of(product));
     given(storePreviewHelper.buildStorePreview(STORE_ID, CUSTOMER_ID))
         .willReturn(new StorePreviewInfo(0.5, null));
+    given(reviewQueryService.getMenuProductRating(PRODUCT_ID)).willReturn(RatingStats.EMPTY);
 
     MenuProductDetailResponse response = service.getDetail(PRODUCT_ID, CUSTOMER_ID);
 
@@ -146,6 +168,7 @@ class ProductDetailQueryServiceTest {
         .willReturn(Optional.of(product));
     given(storePreviewHelper.buildStorePreview(STORE_ID, CUSTOMER_ID))
         .willReturn(new StorePreviewInfo(0.8, "20:00"));
+    given(reviewQueryService.getMenuProductRating(PRODUCT_ID)).willReturn(RatingStats.EMPTY);
 
     MenuProductDetailResponse response = service.getDetail(PRODUCT_ID, CUSTOMER_ID);
 
@@ -159,6 +182,7 @@ class ProductDetailQueryServiceTest {
         .willReturn(Optional.of(product));
     given(storePreviewHelper.buildStorePreview(STORE_ID, CUSTOMER_ID))
         .willReturn(new StorePreviewInfo(0.8, "20:00"));
+    given(reviewQueryService.getMenuProductRating(PRODUCT_ID)).willReturn(RatingStats.EMPTY);
 
     MenuProductDetailResponse response = service.getDetail(PRODUCT_ID, CUSTOMER_ID);
 

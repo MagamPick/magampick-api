@@ -195,6 +195,15 @@ public class ReviewQueryService {
     return toRatingStats(reviewRepository.findClearanceItemRatingStats(clearanceItemId).get(0));
   }
 
+  /**
+   * 일반 상품 평점/건수 (soft-delete 제외). 상품 평점 = 해당 상품을 포함한 주문 리뷰 평균.
+   *
+   * @param productId 일반 상품 ID
+   */
+  public RatingStats getMenuProductRating(Long productId) {
+    return toRatingStats(reviewRepository.findMenuProductRatingStats(productId).get(0));
+  }
+
   // ── 내부 유틸 ───────────────────────────────────────────────────────────────────
 
   private RatingStats toRatingStats(Object[] stats) {

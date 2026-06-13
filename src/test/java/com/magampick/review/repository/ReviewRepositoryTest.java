@@ -53,6 +53,7 @@ class ReviewRepositoryTest {
 
   private Customer customer;
   private Store store;
+  private Product product;
   private ClearanceItem clearanceItem;
 
   @BeforeEach
@@ -81,7 +82,7 @@ class ReviewRepositoryTest {
     store =
         storeRepository.findAll().stream().findFirst().orElseGet(() -> buildAndSaveStore(seller));
 
-    Product product =
+    product =
         productRepository.save(
             Product.builder()
                 .store(store)
@@ -297,12 +298,48 @@ class ReviewRepositoryTest {
     assertThat(((Number) stats[1]).longValue()).isEqualTo(0L);
   }
 
+  // ── 일반 상품 평점 집계 ───────────────────────────────────────────────────────
+
+  @Test
+  void 일반_상품_평점_집계() {
+    // given — product 를 포함한 주문 → 리뷰 2개 (별점 4, 5)
+    Order order1 = orderRepository.save(OrderFixture.anOrder(customer, store));
+    saveMenuOrderItem(order1);
+    Order order2 = orderRepository.save(OrderFixture.anOrder(customer, store));
+    saveMenuOrderItem(order2);
+    reviewRepository.save(ReviewFixture.aReviewWithRating(customer, order1, store, 4));
+    reviewRepository.save(ReviewFixture.aReviewWithRating(customer, order2, store, 5));
+
+    // when
+    Object[] stats = reviewRepository.findMenuProductRatingStats(product.getId()).get(0);
+
+    // then
+    assertThat(((Number) stats[0]).doubleValue()).isCloseTo(4.5, within(0.01));
+    assertThat(((Number) stats[1]).longValue()).isEqualTo(2L);
+  }
+
+  @Test
+  void 일반_상품_리뷰_없으면_평점_0건() {
+    // when
+    Object[] stats = reviewRepository.findMenuProductRatingStats(product.getId()).get(0);
+
+    // then
+    assertThat(stats[0]).isNull();
+    assertThat(((Number) stats[1]).longValue()).isEqualTo(0L);
+  }
+
   // ── 내부 헬퍼 ────────────────────────────────────────────────────────────────
 
   private void saveOrderItem(Order order) {
     OrderItem item = OrderFixture.anOrderItem(order, clearanceItem);
     // OrderItem 은 OrderRepository 를 통해 cascade 저장됨 — 직접 저장 필요 시 별도 repository 사용
     // 여기선 @Autowired OrderItemRepository 없이 order.orderItems 에 add + save
+    order.getOrderItems().add(item);
+    orderRepository.save(order);
+  }
+
+  private void saveMenuOrderItem(Order order) {
+    OrderItem item = OrderFixture.aMenuOrderItem(order, product);
     order.getOrderItems().add(item);
     orderRepository.save(order);
   }

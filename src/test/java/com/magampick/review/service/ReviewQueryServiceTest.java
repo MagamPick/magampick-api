@@ -44,6 +44,7 @@ class ReviewQueryServiceTest {
   private static final Long STORE_ID = 1L;
   private static final Long SELLER_ID = 2L;
   private static final Long CLEARANCE_ITEM_ID = 10L;
+  private static final Long MENU_PRODUCT_ID = 50L;
 
   // ── 매장 리뷰 목록 ───────────────────────────────────────────────────────────
 
@@ -235,6 +236,35 @@ class ReviewQueryServiceTest {
 
     // when
     RatingStats result = reviewQueryService.getClearanceItemRating(CLEARANCE_ITEM_ID);
+
+    // then
+    assertThat(result).isEqualTo(RatingStats.EMPTY);
+  }
+
+  // ── 일반 상품 평점 집계 ───────────────────────────────────────────────────────
+
+  @Test
+  void 일반상품_평점_조회_성공() {
+    // given
+    given(reviewRepository.findMenuProductRatingStats(MENU_PRODUCT_ID))
+        .willReturn(List.<Object[]>of(new Object[] {4.0, 5L}));
+
+    // when
+    RatingStats result = reviewQueryService.getMenuProductRating(MENU_PRODUCT_ID);
+
+    // then
+    assertThat(result.average()).isCloseTo(4.0, within(0.01));
+    assertThat(result.count()).isEqualTo(5L);
+  }
+
+  @Test
+  void 일반상품_리뷰_없으면_평점_EMPTY() {
+    // given
+    given(reviewRepository.findMenuProductRatingStats(MENU_PRODUCT_ID))
+        .willReturn(List.<Object[]>of(new Object[] {null, 0L}));
+
+    // when
+    RatingStats result = reviewQueryService.getMenuProductRating(MENU_PRODUCT_ID);
 
     // then
     assertThat(result).isEqualTo(RatingStats.EMPTY);

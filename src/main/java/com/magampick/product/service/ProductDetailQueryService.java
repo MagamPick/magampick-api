@@ -5,6 +5,8 @@ import com.magampick.product.domain.Product;
 import com.magampick.product.dto.MenuProductDetailResponse;
 import com.magampick.product.exception.ProductErrorCode;
 import com.magampick.product.repository.ProductRepository;
+import com.magampick.review.service.RatingStats;
+import com.magampick.review.service.ReviewQueryService;
 import com.magampick.store.dto.StorePreviewInfo;
 import com.magampick.store.service.StorePreviewHelper;
 import lombok.RequiredArgsConstructor;
@@ -14,7 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * 소비자 일반 상품 상세 조회 서비스. menu(Product) 단건 + 매장 미리보기 조립.
  *
- * <p>일반 상품은 주문 대상이 아니므로 rating=0.0, reviewCount=0.
+ * <p>rating/reviewCount = 해당 상품을 주문한 리뷰의 평균·건수 (떨이와 동일하게 주문 join 집계). 주문·리뷰 없으면 0.0/0.
  */
 @Service
 @RequiredArgsConstructor
@@ -23,6 +25,7 @@ public class ProductDetailQueryService {
 
   private final ProductRepository productRepository;
   private final StorePreviewHelper storePreviewHelper;
+  private final ReviewQueryService reviewQueryService;
 
   /**
    * 일반 상품 상세 조회.
@@ -43,6 +46,9 @@ public class ProductDetailQueryService {
     StorePreviewInfo storePreview =
         storePreviewHelper.buildStorePreview(product.getStore().getId(), customerId);
 
+    // 3. 평점 (해당 상품을 주문한 리뷰 집계)
+    RatingStats ratingStats = reviewQueryService.getMenuProductRating(productId);
+
     return new MenuProductDetailResponse(
         "menu",
         product.getId(),
@@ -53,8 +59,8 @@ public class ProductDetailQueryService {
         product.getImageUrl(),
         product.getName(),
         product.getDescription(),
-        0.0,
-        0L,
+        ratingStats.average(),
+        ratingStats.count(),
         storePreview.closingTime(),
         product.getRegularPrice(),
         product.isOnSale());
