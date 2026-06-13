@@ -86,6 +86,18 @@ public interface ClearanceItemRepository extends JpaRepository<ClearanceItem, Lo
   int decrementStock(@Param("id") Long id, @Param("qty") int qty);
 
   /**
+   * 재고 조건부 복원 — cancelAwaitingPaymentOrder 에서 DEAL 재고 반환. 멱등 안전 (항상 더함).
+   *
+   * @param id 떨이 상품 ID
+   * @param qty 복원할 수량
+   * @return 영향 행 수
+   */
+  @Modifying(clearAutomatically = true)
+  @Query(
+      "UPDATE ClearanceItem c SET c.remainingQuantity = c.remainingQuantity + :qty WHERE c.id = :id")
+  int incrementStock(@Param("id") Long id, @Param("qty") int qty);
+
+  /**
    * 마감 임박 특가 조회 (홈 피드). 기본 주소지 5km 이내, OPEN 매장, 오늘 영업, status=OPEN 떨이 중 pickupEndAt ∈ [now, until].
    * 마감 가까운 순(ASC), LIMIT 5.
    *

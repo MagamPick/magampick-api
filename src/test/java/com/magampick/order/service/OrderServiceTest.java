@@ -173,6 +173,69 @@ class OrderServiceTest {
   // ── 성공 케이스 ─────────────────────────────────────────────────────────────
 
   @Test
+  void 연속_prepare_2회_기존_AWAITING_취소_재고복원() {
+    // given — 동일 소비자의 기존 AWAITING_PAYMENT 주문(DEAL 1개, qty=1)이 존재
+    Store store = OrderFixture.aStore(OperationStatus.OPEN);
+    com.magampick.customer.domain.Customer customer = OrderFixture.aCustomer();
+    Order existingOrder =
+        OrderFixture.anOrderWithStatus(customer, store, OrderStatus.AWAITING_PAYMENT);
+    ReflectionTestUtils.setField(existingOrder, "id", 99L);
+    com.magampick.clearance.domain.ClearanceItem ci = OrderFixture.aClearanceItem(store);
+    com.magampick.order.domain.OrderItem existingItem = OrderFixture.anOrderItem(existingOrder, ci);
+    existingOrder.addOrderItem(existingItem); // 재고복원 루프에서 접근
+
+    given(orderRepository.findByCustomerIdAndStatus(CUSTOMER_ID, OrderStatus.AWAITING_PAYMENT))
+        .willReturn(List.of(existingOrder));
+    given(orderRepository.cancelIfAwaitingPayment(eq(99L), any())).willReturn(1);
+
+    // 새 주문 생성 mock
+    givenStoreOpen();
+    givenClearanceItem();
+    givenDecrementStockSucceeds();
+    givenOrderSaved();
+    given(customerRepository.getReferenceById(CUSTOMER_ID)).willReturn(customer);
+
+    // when
+    PrepareOrderResponse response =
+        orderService.createOrder(CUSTOMER_ID, OrderFixture.aDealOrderRequest(STORE_ID, CI_ID));
+
+    // then — 새 주문 생성 성공
+    assertThat(response).isNotNull();
+    // 기존 주문 조건부 취소 확인
+    then(orderRepository).should().cancelIfAwaitingPayment(eq(99L), any());
+    // 기존 주문 DEAL 재고 복원 확인 (ci.id=100, qty=1)
+    then(clearanceItemRepository).should().incrementStock(100L, 1);
+    // 새 주문 재고 차감 확인 (CI_ID=100, qty=2)
+    then(clearanceItemRepository).should().decrementStock(CI_ID, 2);
+  }
+
+  @Test
+  void 기존_AWAITING_이미_전이됨_no_op() {
+    // given — cancelIfAwaitingPayment 가 0 반환 (이미 전이됨)
+    Store store = OrderFixture.aStore(OperationStatus.OPEN);
+    com.magampick.customer.domain.Customer customer = OrderFixture.aCustomer();
+    Order existingOrder =
+        OrderFixture.anOrderWithStatus(customer, store, OrderStatus.AWAITING_PAYMENT);
+    ReflectionTestUtils.setField(existingOrder, "id", 99L);
+
+    given(orderRepository.findByCustomerIdAndStatus(CUSTOMER_ID, OrderStatus.AWAITING_PAYMENT))
+        .willReturn(List.of(existingOrder));
+    given(orderRepository.cancelIfAwaitingPayment(eq(99L), any())).willReturn(0); // 이미 전이됨
+
+    givenStoreOpen();
+    givenClearanceItem();
+    givenDecrementStockSucceeds();
+    givenOrderSaved();
+    given(customerRepository.getReferenceById(CUSTOMER_ID)).willReturn(customer);
+
+    // when
+    orderService.createOrder(CUSTOMER_ID, OrderFixture.aDealOrderRequest(STORE_ID, CI_ID));
+
+    // then — incrementStock 호출 안 됨 (no-op)
+    then(clearanceItemRepository).should(never()).incrementStock(anyLong(), anyInt());
+  }
+
+  @Test
   void 주문_생성_성공() {
     // given
     givenStoreOpen();

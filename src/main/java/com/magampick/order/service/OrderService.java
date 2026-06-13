@@ -90,6 +90,9 @@ public class OrderService {
       throw new BusinessException(OrderErrorCode.PAYMENT_NOT_AGREED);
     }
 
+    // 기존 AWAITING_PAYMENT 주문 자동취소 + 재고복원 후 신규 생성 (재시도 즉시 깔끔, 재고 다중누수 차단)
+    cancelExistingAwaitingOrders(customerId);
+
     // ── 2. 매장 조회 + 영업 상태 검증 ─────────────────────────────────────────
     Store store =
         storeRepository
@@ -624,6 +627,59 @@ public class OrderService {
       default -> SELLER_ALL;
     };
   }
+
+  // ── AWAITING_PAYMENT 취소 + 재고복원 헬퍼 (createOrder / 만료배치 공용) ──────────────
+
+  /** 고객의 기존 AWAITING_PAYMENT 주문을 모두 취소 + 재고복원. */
+  private void cancelExistingAwaitingOrders(Long customerId) {
+    List<Order> awaitingOrders =
+        orderRepository.findByCustomerIdAndStatus(customerId, OrderStatus.AWAITING_PAYMENT);
+    LocalDateTime now = LocalDateTime.now(clock);
+    for (Order order : awaitingOrders) {
+      cancelIfAwaitingPaymentOrder(order, now);
+    }
+  }
+
+  /**
+   * AWAITING_PAYMENT → CANCELLED 조건부 원자 전이 + DEAL 재고복원. affected=0(이미 전이됨)이면 no-op (멱등). confirm
+   * 레이스는 TossConfirmService isAwaitingPayment 가드 + 이 조건부 UPDATE로 안전.
+   */
+  private void cancelIfAwaitingPaymentOrder(Order order, LocalDateTime now) {
+    int updated = orderRepository.cancelIfAwaitingPayment(order.getId(), now);
+    if (updated == 0) return;
+    for (OrderItem item : order.getOrderItems()) {
+      if (item.getItemKind() == ItemKind.DEAL && item.getClearanceItem() != null) {
+        clearanceItemRepository.incrementStock(item.getClearanceItem().getId(), item.getQuantity());
+      }
+    }
+  }
+
+  // ── 만료 배치 스케줄러 위임 메서드 ──────────────────────────────────────────────
+
+  /**
+   * 만료된 AWAITING_PAYMENT 주문 ID 목록 반환. TTL = {@value AWAITING_PAYMENT_TIMEOUT_MINUTES}분.
+   *
+   * @return 만료된 주문 ID 목록
+   */
+  public List<Long> findExpiredAwaitingOrderIds() {
+    LocalDateTime cutoff = LocalDateTime.now(clock).minusMinutes(AWAITING_PAYMENT_TIMEOUT_MINUTES);
+    return orderRepository.findExpiredAwaitingOrderIds(cutoff);
+  }
+
+  /**
+   * 단건 만료 AWAITING 주문 취소 + 재고복원. 스케줄러에서 건별 독립 트랜잭션으로 호출.
+   *
+   * @param orderId 취소 대상 주문 ID
+   */
+  @Transactional
+  public void cancelExpiredAwaitingOrder(Long orderId) {
+    orderRepository
+        .findByIdWithOrderItems(orderId)
+        .ifPresent(order -> cancelIfAwaitingPaymentOrder(order, LocalDateTime.now(clock)));
+  }
+
+  /** AWAITING_PAYMENT 주문 자동취소 TTL (분). */
+  static final int AWAITING_PAYMENT_TIMEOUT_MINUTES = 30;
 
   /** 서비스 내부 항목 컨텍스트. */
   private record ResolvedItem(

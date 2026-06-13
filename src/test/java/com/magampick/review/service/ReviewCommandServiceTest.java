@@ -126,6 +126,24 @@ class ReviewCommandServiceTest {
   }
 
   @Test
+  void 리뷰_작성_실패_타인_주문() {
+    // given — ORDER_ID 는 다른 소비자(99L) 소유
+    Customer otherCustomer = buildCustomer(99L);
+    Store store = buildStore(SELLER_ID);
+    Order order = buildOrder(ORDER_ID, otherCustomer, store, OrderStatus.COMPLETED);
+
+    given(orderRepository.findById(ORDER_ID)).willReturn(Optional.of(order));
+
+    // when / then — CUSTOMER_ID(1L) 로 타인 주문에 리뷰 시도 → REVIEW_FORBIDDEN
+    assertThatThrownBy(() -> reviewCommandService.createReview(CUSTOMER_ID, ORDER_ID, null))
+        .isInstanceOf(BusinessException.class)
+        .satisfies(
+            ex ->
+                assertThat(((BusinessException) ex).getErrorCode())
+                    .isEqualTo(ReviewErrorCode.REVIEW_FORBIDDEN));
+  }
+
+  @Test
   void 리뷰_작성_실패_주문없음() {
     // given
     given(orderRepository.findById(ORDER_ID)).willReturn(Optional.empty());
