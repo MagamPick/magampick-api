@@ -30,4 +30,4 @@
 
 - `APPROVED` 상태 매장만 등록 가능 (`PENDING`/`REJECTED` 시도 → `STORE_NOT_APPROVED`)
 - 등록·해제 모두 멱등 처리 (중복 등록 무시, 미등록 해제도 204 반환)
-- 등록 개수 상한 없음
+- 등록 개수 상한 **50개** (초과 시 `FAVORITE_LIMIT_REACHED` 409). 동시 추가 레이스는 `uk_favorites_customer_store` 위반을 멱등 성공으로 수렴

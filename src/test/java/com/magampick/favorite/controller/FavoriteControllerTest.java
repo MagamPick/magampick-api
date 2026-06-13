@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.magampick.favorite.dto.FavoriteAddRequest;
+import com.magampick.favorite.exception.FavoriteErrorCode;
 import com.magampick.favorite.fixture.FavoriteFixture;
 import com.magampick.favorite.service.FavoriteService;
 import com.magampick.global.exception.BusinessException;
@@ -106,6 +107,21 @@ class FavoriteControllerTest {
                 .with(user(CUSTOMER_USER)))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.error.code").value("STORE_NOT_FOUND"));
+  }
+
+  @Test
+  void POST_favorites_409_단골_한도_초과() throws Exception {
+    given(favoriteService.addFavorite(any(), any()))
+        .willThrow(new BusinessException(FavoriteErrorCode.FAVORITE_LIMIT_REACHED));
+
+    mockMvc
+        .perform(
+            post("/api/v1/customers/me/favorites")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new FavoriteAddRequest(10L)))
+                .with(user(CUSTOMER_USER)))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.error.code").value("FAVORITE_LIMIT_REACHED"));
   }
 
   // ── DELETE /api/v1/customers/me/favorites/{storeId} ──────────────────────────
