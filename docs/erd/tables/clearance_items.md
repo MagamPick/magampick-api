@@ -62,8 +62,8 @@
 
 ### #69 — 수정·마감
 
-- **수정 가능 필드**: `sale_price` / `total_quantity` / `pickup_end_at`. `pickup_start_at` 은 서버 자동 설정, 수정 불가. `name` / `regular_price` (스냅샷) / `status` 는 PATCH 노출 X.
-- **수정 시 `remaining_quantity` 동기화**: `total_quantity` 변경 시 `remaining_quantity = total_quantity`. 주문 미구현 상태에서만 유효 — 계층 5 연결 시 재검토.
+- **수정 가능 필드**: `sale_price` / 남은 수량(요청 DTO `remainingQuantity`) / `pickup_end_at`. `pickup_start_at` 은 서버 자동 설정, 수정 불가. `name` / `regular_price` (스냅샷) / `status` 는 PATCH 노출 X.
+- **수정 시 판매분 보존 (X2)**: 사장은 "남은 수량"만 수정. 변경 전 판매분 `sold = total_quantity − remaining_quantity` 을 보존하고 `remaining_quantity = 요청값`, `total_quantity = sold + 요청값` 으로 재계산. 불변식 `total = sold + remaining` 유지 (주문으로 `remaining_quantity` 가 차감돼도 등록 수량·판매 추적 손실 없음). 요청 `remainingQuantity` 는 `@Min(1)` — 0(품절)은 거부되며 품절 마감은 `POST /close` 엔드포인트 담당.
 - **수정·마감 가능 상태**: `OPEN` 만. `CLOSED` / `SOLD_OUT` → `CLEARANCE_ITEM_NOT_OPEN` (409).
 - **수동 마감 멱등**: `POST /close` 재호출 시 이미 `CLOSED` 면 no-op + 200. `uq_clearance_items_product_open` 해제로 동일 상품 재등록 가능.
 - **자동 마감**: `@Scheduled(cron = "0 */5 * * * *")` — 5분 주기 bulk UPDATE. `status = OPEN AND pickup_end_at < now(KST)` → `CLOSED` + `close_reason = EXPIRED` 전환. 단일 인스턴스 가정 (졸업 프로젝트).

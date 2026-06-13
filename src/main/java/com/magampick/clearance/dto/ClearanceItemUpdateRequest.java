@@ -13,6 +13,11 @@ public record ClearanceItemUpdateRequest(
         @DecimalMin(value = "1")
         @Digits(integer = 12, fraction = 0)
         BigDecimal salePrice,
-    @Schema(description = "등록 수량. null 이면 변경 없음", example = "3") @Min(1) Integer totalQuantity,
+    @Schema(
+            description =
+                "남은 수량. null 이면 변경 없음. 사장은 남은 개수만 수정하며 판매분은 보존된다(등록 수량 = 판매분 + 남은 수량). 0(품절)은 별도 마감(close) 엔드포인트 담당이므로 1 이상만 허용",
+            example = "3")
+        @Min(1)
+        Integer remainingQuantity,
     @Schema(description = "픽업 종료 시각 (KST). null 이면 변경 없음", example = "2026-05-20T21:00:00")
         LocalDateTime pickupEndAt) {}

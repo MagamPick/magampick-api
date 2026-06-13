@@ -91,7 +91,8 @@ public class ClearanceItemController {
   @PatchMapping("/{clearanceItemId}")
   @Operation(
       summary = "마감 임박 상품 수정",
-      description = "OPEN 상태인 떨이의 판매가·수량·픽업창을 부분 수정한다. null 필드는 변경 없음.")
+      description =
+          "OPEN 상태인 떨이의 판매가·남은 수량·픽업창을 부분 수정한다. null 필드는 변경 없음. 남은 수량 수정 시 판매분은 보존(등록 수량 = 판매분 + 남은 수량). 품절 마감은 close 엔드포인트 담당.")
   @ApiResponses({
     @ApiResponse(responseCode = "200", description = "수정 성공"),
     @ApiResponse(responseCode = "400", description = "입력 검증 실패 또는 픽업창·가격 규칙 위반"),

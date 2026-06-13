@@ -157,8 +157,8 @@ public class ClearanceItemService {
       }
     }
 
-    // 떨이 수정
-    item.update(request.salePrice(), request.totalQuantity(), request.pickupEndAt());
+    // 떨이 수정 — 수량은 "남은 개수"를 받아 판매분 보존(total = sold + remaining)
+    item.update(request.salePrice(), request.remainingQuantity(), request.pickupEndAt());
 
     log.info(
         "마감 임박 상품 수정됨. clearanceItemId={}, storeId={}, sellerId={}",

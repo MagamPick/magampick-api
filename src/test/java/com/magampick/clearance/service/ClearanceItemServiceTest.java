@@ -447,6 +447,31 @@ class ClearanceItemServiceTest {
   }
 
   @Test
+  void 마감_임박_상품_수정_남은수량_변경_시_판매분_보존() {
+    // given — 등록 5개 중 2개 판매되어 남은 3개 (sold = 5 - 3 = 2)
+    Store store = store();
+    Product prod = product(ProductStatus.ON_SALE);
+    ClearanceItem item = ClearanceItemFixture.aClearanceItem(store, prod);
+    ReflectionTestUtils.setField(item, "id", CLEARANCE_ITEM_ID);
+    ReflectionTestUtils.setField(item, "remainingQuantity", 3);
+    // 사장이 남은 수량을 4로 수정
+    ClearanceItemUpdateRequest request = new ClearanceItemUpdateRequest(null, 4, null);
+    given(storeService.requireOwnedStore(SELLER_ID, STORE_ID)).willReturn(store);
+    given(clearanceItemRepository.findByIdAndStoreId(CLEARANCE_ITEM_ID, STORE_ID))
+        .willReturn(Optional.of(item));
+    given(clearanceItemMapper.toResponse(item))
+        .willReturn(ClearanceItemFixture.aResponse(CLEARANCE_ITEM_ID));
+
+    // when
+    clearanceItemService.updateClearanceItem(SELLER_ID, STORE_ID, CLEARANCE_ITEM_ID, request);
+
+    // then — 남은 수량 = 요청값(4), 등록 수량 = 판매분(2) + 요청값(4) = 6, 판매분 보존
+    assertThat(item.getRemainingQuantity()).isEqualTo(4);
+    assertThat(item.getTotalQuantity()).isEqualTo(6);
+    assertThat(item.getStatus()).isEqualTo(ClearanceItemStatus.OPEN);
+  }
+
+  @Test
   void 마감_임박_상품_수정_CLOSED_상태_예외() {
     // given
     Store store = store();
