@@ -36,7 +36,7 @@ public class FavoriteController {
     @ApiResponse(responseCode = "201", description = "등록 성공 (이미 등록된 경우도 201)"),
     @ApiResponse(responseCode = "400", description = "입력 검증 실패"),
     @ApiResponse(responseCode = "401", description = "미인증"),
-    @ApiResponse(responseCode = "403", description = "권한 없음 또는 미승인 매장"),
+    @ApiResponse(responseCode = "403", description = "권한 없음"),
     @ApiResponse(responseCode = "404", description = "매장 없음"),
     @ApiResponse(responseCode = "409", description = "단골 한도 초과 (FAVORITE_LIMIT_REACHED)")
   })

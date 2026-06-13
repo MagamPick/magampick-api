@@ -88,16 +88,6 @@ public class UserCoupon extends BaseEntity {
     return status == CouponStatus.USABLE && expiresAt.isBefore(date);
   }
 
-  /**
-   * 쿠폰 사용 처리. USABLE → USED 전이.
-   *
-   * @param now 사용 시각
-   */
-  public void use(LocalDateTime now) {
-    this.status = CouponStatus.USED;
-    this.usedAt = now;
-  }
-
   /** 쿠폰 복원 처리. USED → USABLE 전이. usedAt 초기화. 만료 여부는 호출자가 사전에 확인한다. */
   public void restore() {
     this.status = CouponStatus.USABLE;
