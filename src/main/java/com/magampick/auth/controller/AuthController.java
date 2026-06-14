@@ -83,7 +83,7 @@ public class AuthController {
       @Valid @RequestBody CustomerSignupRequest request,
       HttpServletResponse response) {
     rejectIfAuthenticated(authentication);
-    return issue(authService.signupCustomer(request), true, response);
+    return issue(authService.signupCustomer(request), true, response, Role.CUSTOMER);
   }
 
   @PostMapping("/login")
@@ -95,7 +95,7 @@ public class AuthController {
   })
   public TokenResponse loginCustomer(
       @Valid @RequestBody LoginRequest request, HttpServletResponse response) {
-    return issue(authService.loginCustomer(request), request.persistent(), response);
+    return issue(authService.loginCustomer(request), request.persistent(), response, Role.CUSTOMER);
   }
 
   @PostMapping(value = "/seller/signup", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -115,7 +115,7 @@ public class AuthController {
       @RequestPart(value = "image", required = false) MultipartFile image,
       HttpServletResponse response) {
     rejectIfAuthenticated(authentication);
-    return issue(authService.signupSeller(request, image), true, response);
+    return issue(authService.signupSeller(request, image), true, response, Role.SELLER);
   }
 
   @PostMapping("/seller/login")
@@ -127,7 +127,7 @@ public class AuthController {
   })
   public TokenResponse loginSeller(
       @Valid @RequestBody LoginRequest request, HttpServletResponse response) {
-    return issue(authService.loginSeller(request), request.persistent(), response);
+    return issue(authService.loginSeller(request), request.persistent(), response, Role.SELLER);
   }
 
   @PostMapping("/admin/login")
@@ -141,7 +141,7 @@ public class AuthController {
   })
   public TokenResponse loginAdmin(
       @Valid @RequestBody AdminLoginRequest request, HttpServletResponse response) {
-    return issue(authService.loginAdmin(request), true, response);
+    return issue(authService.loginAdmin(request), true, response, Role.ADMIN);
   }
 
   @PostMapping("/kakao")
@@ -161,7 +161,7 @@ public class AuthController {
         IssuedTokens tokens = existing.tokens();
         response.addHeader(
             HttpHeaders.SET_COOKIE,
-            refreshTokenCookie.create(tokens.refreshToken(), true).toString());
+            refreshTokenCookie.create(tokens.refreshToken(), true, Role.CUSTOMER).toString());
         yield KakaoAuthResponse.existing(tokens.accessToken(), tokens.accessExpiresInSeconds());
       }
       case KakaoLoginResult.New newMember ->
@@ -186,7 +186,7 @@ public class AuthController {
       @Valid @RequestBody SocialSignupRequest request,
       HttpServletResponse response) {
     rejectIfAuthenticated(authentication);
-    return issue(authService.signupSocial(request), true, response);
+    return issue(authService.signupSocial(request), true, response, Role.CUSTOMER);
   }
 
   @PostMapping("/refresh")
@@ -198,7 +198,7 @@ public class AuthController {
   public TokenResponse refresh(HttpServletRequest request) {
     String refreshToken =
         refreshTokenCookie
-            .read(request)
+            .readForRefresh(request)
             .orElseThrow(() -> new BusinessException(AuthErrorCode.REFRESH_INVALID));
     return authService.refresh(refreshToken);
   }
@@ -207,8 +207,8 @@ public class AuthController {
   @Operation(summary = "로그아웃", description = "refresh 세션을 무효화하고 쿠키를 만료시킨다.")
   @ApiResponses(@ApiResponse(responseCode = "204", description = "로그아웃 성공"))
   public ResponseEntity<Void> logout(HttpServletRequest request, HttpServletResponse response) {
-    refreshTokenCookie.read(request).ifPresent(authService::logout);
-    response.addHeader(HttpHeaders.SET_COOKIE, refreshTokenCookie.clear().toString());
+    refreshTokenCookie.readForRefresh(request).ifPresent(authService::logout);
+    response.addHeader(HttpHeaders.SET_COOKIE, refreshTokenCookie.clearFor(request).toString());
     return ResponseEntity.noContent().build();
   }
 
@@ -266,19 +266,19 @@ public class AuthController {
     }
     String refreshToken =
         refreshTokenCookie
-            .read(servletRequest)
+            .read(servletRequest, userDetails.getRole())
             .orElseThrow(() -> new BusinessException(AuthErrorCode.REFRESH_INVALID));
     authService.changePassword(
         userDetails.getRole(), userDetails.getUserId(), refreshToken, request);
     return ResponseEntity.noContent().build();
   }
 
-  /** access(바디) + refresh(HttpOnly 쿠키) 발급. persistent 면 max-age 쿠키, 아니면 세션 쿠키. */
+  /** access(바디) + refresh(HttpOnly 쿠키) 발급. persistent 면 max-age 쿠키, 아니면 세션 쿠키. role 별 쿠키 이름 분리. */
   private TokenResponse issue(
-      IssuedTokens tokens, boolean persistent, HttpServletResponse response) {
+      IssuedTokens tokens, boolean persistent, HttpServletResponse response, Role role) {
     response.addHeader(
         HttpHeaders.SET_COOKIE,
-        refreshTokenCookie.create(tokens.refreshToken(), persistent).toString());
+        refreshTokenCookie.create(tokens.refreshToken(), persistent, role).toString());
     return new TokenResponse(tokens.accessToken(), tokens.accessExpiresInSeconds());
   }
 

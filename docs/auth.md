@@ -175,6 +175,31 @@ Cookie: refresh_token={JWT}
 
 Refresh 도 만료 → `401 TOKEN_EXPIRED` → 재로그인 필요.
 
+### Refresh 쿠키 role 별 분리 (앱 간 충돌 방지)
+
+소비자·사장·관리자 세 프론트가 **같은 API 호스트**(`api.{env}.magampick.com`)로 요청한다. refresh 쿠키는
+HttpOnly 라 `Domain` 미지정(host-only) 이므로 브라우저엔 API 호스트당 쿠키가 **한 개**만 존재한다. 단일 이름
+(`refresh_token`)을 쓰면 한 브라우저에서 마지막에 로그인한 앱이 그 쿠키를 덮어쓰고, 다른 앱이 부팅 시 silent
+refresh 하면 **다른 role 의 access 토큰**을 받아 `403 FORBIDDEN`(role 불일치)이 난다. (예: 관리자 로그인 후
+소비자 앱 새로고침 → 소비자 앱이 ADMIN 토큰으로 `/customers/me/**` 호출 → 403.)
+
+→ `origins` 가 설정된 환경(dev/prod)에서는 쿠키 이름을 **role 별로 분리**한다:
+
+| 앱 (Origin) | 쿠키 이름 |
+|---|---|
+| 소비자 (`https://(dev.)magampick.com`) | `refresh_token_customer` |
+| 사장 (`https://owner.(dev.)magampick.com`) | `refresh_token_seller` |
+| 관리자 (`https://admin.(dev.)magampick.com`) | `refresh_token_admin` |
+
+- **로그인/가입**: 발급 endpoint 가 role 을 알므로 해당 이름으로 `Set-Cookie`.
+- **refresh/logout**: 브라우저가 보낸 **`Origin` 헤더 → role** 로 매핑해 그 앱의 쿠키만 읽고/만료시킨다.
+  소비자 앱이 관리자 쿠키만 가진 상태로 refresh 하면 `refresh_token_customer` 가 없어 `REFRESH_INVALID`
+  → 프론트는 로그인 화면(다른 role 토큰을 빌려오지 않음).
+- **프론트 변경 없음**: `Origin` 은 브라우저가 자동 전송, 쿠키는 HttpOnly 라 FE 가 만지지 않는다.
+- 설정: `auth.refresh-cookie.origins`(`application-{dev,prod}.yaml`). **미설정(local/test)이면 단일
+  `refresh_token` 그대로(legacy)** — 로컬 단일 앱 개발·통합 테스트 무영향.
+- 배포 직후 기존 `refresh_token`(무접미사) 쿠키는 더 이상 읽히지 않아 사용자가 **1회 재로그인** 한다.
+
 ---
 
 ## 6. 로그아웃
