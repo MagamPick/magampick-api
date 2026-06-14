@@ -84,7 +84,7 @@ public class SecurityConfig {
                     .requestMatchers("/api/v1/auth/**")
                     .permitAll()
                     // DEV 전용 시드 엔드포인트 — local/dev 프로파일에서만 컨트롤러 활성화되므로 prod 에선 404
-                    .requestMatchers("/api/v1/dev/**")
+                    .requestMatchers("/api/v1/dev/test/**")
                     .permitAll()
                     // GET /api/v1/stores (목록) — ROLE_CUSTOMER.
                     // GET /api/v1/stores/* (단건 상세) — ROLE_CUSTOMER.
