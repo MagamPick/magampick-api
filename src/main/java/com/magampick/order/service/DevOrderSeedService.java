@@ -19,6 +19,7 @@ import com.magampick.order.repository.OrderRepository;
 import com.magampick.payment.domain.Payment;
 import com.magampick.payment.domain.PaymentStatus;
 import com.magampick.payment.repository.PaymentRepository;
+import com.magampick.point.service.PointService;
 import com.magampick.store.domain.Store;
 import com.magampick.store.exception.StoreErrorCode;
 import com.magampick.store.repository.StoreRepository;
@@ -55,6 +56,7 @@ public class DevOrderSeedService {
   private final ClearanceItemRepository clearanceItemRepository;
   private final OrderRepository orderRepository;
   private final PaymentRepository paymentRepository;
+  private final PointService pointService;
   private final Clock clock;
 
   public DevSeedOrderResponse seedOrder(DevSeedOrderRequest request) {
@@ -92,6 +94,7 @@ public class DevOrderSeedService {
     BigDecimal payTotal = sale;
     BigDecimal discountTotal = regular.subtract(sale);
     String pickupCode = String.format("%04d", ThreadLocalRandom.current().nextInt(10000));
+    long earnedPoints = payTotal.longValue() / 100;
 
     Order order =
         Order.builder()
@@ -104,6 +107,7 @@ public class DevOrderSeedService {
             .normalTotal(regular)
             .discountTotal(discountTotal)
             .finalAmount(payTotal)
+            .earnedPoints(earnedPoints > 0 ? earnedPoints : null)
             .build();
 
     order.addOrderItem(OrderItem.forDeal(order, itemRef, itemName, regular, imageUrl, 1, sale));
@@ -128,6 +132,9 @@ public class DevOrderSeedService {
     // targetState 까지 전이 (기존 도메인 메서드 재사용)
     applyTransitions(saved, request.targetState(), now);
     orderRepository.save(saved);
+    if (request.targetState() == OrderStatus.COMPLETED && saved.hasEarnedPoints()) {
+      pointService.earn(saved, saved.getEarnedPoints());
+    }
 
     return new DevSeedOrderResponse(
         saved.getId(),
