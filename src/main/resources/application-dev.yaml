@@ -31,3 +31,9 @@ auth:
   refresh-cookie:
     secure: true
     same-site: None
+    # 앱(Origin)별 role 매핑 — refresh 시 어느 앱인지 판별해 role 별 쿠키(refresh_token_customer/seller/admin)를 분리.
+    # 세 프론트가 같은 API 호스트의 단일 refresh 쿠키를 덮어써 role 불일치 403 나던 문제 방지.
+    origins:
+      customer: https://dev.magampick.com
+      seller: https://owner.dev.magampick.com
+      admin: https://admin.dev.magampick.com

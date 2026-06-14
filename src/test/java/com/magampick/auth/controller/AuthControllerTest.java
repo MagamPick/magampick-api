@@ -174,7 +174,7 @@ class AuthControllerTest {
   @Test
   void 소비자_회원가입_성공시_201_쿠키발급() throws Exception {
     given(authService.signupCustomer(any())).willReturn(new IssuedTokens("a", "r", 1800L));
-    given(refreshTokenCookie.create(eq("r"), anyBoolean())).willReturn(REFRESH_COOKIE);
+    given(refreshTokenCookie.create(eq("r"), anyBoolean(), any())).willReturn(REFRESH_COOKIE);
 
     mockMvc
         .perform(
@@ -214,7 +214,7 @@ class AuthControllerTest {
   @Test
   void 관리자_로그인_성공시_200_access바디_refresh쿠키() throws Exception {
     given(authService.loginAdmin(any())).willReturn(new IssuedTokens("a", "r", 1800L));
-    given(refreshTokenCookie.create(eq("r"), anyBoolean())).willReturn(REFRESH_COOKIE);
+    given(refreshTokenCookie.create(eq("r"), anyBoolean(), any())).willReturn(REFRESH_COOKIE);
 
     mockMvc
         .perform(
@@ -230,7 +230,7 @@ class AuthControllerTest {
   @Test
   void 사장_로그인_성공시_200_access바디_refresh쿠키() throws Exception {
     given(authService.loginSeller(any())).willReturn(new IssuedTokens("a", "r", 1800L));
-    given(refreshTokenCookie.create(eq("r"), anyBoolean())).willReturn(REFRESH_COOKIE);
+    given(refreshTokenCookie.create(eq("r"), anyBoolean(), any())).willReturn(REFRESH_COOKIE);
 
     mockMvc
         .perform(
@@ -248,7 +248,7 @@ class AuthControllerTest {
   void 카카오_기존회원_로그인시_200_EXISTING_쿠키발급() throws Exception {
     given(authService.kakaoLogin(any()))
         .willReturn(new KakaoLoginResult.Existing(new IssuedTokens("a", "r", 1800L)));
-    given(refreshTokenCookie.create(eq("r"), anyBoolean())).willReturn(REFRESH_COOKIE);
+    given(refreshTokenCookie.create(eq("r"), anyBoolean(), any())).willReturn(REFRESH_COOKIE);
 
     mockMvc
         .perform(
@@ -303,7 +303,7 @@ class AuthControllerTest {
   @Test
   void 소셜가입_성공시_201_쿠키발급() throws Exception {
     given(authService.signupSocial(any())).willReturn(new IssuedTokens("a", "r", 1800L));
-    given(refreshTokenCookie.create(eq("r"), anyBoolean())).willReturn(REFRESH_COOKIE);
+    given(refreshTokenCookie.create(eq("r"), anyBoolean(), any())).willReturn(REFRESH_COOKIE);
 
     mockMvc
         .perform(
@@ -328,7 +328,7 @@ class AuthControllerTest {
 
   @Test
   void 토큰_갱신_성공시_200() throws Exception {
-    given(refreshTokenCookie.read(any())).willReturn(Optional.of("rawR"));
+    given(refreshTokenCookie.readForRefresh(any())).willReturn(Optional.of("rawR"));
     given(authService.refresh("rawR")).willReturn(new TokenResponse("newA", 1800L));
 
     mockMvc
@@ -339,7 +339,7 @@ class AuthControllerTest {
 
   @Test
   void 토큰_갱신_refresh쿠키_없으면_401() throws Exception {
-    given(refreshTokenCookie.read(any())).willReturn(Optional.empty());
+    given(refreshTokenCookie.readForRefresh(any())).willReturn(Optional.empty());
 
     mockMvc
         .perform(post("/api/v1/auth/refresh"))
@@ -349,8 +349,8 @@ class AuthControllerTest {
 
   @Test
   void 로그아웃_성공시_204_쿠키삭제() throws Exception {
-    given(refreshTokenCookie.read(any())).willReturn(Optional.of("rawR"));
-    given(refreshTokenCookie.clear())
+    given(refreshTokenCookie.readForRefresh(any())).willReturn(Optional.of("rawR"));
+    given(refreshTokenCookie.clearFor(any()))
         .willReturn(
             ResponseCookie.from("refresh_token", "").maxAge(0).path("/api/v1/auth").build());
 
@@ -376,7 +376,7 @@ class AuthControllerTest {
   @Test
   void 사장_회원가입_성공시_201() throws Exception {
     given(authService.signupSeller(any(), any())).willReturn(new IssuedTokens("a", "r", 1800L));
-    given(refreshTokenCookie.create(eq("r"), anyBoolean())).willReturn(REFRESH_COOKIE);
+    given(refreshTokenCookie.create(eq("r"), anyBoolean(), any())).willReturn(REFRESH_COOKIE);
 
     mockMvc
         .perform(
@@ -390,7 +390,7 @@ class AuthControllerTest {
   @Test
   void 사장_회원가입_이미지_없어도_201() throws Exception {
     given(authService.signupSeller(any(), eq(null))).willReturn(new IssuedTokens("a", "r", 1800L));
-    given(refreshTokenCookie.create(eq("r"), anyBoolean())).willReturn(REFRESH_COOKIE);
+    given(refreshTokenCookie.create(eq("r"), anyBoolean(), any())).willReturn(REFRESH_COOKIE);
 
     mockMvc
         .perform(
@@ -449,7 +449,7 @@ class AuthControllerTest {
     CustomUserDetails principal = new CustomUserDetails(1L, Role.CUSTOMER);
     UsernamePasswordAuthenticationToken auth =
         new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
-    given(refreshTokenCookie.read(any())).willReturn(Optional.of("rawR"));
+    given(refreshTokenCookie.read(any(), any())).willReturn(Optional.of("rawR"));
 
     mockMvc
         .perform(

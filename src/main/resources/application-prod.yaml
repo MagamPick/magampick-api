@@ -20,6 +20,11 @@ cors:
 auth:
   refresh-cookie:
     secure: true
+    # 앱(Origin)별 role 매핑 — refresh 시 어느 앱인지 판별해 role 별 쿠키(refresh_token_customer/seller/admin)를 분리.
+    origins:
+      customer: https://magampick.com
+      seller: https://owner.magampick.com
+      admin: https://admin.magampick.com
 
 springdoc:
   api-docs:
