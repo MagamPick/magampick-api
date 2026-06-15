@@ -1,0 +1,214 @@
+# Roadmap
+
+기능 구현 순서와 진행 상태를 한눈에 보는 문서. **매번 코드를 뒤지지 않도록 이 문서를 단일 추적 지점으로 둔다.**
+
+- 기능 scope 정의는 [`features.md`](features.md), 도메인 의존관계는 [`erd/overview.md`](erd/overview.md) 기준.
+- **행 1개 = `features.md` 기능 1개 = 이슈 1개 = PR 1개** (한 이슈 = 한 PR, `AGENTS.md`).
+- 세로축 = 의존 계층 (앞 계층 완료 후 진행), 가로축 = 같은 계층 내 병렬 가능.
+- 머지 순서는 `AGENTS.md` 의 도메인 의존성 (`users → stores → products → orders → ...`) 과 일치.
+
+## 상태 추적
+
+`develop` 의 `roadmap.md` 는 머지된 PR 로만 갱신되므로 (develop 직접 푸시 금지) **2상태**로만 움직인다.
+
+| 상태 | 의미 |
+|---|---|
+| `미착수` | 아직 머지된 작업 없음 (시작 전 / 작업 브랜치에서 진행 중 둘 다 포함) |
+| `완료` | 작업 브랜치 PR 이 `develop` 에 머지됨 |
+
+**갱신 규칙**:
+
+- `/impl` 이 작업 브랜치에서 해당 행을 `미착수` → `완료` 로, `이슈` 컬럼에 이슈 번호 기록.
+  이 변경은 그 기능의 feature PR 에 함께 실려 머지 시점에 `develop` 에 반영된다.
+- **진행 중인 작업**은 develop 의 roadmap 에 나타나지 않는다 → `gh pr list` / `gh issue list --state open` 로 확인.
+
+> `완료` 인데 코드가 의심되면 `이슈` 번호로 교차 확인.
+
+---
+
+## 계층 0 — 인증 기반
+
+모든 도메인의 뿌리. 단독 진행.
+
+| 기능 | 도메인 | 상태 | 이슈 |
+|---|---|---|---|
+| 회원가입/로그인 — 이메일·비밀번호, 소비자/사장 유형 분리 (`customers`/`sellers`/`admins` 엔티티 + JWT), 사장 가입+첫 매장 통합 | users | 완료 | #15 / [회원가입 (사장)](https://app.notion.com/p/3696e59c28e6816faee0fb181c95f05f) (PR 예정) |
+| 본인인증 — 휴대폰 SMS OTP (**SOLAPI 실연동**) + Redis (OTP·본인인증 토큰·발송/시도 제한) + verificationToken (15분·1회용) | users | 완료 | #83 |
+
+- **카카오 소셜 로그인**: `OAuthProvider` 인터페이스 기반. test 프로파일만 Mock, local/dev/prod 는 실 카카오 OAuth 연동. Step 1 이메일 충돌 자동연결 거부(`EMAIL_ALREADY_REGISTERED`), Step 2 신규 추가정보 플로우(`/signup/social`)·기존/신규 분기·`KAKAO_EMAIL_REQUIRED`·`SOCIAL_AUTH_FAILED`.
+- **본인인증 → SMS OTP (SOLAPI)**: `SmsSender` + `MockSmsSender`(`@Profile("test")`) / `RealSolapiSmsSender`(`@Profile("!test")`, SOLAPI `net.nurigo:sdk`) + Redis 기반 OTP/토큰/발송·시도 제한. (#83)
+
+## 계층 1 — users 완성 + stores
+
+병렬 2갈래: **A. 소비자(users)** / **B. 사장·매장(stores)**.
+
+| 기능 | 도메인 | 상태 | 이슈 |
+|---|---|---|---|
+| 비밀번호 재설정 — 휴대폰 본인확인 + resetToken 기반 새 비밀번호 저장, 모든 refresh 세션 폐기 | users | 완료 | (이번 PR) |
+| 소비자 프로필 관리 — 닉네임·사진·전화번호 | users | 완료 | #40 |
+| 주소지 관리 — 최대 3개, 다음 우편번호 위젯 결과 + 서버 지오코딩, 현재 위치 역지오코딩 (`addresses`) | users | 완료 | #36 / (이번 PR) |
+| 알림 설정 — 종류별 On/Off, 반경 (`notification_settings`) | users | 미착수 | - |
+| 회원 탈퇴 — 30일 유예, 진행 중 주문 시 제한 | users | 미착수 | - |
+| 사장 프로필 관리 — 사장 이름·연락처·사업자 정보 | stores | 완료 | #35 |
+| 매장 등록 신청 — 국세청 진위확인 3요소(**실연동**) + 자체 DB 서버 지오코딩 + 이미지(Local/선택 범위 분리) + 자동 승인 (경로 A/B) + 등록 직후 `operation_status=CLOSED_TODAY` + 별도 진위확인 endpoint | stores | 완료 | #48 → #76 (재설계) / (이번 PR) |
+| ~~매장 등록 승인/반려 — 관리자~~ (자동 승인 재설계로 제거) | stores | 완료 | #48 → #76 제거 |
+| 매장 정보 수정 — 5필드 부분 수정 (`PATCH` multipart), 변경 필드만 지오코딩/이미지 재호출, 기존 사진 best effort 삭제 | stores | 완료 | #81 |
+| 자체 지오코딩 구축 — 위치정보요약DB(서울+경기) 1회 적재(`geocode_buildings`), 정방향 도로명 자연키 매칭 + 역방향 PostGIS 최근접, `MockGeocodingService` test 전용화 (ADR-002 B안) | stores | 완료 | (이번 PR) |
+| 매장 삭제 (사장 요청) — 진행 중 주문 시 제한 | stores | 미착수 | - |
+| 매장 삭제 승인/반려 — 관리자, 미정산 확인 후 | stores | 미착수 | - |
+| 매장 영업 상태 관리 — 3상태(`OPEN`/`BREAK`/`CLOSED_TODAY`) 사장 수동 토글 + `store_business_hours` 테이블 도입 (Repository 만) | stores | 완료 | #79 |
+| 영업시간 설정 — 요일별(`store_business_hours`) 전체 교체 저장 + OPEN 중 오늘 잠금 (`TODAY_BUSINESS_HOURS_LOCKED`) | stores | 완료 | #80 |
+| 보유 매장 목록 조회 — 사장 보유 매장 (id/name/operationStatus 3필드), 등록순(`created_at` asc) 정렬 | stores | 완료 | #82 |
+
+- 회원 탈퇴 / 매장 삭제의 **"진행 중 주문 시 제한"** → 주문 도메인(계층 5) 전이라 제약 훅(빈 검증)만, 이후 연결.
+
+## 계층 2 — products + favorites
+
+병렬 2갈래: **A. 일반 상품(products)** / **B. 즐겨찾기·푸시 토큰**.
+
+| 기능 | 도메인 | 상태 | 이슈 |
+|---|---|---|---|
+| 일반 상품 등록·조회 — 셀러 본인 매장 상품 등록 + 목록·상세 (이미지 1장, `products`) | products | 완료 | #56 |
+| 일반 상품 수정·삭제·품절 — 등록 이후 라이프사이클 | products | 완료 | #65 |
+| 즐겨찾기 관리 — 등록/해제/목록 (`favorites`) | users | 완료 | #70 / (단골 목록 재작성) |
+| FCM 푸시 토큰 등록 + 발송 인프라 (`push_tokens`, FirebaseConfig/FcmSender/NotificationService, 임시 테스트 엔드포인트) | notifications | 완료 | (이번 PR) |
+
+## 계층 3 — 마감 임박 상품
+
+서비스 핵심. 탐색·주문의 공통 선행 조건이라 단독 계층.
+
+| 기능 | 도메인 | 상태 | 이슈 |
+|---|---|---|---|
+| 마감 임박 상품 등록 — 일반 상품→떨이 전환, 할인율/수량/마감시간 (`clearance_items`) | products | 완료 | #67 |
+| 마감 임박 상품 수정/마감 — 자동 마감(시간) + 수동 마감(사장) | products | 완료 | #69 |
+
+## 계층 4 — 탐색 & 검색
+
+읽기 전용 위주. 계층 5(주문)와 병렬 진행 가능.
+
+| 기능 | 도메인 | 상태 | 이슈 |
+|---|---|---|---|
+| 홈 피드 — 반경 내 매장/마감 임박 상품 카드 | stores | 완료 | [노션](https://app.notion.com/p/3696e59c28e681788675f00a7a529cc3) |
+| 전체 매장 조회 — 5km 이내 OPEN 매장 목록 (5종 정렬: 추천/거리/할인율/마감/별점), PostGIS 거리, 떨이·평점·단골 배치 집계 | stores | 완료 | [노션](https://app.notion.com/p/36f6e59c28e681f5a625eccb02bd7865) |
+| 매장 상세 조회 — 정보 + 상품/마감 임박 상품 목록 | stores | 완료 | [노션](https://app.notion.com/p/36f6e59c28e6814ab8decb1acb8276dc) |
+| 상품 상세 조회 — 사진/가격/할인율/리뷰 | products | 완료 | [노션](https://app.notion.com/p/3696e59c28e68155bc71c114b70596cc) |
+| 지도 기반 매장 조회 — 카카오맵, 핀 표시 | stores | 완료 | [노션](https://app.notion.com/p/3696e59c28e6810b8a67e6feabeb59a0) |
+| 필터/정렬 — 거리/할인율/마감 임박 | stores | 미착수 | - |
+| 키워드 검색 — 매장명·상품명 pg_trgm 부분일치 (5km·OPEN·오늘영업), 매장·상품 섹션 분리·5종 정렬 | stores | 완료 | [노션](https://app.notion.com/p/3696e59c28e6818985e3fb5bed27b4f5) |
+| 검색 자동완성 — pg_trgm word_similarity 유사 매장명·상품명 제안 (노출 범위 = 키워드 검색과 동일) | stores | 완료 | [노션](https://app.notion.com/p/3696e59c28e681aba60fe00126c3b9b5) |
+| 검색 기록 — 최근 검색어 저장/삭제 (FE localStorage·계정별, BE 무관) | - | FE 전용 | [노션](https://app.notion.com/p/3696e59c28e681d7ba63c72ccfe80325) |
+| 실시간 급상승 키워드 — 1시간 내 검색량 기준 | stores | 미착수 | - |
+
+- 검색 기록은 FE localStorage(계정별)로 결정 — BE 테이블 없음. 실시간 급상승 키워드는 백로그(ERD 미반영).
+
+## 계층 5 — 주문
+
+| 기능 | 도메인 | 상태 | 이슈 |
+|---|---|---|---|
+| 장바구니 관리 — 매장 혼합 경고 | orders | BE 무관 | 서버 미저장(클라이언트 localStorage) — [노션](https://app.notion.com/p/3696e59c28e68154875ecd4fef825e3c) |
+| 주문 생성 + 결제(토스 stub) — 픽업 15분 슬롯, 결제 동의, 픽업코드 4자리 발급 | orders | ✅ 완료 | [주문 생성](https://app.notion.com/p/3696e59c28e6817bbeecd14f7998402e) · [주문 결제](https://app.notion.com/p/3696e59c28e6815ca3d4c019ecf4dbbe) |
+| 주문 취소 (소비자) — `주문접수` 상태에서만 | orders | 미착수 | - |
+| 주문 수락/거절 (사장) — 거절 시 자동 환불 | orders | 미착수 | - |
+| 주문 상태 변경 — `주문접수 → 준비중 → 준비완료 → 픽업완료` | orders | 미착수 | - |
+| 주문 목록/상세 조회 — 소비자/사장 각각 | orders | 미착수 | - |
+
+- 계층 1의 "진행 중 주문 시 제한" 훅을 여기서 연결.
+- `orders` / `order_items` 테이블은 리뷰(계층 7) read 지원을 위해 선반영됨 (`feat/review-query`, 리뷰 목록 조회 PR). 주문 lifecycle·결제 컬럼은 본 계층에서 구현.
+- **주문 결제(토스 stub)** 는 주문 생성과 한 흐름이라 본 계층(`feat/order-checkout`)에서 함께 구현 — `payments` 테이블 + `PaymentGateway`/`StubPaymentGateway`(자동 승인). 토스 샌드박스 실연동·정산은 계층 6.
+- 주문 생성 시 떨이 재고 소진(remaining=0) → `SOLD_OUT` 자동 전이.
+
+## 계층 6 — 결제 & 환불 & 노쇼
+
+| 기능 | 도메인 | 상태 | 이슈 |
+|---|---|---|---|
+| 결제 — 토스페이 API, 포인트/쿠폰 동시 적용 (`payments`) | payments | 미착수 | - |
+| 환불 처리 — 정책 미정 (`refunds`) | payments | 미착수 | - |
+| 노쇼 처리 — 픽업 시간 초과, 누적 기준·제재 강도 미정 | orders | 미착수 | - |
+
+- 토스페이 API → 연동 가능하면 연동, 아니면 stub.
+- 환불 정책, 노쇼 누적 기준·제재 강도는 `policy.md` 미정 → `/issue` 로 결정 선행.
+
+## 계층 7 — 리뷰 + 혜택
+
+병렬 2갈래: **A. 리뷰(reviews)** / **B. 혜택(benefits)**.
+
+| 기능 | 도메인 | 상태 | 이슈 |
+|---|---|---|---|
+| 리뷰 작성/수정/삭제 — 별점+텍스트+사진 3장, 7일 이내 수정 | reviews | 미착수 | - |
+| 리뷰 목록 조회 — 최신순/별점순/사진만 필터 | reviews | 완료 | [노션](https://app.notion.com/p/3696e59c28e681249864e70f4459f5b2) — 매장 목록(최신순)+평점 집계 read; 별점순/사진/내리뷰/사장/write 후속 |
+| 리뷰 답글 (사장) — 공개 답글 | reviews | 미착수 | - |
+| 리뷰 신고 — 부적절 리뷰 → 관리자 검토 | reviews | 미착수 | - |
+| 포인트 적립 — 픽업완료 시 실결제 현금 1% floor 적립 (건별 lot, 유효 1년) | benefits | 완료 | [노션](https://app.notion.com/p/3696e59c28e68138973eeab5f7718252) (이번 PR) |
+| 포인트 사용 — 결제 시 FIFO 차감, 한도 min(잔액, 쿠폰 적용 후) | benefits | 완료 | [노션](https://app.notion.com/p/3696e59c28e6816891b8d42bce92aa40) (이번 PR) |
+| 포인트 내역 조회 — 잔액 + 내역(전체/적립/사용 탭) 조회. 원장(`point_accruals`/`point_transactions`) 스키마 선반영, 쓰기 엔진(적립/사용/소멸)은 후속 PR | benefits | 완료 | [노션](https://app.notion.com/p/3696e59c28e681b8962fde45d32b79f9) (이번 PR) |
+| 포인트 소멸 — 적립일+1년 경과 ACTIVE lot 자동 소멸 (일배치) + 픽업후 환불 시 적립분 회수(clawback) | benefits | 완료 | [노션](https://app.notion.com/p/3696e59c28e6816e8343c47c9d6b0cd7) (이번 PR) |
+| 쿠폰함 조회 — 보유 쿠폰 상태별(사용가능/완료/만료) 조회 + 만료 방어판정 (`coupons`/`user_coupons`) | benefits | 완료 | [노션](https://app.notion.com/p/3696e59c28e68155a423c42692662fef) (이번 PR) |
+| 쿠폰 사용 — 결제 시 1주문 1쿠폰, 일반상품(떨이 제외) 할인, 정산은 플랫폼 보전(`final_amount` 분리) | benefits | 완료 | [노션](https://app.notion.com/p/3696e59c28e6814082b2db84f53fb0d0) (이번 PR) |
+| 쿠폰 소멸 — 만료일 경과 USABLE→EXPIRED 자동 전이 (일배치) + 픽업후 환불 시 미만료면 복원 | benefits | 완료 | [노션](https://app.notion.com/p/3696e59c28e681439e7dc599f53932e2) (이번 PR) |
+
+- 포인트 적립률·최소 사용 단위 미정 (`product.md` Pending Decisions) → `/issue` 선행.
+
+## 계층 8 — 알림 발송 + 운영 + 통계
+
+병렬 3갈래: **A. 알림 발송** / **B. 운영(관리자)** / **C. 통계**. 동시 구현은 2갈래까지만.
+
+### A. 알림 발송 통합
+
+각 도메인 이벤트에 FCM 발송 트리거를 붙이는 작업. 알림 인프라(토큰·설정)는 계층 1~2 에서 완료.
+
+| 기능 | 도메인 | 상태 | 이슈 |
+|---|---|---|---|
+| 마감 임박 상품 등록 알림 발송 — 위치→즐겨찾기→설정 주소 우선순위 | notifications | 미착수 | - |
+| 마감 임박 상품 알림 수신 (소비자) — 3채널 | notifications | 미착수 | - |
+| 주문 관련 알림 — 신규/상태 변경/취소/환불 | notifications | 미착수 | - |
+| 매장 관련 알림 — 승인/반려, 삭제 승인/반려 | notifications | 미착수 | - |
+| 리뷰 관련 알림 — 신규 리뷰/답글 | notifications | 미착수 | - |
+| 혜택 알림 — 포인트/쿠폰 소멸 예정 | notifications | 미착수 | - |
+| 마케팅 알림 — 이벤트/쿠폰 | notifications | 미착수 | - |
+| 운영 알림 — 회원 제재 | notifications | 미착수 | - |
+
+### B. 운영 (관리자)
+
+| 기능 | 도메인 | 상태 | 이슈 |
+|---|---|---|---|
+| 회원 목록/제재 관리 — 정지/강제 탈퇴 | operations | 미착수 | - |
+| 신고 리뷰 처리 — 검토 및 삭제 | operations | 미착수 | - |
+| 정산 처리 — 사장별 수익 − 수수료 (`settlements`) | operations | 미착수 | - |
+| 정산 내역 조회 (사장) — 기간별 | operations | 미착수 | - |
+| 쿠폰 발급 — 이벤트 claim(선착순·1인1회) + 가입 축하 쿠폰 자동 지급(가입훅) + 최소 관리자 이벤트 생성 API | operations | 완료 | [노션](https://app.notion.com/p/3696e59c28e681c69eebc6e51ed17622) (이번 PR) |
+| 이벤트 생성/관리 — 노출기간(예정/진행중/종료) + 관리자 목록/수정/종료 + 발급 시 할인 스냅샷(소급 방지) | operations | 완료 | [노션](https://app.notion.com/p/3696e59c28e681679a7ac38d1d73ddd7) (이번 PR) |
+| 공지사항 작성 — 즉시 발행, 태그·핀, 수정·삭제 (`announcements`) | operations | 완료 | [노션](https://app.notion.com/p/3696e59c28e68157947fc73484439566) (이번 PR) |
+| 공지사항 조회 — 핀 우선·최신순 글로벌 목록 | operations | 완료 | [노션](https://app.notion.com/p/3696e59c28e6817c9684d42d286da48d) (이번 PR) |
+| 고객센터 문의 — FAQ 조회 + 1:1 문의(소비자·사장) 제출·내역, 답변 알림 (`inquiries`/`faqs`) | operations | 완료 | [노션](https://app.notion.com/p/3696e59c28e6813ba765f0bbe5182986) (이번 PR) |
+| 문의 답변 — 관리자 답변(대기→답변완료) + always-on 푸시 알림 | operations | 완료 | [노션](https://app.notion.com/p/3696e59c28e6812cb3fce2dc006f52ff) (이번 PR) |
+| 약관 관리 — 버전 관리, 변경 고지 | operations | 미착수 | - |
+
+### C. 통계
+
+| 기능 | 도메인 | 상태 | 이슈 |
+|---|---|---|---|
+| 사장 통계 대시보드 (사장) — 매출·주문·떨이·리뷰 기간별(오늘/주/달/올해) | analytics | 완료 | [노션](https://app.notion.com/p/3696e59c28e681899fedebb570dcd968) |
+| 서비스 전체 통계 (관리자) — DAU/MAU/주문량/매출 | statistics | 미착수 | - |
+| 전체 주문 모니터링 (관리자) — 실시간 | statistics | 미착수 | - |
+| 결제 내역 관리 (관리자) — 이상 결제 검토 | statistics | 미착수 | - |
+
+---
+
+## stub 처리 정리
+
+후속 이슈로 실제 구현 예정인 항목.
+
+| 항목 | 처리 | 실제 구현 시점 |
+|---|---|---|
+| 카카오 소셜 로그인 | test 전용 Mock, local/dev/prod 실연동 | 완료 |
+| 이메일 발송 | stub | 출시 시점 인프라 도입 |
+| 국세청 사업자 인증 | stub 권장 | API 연동 시점 |
+| 토스페이 결제 | 연동 or stub (판단 필요) | — |
+
+## 병렬 운영 주의
+
+`AGENTS.md` 병렬 운영 규칙 기준:
+
+- 동시 구현은 1~2개까지. 계층 내 갈래가 3개(계층 8)면 2개씩 끊어서.
+- 같은 계층·같은 도메인 행이라도 같은 테이블을 건드리면 순차 진행.
+- 병렬 시 `git worktree` 로 디렉터리 분리 필수.

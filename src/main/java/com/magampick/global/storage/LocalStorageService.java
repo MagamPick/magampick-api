@@ -1,0 +1,62 @@
+package com.magampick.global.storage;
+
+import com.magampick.global.exception.BusinessException;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.LocalDate;
+import java.util.UUID;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Profile;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+/** 테스트(test 프로파일) 전용 로컬 파일시스템 저장소. 런타임(local·dev·prod)은 {@link OciStorageService} 가 담당한다. */
+@Slf4j
+@Service
+@Profile("test")
+@RequiredArgsConstructor
+public class LocalStorageService implements StorageService {
+
+  private final StorageProperties storageProperties;
+
+  @Override
+  public String upload(MultipartFile file) {
+    String ext = extractExtension(file.getOriginalFilename());
+    LocalDate now = LocalDate.now();
+    String relativePath =
+        now.getYear() + "/" + now.getMonthValue() + "/" + UUID.randomUUID() + "." + ext;
+    Path target = Path.of(storageProperties.rootPath()).resolve(relativePath);
+    try {
+      Files.createDirectories(target.getParent());
+      Files.copy(file.getInputStream(), target);
+    } catch (IOException e) {
+      throw new BusinessException(StorageErrorCode.IMAGE_UPLOAD_FAILED, e);
+    }
+    log.info("파일 업로드 완료. path={}", target);
+    return "/uploads/" + relativePath;
+  }
+
+  @Override
+  public void delete(String url) {
+    if (url == null || !url.startsWith("/uploads/")) {
+      return; // 알 수 없는 URL 형태 — best effort, 무시
+    }
+    String relativePath = url.substring("/uploads/".length());
+    Path target = Path.of(storageProperties.rootPath()).resolve(relativePath);
+    try {
+      Files.deleteIfExists(target);
+      log.info("파일 삭제 완료. path={}", target);
+    } catch (IOException e) {
+      log.warn("파일 삭제 실패 (무시). path={}", target, e);
+    }
+  }
+
+  private String extractExtension(String filename) {
+    if (filename == null || !filename.contains(".")) {
+      return "bin";
+    }
+    return filename.substring(filename.lastIndexOf('.') + 1).toLowerCase();
+  }
+}

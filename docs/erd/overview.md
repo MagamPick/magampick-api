@@ -5,10 +5,11 @@
 ## 설계 결정 사항 (전역)
 
 - **식별자**: `BIGINT` (Spring `Long` + `GENERATED ALWAYS AS IDENTITY`)
-- **위치 정보**: **PostGIS** 사용 — `stores.location`, `addresses.location` 는 `GEOGRAPHY(POINT, 4326)` + GIST 인덱스
+- **위치 정보**: **PostGIS** 사용 — `stores.location`, `addresses.location`, `geocode_buildings.location` 은 `GEOGRAPHY(POINT, 4326)` + GIST 인덱스
+- **지오코딩**: 자체 DB(`geocode_buildings`, 위치정보요약DB 적재) — 정방향(도로명 자연키 정확 매칭) / 역방향(PostGIS 최근접). 외부 API 미연동 (ADR-002). 좌표는 적재 시 `ST_Transform(5179→4326)`.
 - **Enum**: PostgreSQL native ENUM 대신 `VARCHAR + CHECK` 제약 (Hibernate `@Enumerated(EnumType.STRING)` 표준)
-- **Soft Delete (`deleted_at`)**: customers, sellers, stores, clearance_items, orders 등 주요 엔티티만. 종속 데이터(order_items 등)는 hard delete
-- **휴대폰 번호 UNIQUE 미적용** (졸업 프로젝트 단계): 시연 시 동일 번호로 customer + seller 둘 다 가입해야 함. 실제 인증 API 연동 시점에 재검토 ([auth.md §8](../auth.md))
+- **Soft Delete (`deleted_at`)**: customers, sellers, stores, orders 등 주요 엔티티만. 종속 데이터(order_items 등)는 hard delete. clearance_items 는 CLOSED 상태로 종료 — soft delete 미도입
+- **휴대폰 번호 UNIQUE 영구 미적용**: 별개 계정 모델 + 사장 다중 사업자 운영. 본인인증 = 번호 소유자 검증이지 1번호 1계정 강제가 아님 (한국 이커머스 표준). 자세한 사유는 [auth.md §8](../auth.md)
 - **시간대**: 모든 `TIMESTAMP` 컬럼은 KST 통일 (운영 인프라 시간대 일치, [api-convention.md §7](../api-convention.md))
 - **사용자 분리**: `customers` / `sellers` / `admins` 세 테이블 분리 (가입 흐름·필드 다름)
 
@@ -32,7 +33,6 @@ erDiagram
         varchar business_number UK
         varchar owner_name
         varchar phone
-        varchar verification_status
         timestamp deleted_at
     }
     admins {
@@ -44,27 +44,38 @@ erDiagram
         bigint id PK
         bigint customer_id FK
         varchar label
-        varchar address
+        varchar road_address
+        varchar jibun_address
+        varchar detail_address
+        varchar zonecode
         geography location
         boolean is_default
     }
-    favorites {
+    customer_locations {
         bigint customer_id PK_FK
-        bigint store_id PK_FK
+        geography location
+        timestamp location_updated_at
+    }
+    favorites {
+        bigint id PK
+        bigint customer_id FK
+        bigint store_id FK
+        timestamp created_at
     }
 
-    store_categories {
-        bigint id PK
-        varchar name UK
-    }
     stores {
         bigint id PK
         bigint seller_id FK
-        bigint store_category_id FK
+        varchar business_number
         varchar name
-        varchar address
+        varchar road_address
+        varchar jibun_address
+        varchar detail_address
+        varchar zonecode
         geography location
-        varchar status
+        varchar phone
+        varchar description
+        varchar image_url
         timestamp deleted_at
     }
     store_business_hours {
@@ -81,16 +92,12 @@ erDiagram
         varchar reason
     }
 
-    product_categories {
-        bigint id PK
-        varchar name UK
-    }
     products {
         bigint id PK
         bigint store_id FK
-        bigint product_category_id FK
         varchar name
         decimal regular_price
+        varchar image_url
         varchar status
     }
     clearance_items {
@@ -105,23 +112,7 @@ erDiagram
         timestamp pickup_start_at
         timestamp pickup_end_at
         varchar status
-        timestamp deleted_at
     }
-    product_images {
-        bigint id PK
-        bigint product_id FK
-        varchar url
-        int sort_order
-    }
-    hashtags {
-        bigint id PK
-        varchar name UK
-    }
-    product_hashtags {
-        bigint product_id PK_FK
-        bigint hashtag_id PK_FK
-    }
-
     orders {
         bigint id PK
         bigint customer_id FK
@@ -212,33 +203,44 @@ erDiagram
         varchar status
     }
 
-    points {
-        bigint customer_id PK_FK
-        bigint balance
-        timestamp last_used_at
+    point_accruals {
+        bigint id PK
+        bigint customer_id FK
+        bigint order_id FK_nullable
+        bigint initial_amount
+        bigint remaining_amount
+        timestamp earned_at
+        timestamp expires_at
+        varchar status
     }
     point_transactions {
         bigint id PK
         bigint customer_id FK
         bigint order_id FK_nullable
-        bigint amount
-        varchar type
         varchar reason
-        timestamp expires_at
+        bigint amount
+        varchar store_name
+        timestamp occurred_at
     }
     coupons {
         bigint id PK
-        varchar name
+        varchar kind
+        varchar label
         varchar discount_type
-        decimal discount_value
-        date valid_from
+        int discount_value
+        int min_order
         date valid_until
+        int validity_days
+        int issue_limit
+        int issued_count
+        boolean active
     }
     user_coupons {
         bigint id PK
         bigint customer_id FK
         bigint coupon_id FK
         varchar status
+        date expires_at
         timestamp issued_at
         timestamp used_at
     }
@@ -277,12 +279,13 @@ erDiagram
     }
 
     customers ||--o{ addresses : "owns"
+    customers ||--o| customer_locations : "tracks"
     customers ||--o{ favorites : "saves"
     customers ||--o{ orders : "places"
     customers ||--o{ reviews : "writes"
     customers ||--o{ inquiries : "submits"
     customers ||--|| notification_settings : "configures"
-    customers ||--|| points : "owns"
+    customers ||--o{ point_accruals : "earns"
     customers ||--o{ point_transactions : "records"
     customers ||--o{ user_coupons : "owns"
     customers ||--o{ review_reports : "files"
@@ -294,7 +297,6 @@ erDiagram
     admins ||--o{ announcements : "publishes"
     admins ||--o{ inquiry_replies : "writes"
 
-    store_categories ||--o{ stores : "categorizes"
     stores ||--o{ favorites : "favored_by"
     stores ||--o{ store_business_hours : "has"
     stores ||--o{ store_closed_days : "has"
@@ -303,17 +305,14 @@ erDiagram
     stores ||--o{ orders : "receives"
     stores ||--o{ reviews : "receives"
 
-    product_categories ||--o{ products : "categorizes"
-    products ||--o{ product_images : "has"
     products ||--o{ clearance_items : "becomes"
-    products ||--o{ product_hashtags : "tagged"
-    hashtags ||--o{ product_hashtags : "tags"
 
     clearance_items ||--o{ order_items : "ordered_as"
 
     orders ||--o{ order_items : "contains"
     orders ||--|| payments : "paid_by"
     orders ||--|| reviews : "reviewed_as"
+    orders ||--o{ point_accruals : "earns"
     orders ||--o{ point_transactions : "earns_or_uses"
     payments ||--o{ refunds : "refunded_by"
 
@@ -339,21 +338,19 @@ erDiagram
 - `sellers` — 사장 (사업자 인증 + 관리자 승인 필요)
 - `admins` — 운영자
 - `addresses` — 소비자 주소지 (최대 3개, 알림 반경 기준)
+- `customer_locations` — 소비자 현재 위치 (1:1, 신선도 1시간, 떨이 알림 ② 현재위치 대상)
 - `favorites` — 소비자-매장 즐겨찾기 (M:N)
 
 ### Stores
-- `stores` — 매장 (좌표 PostGIS)
-- `store_categories` — 매장 카테고리 (베이커리/카페 등)
+- `stores` — 매장 (좌표 PostGIS, per-store 사업자 번호, 자동 승인)
 - `store_business_hours` — 요일별 영업시간
 - `store_closed_days` — 정기/임시 휴무
 
 ### Products
-- `products` — 매장 일반 상품 (정상가 메뉴)
+- `products` — 매장 일반 상품 (정상가 메뉴, 대표 이미지 1장 `image_url`)
 - `clearance_items` — 마감 임박 상품 (떨이, 별도 엔티티)
-- `product_categories` — 상품 카테고리
-- `product_images` — 상품 이미지
-- `hashtags` — 해시태그 마스터
-- `product_hashtags` — 상품-해시태그 (M:N)
+
+> "상품 카테고리 / 상품 해시태그 / 다중 상품 이미지" 는 본 ERD 에 두지 않는다 (#56 정정). 매장 카테고리(`store_categories`) 와 별개이고, 해시태그는 리뷰 도메인 작업 시점에 재정의.
 
 ### Orders
 - `orders` — 주문 (당일 결제 = 당일 픽업, 상태 머신)
@@ -373,16 +370,19 @@ erDiagram
 - `review_reports` — 리뷰 신고
 
 ### Benefits
-- `points` — 사용자별 포인트 잔액 (캐시 + 마지막 사용 시각)
-- `point_transactions` — 적립/사용/만료 내역
-- `coupons` — 쿠폰 마스터 (관리자/이벤트 발급)
-- `user_coupons` — 사용자에게 발급된 쿠폰 인스턴스
+- `point_accruals` — 적립 lot (FIFO 차감 방식 잔량 관리, balance source of truth)
+- `point_transactions` — 포인트 내역 (적립·사용·만료·복원·회수 5사유)
+- `coupons` — 쿠폰 마스터 (SIGNUP 가입 축하 / EVENT 이벤트 두 종류, kind·min_order·valid_until·validity_days·issue_limit·issued_count·active)
+- `user_coupons` — 소비자에게 발급된 쿠폰 인스턴스 (expires_at 스냅샷, used_at, UNIQUE(customer,coupon) 1인1회 보장)
 
 ### Operations
 - `announcements` — 공지사항
 - `inquiries` — 고객센터 문의
 - `inquiry_replies` — 문의 답변
 - `settlements` — 사장별 주간 정산
+
+### Reference (참조 데이터)
+- `geocode_buildings` — 자체 지오코딩 참조 (위치정보요약DB, 서울+경기 1회 적재). FK 무관계 standalone. 정방향 자연키 조회 + 역방향 PostGIS 최근접
 
 ---
 

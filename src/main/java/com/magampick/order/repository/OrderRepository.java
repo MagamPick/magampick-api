@@ -1,0 +1,189 @@
+package com.magampick.order.repository;
+
+import com.magampick.order.domain.Order;
+import com.magampick.order.domain.OrderStatus;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
+import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+public interface OrderRepository extends JpaRepository<Order, Long> {
+
+  /** 소비자 주문 목록 — customerId 기준, status 목록 필터, 최신순. */
+  List<Order> findByCustomerIdAndStatusInOrderByCreatedAtDesc(
+      Long customerId, List<OrderStatus> statuses);
+
+  /** 사장 매장 주문 목록 — storeId 기준, status 목록 필터, 최신순. */
+  List<Order> findByStoreIdAndStatusInOrderByCreatedAtDesc(
+      Long storeId, List<OrderStatus> statuses);
+
+  /** 소비자 COMPLETED 주문 목록 — Store + OrderItems JOIN FETCH (N+1 방지). completedAt 내림차순. */
+  @Query(
+      "SELECT DISTINCT o FROM Order o "
+          + "JOIN FETCH o.store "
+          + "JOIN FETCH o.orderItems oi "
+          + "LEFT JOIN FETCH oi.clearanceItem "
+          + "WHERE o.customer.id = :customerId AND o.status = :status "
+          + "ORDER BY o.completedAt DESC")
+  List<Order> findCompletedOrdersWithDetails(
+      @Param("customerId") Long customerId, @Param("status") OrderStatus status);
+
+  /**
+   * 통계용 완료 주문 목록 — OrderItems JOIN FETCH, 환불승인 제외. completedAt [start, end) 범위.
+   *
+   * <p>NOT EXISTS 서브쿼리로 APPROVED 환불 있는 주문 제외. 매출·떨이 집계에 사용.
+   */
+  @Query(
+      "SELECT DISTINCT o FROM Order o "
+          + "LEFT JOIN FETCH o.orderItems "
+          + "WHERE o.store.id = :storeId "
+          + "AND o.status = com.magampick.order.domain.OrderStatus.COMPLETED "
+          + "AND o.completedAt >= :start AND o.completedAt < :end "
+          + "AND o.deletedAt IS NULL "
+          + "AND NOT EXISTS ("
+          + "  SELECT 1 FROM Refund rf "
+          + "  WHERE rf.order = o "
+          + "  AND rf.status = com.magampick.refund.domain.RefundStatus.APPROVED"
+          + ")")
+  List<Order> findCompletedForAnalytics(
+      @Param("storeId") Long storeId,
+      @Param("start") LocalDateTime start,
+      @Param("end") LocalDateTime end);
+
+  /**
+   * 통계용 완료 주문 총 금액 합계 — 환불승인 제외. completedAt [start, end) 범위.
+   *
+   * <p>결과 없으면 null 반환 — 호출 측에서 null→0 처리.
+   */
+  @Query(
+      "SELECT SUM(o.totalPrice) FROM Order o "
+          + "WHERE o.store.id = :storeId "
+          + "AND o.status = com.magampick.order.domain.OrderStatus.COMPLETED "
+          + "AND o.completedAt >= :start AND o.completedAt < :end "
+          + "AND o.deletedAt IS NULL "
+          + "AND NOT EXISTS ("
+          + "  SELECT 1 FROM Refund rf "
+          + "  WHERE rf.order = o "
+          + "  AND rf.status = com.magampick.refund.domain.RefundStatus.APPROVED"
+          + ")")
+  BigDecimal sumCompletedTotalPrice(
+      @Param("storeId") Long storeId,
+      @Param("start") LocalDateTime start,
+      @Param("end") LocalDateTime end);
+
+  /**
+   * 통계용 주문 상태별 건수. createdAt [start, end) 범위, AWAITING_PAYMENT 제외, APPROVED 환불 제외.
+   *
+   * <p>결과 행: [OrderStatus, Long count]. AWAITING_PAYMENT 상태는 제외됨. 시간기준은 주문 접수(createdAt) — 매출 쿼리(픽업
+   * 시각 completedAt)와 모집단 의도가 다르다(접수 기준 퍼널 vs 실현 매출). 환불은 COMPLETED 에만 걸리므로 NOT EXISTS 로 pickedUp
+   * 모집단을 매출과 일치시킨다.
+   */
+  @Query(
+      "SELECT o.status, COUNT(o) FROM Order o "
+          + "WHERE o.store.id = :storeId "
+          + "AND o.createdAt >= :start AND o.createdAt < :end "
+          + "AND o.deletedAt IS NULL "
+          + "AND o.status <> com.magampick.order.domain.OrderStatus.AWAITING_PAYMENT "
+          + "AND NOT EXISTS ("
+          + "  SELECT 1 FROM Refund rf "
+          + "  WHERE rf.order = o "
+          + "  AND rf.status = com.magampick.refund.domain.RefundStatus.APPROVED"
+          + ") "
+          + "GROUP BY o.status")
+  List<Object[]> countOrdersByStatus(
+      @Param("storeId") Long storeId,
+      @Param("start") LocalDateTime start,
+      @Param("end") LocalDateTime end);
+
+  /**
+   * 소비자 마이페이지 통계용 — 이번 달 discountTotal 합계. completedAt KST [start, end) 범위.
+   *
+   * <p>마감할인(discountTotal)만 포함. 환불승인 제외. 결과 없으면 null — 호출 측에서 null→0 처리.
+   */
+  @Query(
+      "SELECT SUM(o.discountTotal) FROM Order o "
+          + "WHERE o.customer.id = :customerId "
+          + "AND o.status = com.magampick.order.domain.OrderStatus.COMPLETED "
+          + "AND o.completedAt >= :start AND o.completedAt < :end "
+          + "AND o.deletedAt IS NULL "
+          + "AND NOT EXISTS ("
+          + "  SELECT 1 FROM Refund rf "
+          + "  WHERE rf.order = o "
+          + "  AND rf.status = com.magampick.refund.domain.RefundStatus.APPROVED"
+          + ")")
+  BigDecimal sumMonthlyDiscountTotal(
+      @Param("customerId") Long customerId,
+      @Param("start") LocalDateTime start,
+      @Param("end") LocalDateTime end);
+
+  /**
+   * 소비자 마이페이지 통계용 — 누적 음식 구출 수량. 환불승인 제외.
+   *
+   * <p>OrderItem.quantity 총합. 결과 없으면 null — 호출 측에서 null→0 처리.
+   */
+  @Query(
+      "SELECT SUM(oi.quantity) FROM OrderItem oi "
+          + "WHERE oi.order.customer.id = :customerId "
+          + "AND oi.order.status = com.magampick.order.domain.OrderStatus.COMPLETED "
+          + "AND oi.order.deletedAt IS NULL "
+          + "AND NOT EXISTS ("
+          + "  SELECT 1 FROM Refund rf "
+          + "  WHERE rf.order = oi.order "
+          + "  AND rf.status = com.magampick.refund.domain.RefundStatus.APPROVED"
+          + ")")
+  Long sumCumulativeRescuedItemQuantity(@Param("customerId") Long customerId);
+
+  /**
+   * 고객별 AWAITING_PAYMENT 주문 — orderItems·clearanceItem 함께 fetch. cancelAwaitingPaymentOrder 에서
+   * 재고복원용.
+   *
+   * @param customerId 소비자 ID
+   * @param status {@link OrderStatus#AWAITING_PAYMENT}
+   * @return orderItems 초기화된 Order 목록
+   */
+  @EntityGraph(attributePaths = {"orderItems", "orderItems.clearanceItem"})
+  List<Order> findByCustomerIdAndStatus(Long customerId, OrderStatus status);
+
+  /**
+   * 만료된 AWAITING_PAYMENT 주문 ID 목록 — 배치 스케줄러용. createdAt < cutoff 이고 AWAITING_PAYMENT 상태. deletedAt
+   * IS NULL.
+   *
+   * @param cutoff 기준 시각 (now - TTL)
+   * @return 만료된 주문 ID 목록
+   */
+  @Query(
+      "SELECT o.id FROM Order o "
+          + "WHERE o.status = com.magampick.order.domain.OrderStatus.AWAITING_PAYMENT "
+          + "AND o.createdAt < :cutoff "
+          + "AND o.deletedAt IS NULL")
+  List<Long> findExpiredAwaitingOrderIds(@Param("cutoff") LocalDateTime cutoff);
+
+  /**
+   * 단건 조회 + orderItems·clearanceItem 함께 fetch — cancelExpiredAwaitingOrder 에서 재고복원용.
+   *
+   * @param id 주문 ID
+   * @return orderItems 초기화된 Order
+   */
+  @EntityGraph(attributePaths = {"orderItems", "orderItems.clearanceItem"})
+  @Query("SELECT o FROM Order o WHERE o.id = :id")
+  java.util.Optional<Order> findByIdWithOrderItems(@Param("id") Long id);
+
+  /**
+   * 조건부 원자적 AWAITING_PAYMENT → CANCELLED 전이. WHERE status = AWAITING_PAYMENT 조건으로 멱등 보장. confirm
+   * 레이스에서 TossConfirmService 의 isAwaitingPayment 가드와 함께 안전.
+   *
+   * @param id 주문 ID
+   * @param now 취소 시각
+   * @return 영향 행 수 (1 = 전이 성공, 0 = 이미 전이됨)
+   */
+  @Modifying(clearAutomatically = true)
+  @Query(
+      "UPDATE Order o SET o.status = com.magampick.order.domain.OrderStatus.CANCELLED,"
+          + " o.cancelledAt = :now"
+          + " WHERE o.id = :id AND o.status = com.magampick.order.domain.OrderStatus.AWAITING_PAYMENT")
+  int cancelIfAwaitingPayment(@Param("id") Long id, @Param("now") LocalDateTime now);
+}

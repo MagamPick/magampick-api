@@ -1,0 +1,25 @@
+# 테스트(@SpringBootTest) 전용 프로파일.
+# storage 는 LocalStorageService(파일시스템)를 써서 통합 테스트가 실제 OCI 에 붙지 않게 한다 (OciStorageConfig 는 @Profile("!test") 로 비활성).
+# datasource·redis 는 TestcontainersConfiguration 의 @ServiceConnection 이 주입하므로 여기 두지 않는다.
+app:
+  sms:
+    mock-enabled: true  # 테스트에서 SOLAPI 키 없이 기동, 000000 우회 가능
+  fcm:
+    mock-enabled: true  # 테스트에서 Firebase 자격증명 없이 기동
+
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+jwt:
+  secret: ${JWT_SECRET:local-only-development-secret-key-not-for-production-use}
+
+cors:
+  allowed-origins:
+    - "*"
+
+magampick:
+  storage:
+    local:
+      root-path: ${java.io.tmpdir}/magampick-test-uploads

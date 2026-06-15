@@ -1,3 +1,9 @@
+app:
+  sms:
+    mock-enabled: true  # 로컬에서 실발송 테스트 원하면 SMS_MOCK_ENABLED=false 환경변수 설정
+  fcm:
+    mock-enabled: ${FCM_MOCK_ENABLED:true}  # 로컬 기본 mock. 실발송 테스트: FCM_MOCK_ENABLED=false + FCM_CREDENTIALS
+
 spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/magampick
@@ -10,3 +16,11 @@ spring:
     properties:
       hibernate:
         format_sql: true
+
+jwt:
+  secret: ${JWT_SECRET:local-only-development-secret-key-not-for-production-use}
+
+cors:
+  allowed-origins:
+    - "*"
+    - "http://localhost:5173"

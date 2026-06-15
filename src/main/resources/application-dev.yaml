@@ -1,8 +1,39 @@
+app:
+  sms:
+    mock-enabled: true  # 실발송 전환 시 SMS_MOCK_ENABLED=false 환경변수 설정
+  fcm:
+    mock-enabled: ${FCM_MOCK_ENABLED:true}  # 기본 mock. FCM_CREDENTIALS 시크릿 배선 후 FCM_MOCK_ENABLED=false 로 전환
+  swagger:
+    server-url: https://api.dev.magampick.com
+
 spring:
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
+  flyway:
+    out-of-order: true
   jpa:
     hibernate:
       ddl-auto: validate
+  mvc:
+    forward-headers-strategy: framework
+
+cors:
+  allowed-origins:
+    - https://dev.magampick.com
+    - https://api.dev.magampick.com
+    - https://owner.dev.magampick.com
+    - https://admin.dev.magampick.com
+    - http://localhost:5173
+
+auth:
+  refresh-cookie:
+    secure: true
+    same-site: None
+    # 앱(Origin)별 role 매핑 — refresh 시 어느 앱인지 판별해 role 별 쿠키(refresh_token_customer/seller/admin)를 분리.
+    # 세 프론트가 같은 API 호스트의 단일 refresh 쿠키를 덮어써 role 불일치 403 나던 문제 방지.
+    origins:
+      customer: https://dev.magampick.com
+      seller: https://owner.dev.magampick.com
+      admin: https://admin.dev.magampick.com

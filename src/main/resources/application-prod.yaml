@@ -1,8 +1,45 @@
+app:
+  sms:
+    mock-enabled: true  # 실발송 전환 시 SMS_MOCK_ENABLED=false 환경변수 설정
+  fcm:
+    mock-enabled: ${FCM_MOCK_ENABLED:false}  # prod 실발송 기본. FCM_CREDENTIALS 시크릿 배선 필수
+
 spring:
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
+  flyway:
+    out-of-order: true
   jpa:
     hibernate:
       ddl-auto: validate
+  mvc:
+    forward-headers-strategy: framework
+
+cors:
+  allowed-origins:
+    - https://magampick.com
+    - https://admin.magampick.com
+    - https://owner.magampick.com
+
+auth:
+  refresh-cookie:
+    secure: true
+    same-site: None
+    # 앱(Origin)별 role 매핑 — refresh 시 어느 앱인지 판별해 role 별 쿠키(refresh_token_customer/seller/admin)를 분리.
+    origins:
+      customer: https://magampick.com
+      seller: https://owner.magampick.com
+      admin: https://admin.magampick.com
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+magampick:
+  storage:
+    oci:
+      bucket: magampick-prod-uploads

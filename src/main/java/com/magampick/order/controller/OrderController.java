@@ -1,0 +1,105 @@
+package com.magampick.order.controller;
+
+import com.magampick.global.security.CustomUserDetails;
+import com.magampick.order.dto.CreateOrderRequest;
+import com.magampick.order.dto.OrderResponse;
+import com.magampick.order.dto.PrepareOrderResponse;
+import com.magampick.order.service.OrderService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import java.net.URI;
+import java.util.List;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+/** 소비자 주문 API. POST /orders → PrepareOrderResponse (토스 결제 전). 결제 확인은 PaymentController. */
+@RestController
+@RequestMapping("/api/v1/orders")
+@RequiredArgsConstructor
+@Tag(name = "Order (Consumer)", description = "소비자 주문 API")
+public class OrderController {
+
+  private final OrderService orderService;
+
+  @PostMapping
+  @Operation(
+      summary = "주문 준비",
+      description =
+          "주문을 AWAITING_PAYMENT 상태로 임시 생성한다. 반환된 tossOrderId·amount·orderName 을 토스 SDK에 전달 후"
+              + " POST /api/v1/payments/toss/confirm 으로 결제를 확인한다. ROLE_CUSTOMER 인증 필요.")
+  @ApiResponses({
+    @ApiResponse(responseCode = "201", description = "주문 준비 성공"),
+    @ApiResponse(responseCode = "400", description = "입력 검증 실패 / 결제 미동의 / 금액 불일치 / 픽업 시간 오류"),
+    @ApiResponse(responseCode = "401", description = "미인증"),
+    @ApiResponse(responseCode = "403", description = "권한 없음 (ROLE_CUSTOMER 아님)"),
+    @ApiResponse(responseCode = "404", description = "매장/상품 없음"),
+    @ApiResponse(responseCode = "409", description = "매장 영업 중지 / 재고 부족 / 떨이 마감")
+  })
+  public ResponseEntity<PrepareOrderResponse> createOrder(
+      @AuthenticationPrincipal CustomUserDetails userDetails,
+      @Valid @RequestBody CreateOrderRequest request) {
+    PrepareOrderResponse response = orderService.createOrder(userDetails.getUserId(), request);
+    return ResponseEntity.created(URI.create("/api/v1/orders/" + response.orderId()))
+        .body(response);
+  }
+
+  @GetMapping
+  @Operation(
+      summary = "내 주문 목록",
+      description = "소비자 본인의 주문 목록. segment=ALL(기본) / PICKUP_WAITING / DONE. ROLE_CUSTOMER 인증 필요.")
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "조회 성공"),
+    @ApiResponse(responseCode = "401", description = "미인증"),
+    @ApiResponse(responseCode = "403", description = "권한 없음 (ROLE_CUSTOMER 아님)")
+  })
+  public ResponseEntity<List<OrderResponse>> listMyOrders(
+      @AuthenticationPrincipal CustomUserDetails userDetails,
+      @RequestParam(defaultValue = "ALL") String segment) {
+    List<OrderResponse> result = orderService.listMyOrders(userDetails.getUserId(), segment);
+    return ResponseEntity.ok(result);
+  }
+
+  @GetMapping("/{id}")
+  @Operation(
+      summary = "내 주문 상세",
+      description = "소비자 본인 주문 단건 조회. 타인 주문 접근 시 403. ROLE_CUSTOMER 인증 필요.")
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "조회 성공"),
+    @ApiResponse(responseCode = "401", description = "미인증"),
+    @ApiResponse(responseCode = "403", description = "권한 없음 또는 타인 주문"),
+    @ApiResponse(responseCode = "404", description = "주문 없음")
+  })
+  public ResponseEntity<OrderResponse> getMyOrder(
+      @AuthenticationPrincipal CustomUserDetails userDetails, @PathVariable Long id) {
+    OrderResponse result = orderService.getMyOrder(userDetails.getUserId(), id);
+    return ResponseEntity.ok(result);
+  }
+
+  @PostMapping("/{id}/cancel")
+  @Operation(
+      summary = "주문 취소",
+      description = "소비자 본인 주문 취소. PENDING 상태만 가능. 자동 환불 stub. ROLE_CUSTOMER 인증 필요.")
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "취소 성공"),
+    @ApiResponse(responseCode = "401", description = "미인증"),
+    @ApiResponse(responseCode = "403", description = "권한 없음 또는 타인 주문"),
+    @ApiResponse(responseCode = "404", description = "주문 없음"),
+    @ApiResponse(responseCode = "409", description = "허용되지 않는 상태 전이")
+  })
+  public ResponseEntity<OrderResponse> cancelOrder(
+      @AuthenticationPrincipal CustomUserDetails userDetails, @PathVariable Long id) {
+    OrderResponse result = orderService.cancelOrder(userDetails.getUserId(), id);
+    return ResponseEntity.ok(result);
+  }
+}

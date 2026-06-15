@@ -4,18 +4,34 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       TZ: Asia/Seoul
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
       DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-magampick}
       DB_USERNAME: ${POSTGRES_USER:-magampick}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-magampick}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET}
+      KAKAO_CLIENT_ID: ${KAKAO_CLIENT_ID:-}
+      KAKAO_CLIENT_SECRET: ${KAKAO_CLIENT_SECRET:-}
+      SOLAPI_API_KEY: ${SOLAPI_API_KEY:-}
+      SOLAPI_API_SECRET: ${SOLAPI_API_SECRET:-}
+      SOLAPI_SENDER_NUMBER: ${SOLAPI_SENDER_NUMBER:-}
+      NTS_BUSINESS_API_KEY: ${NTS_BUSINESS_API_KEY:-}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      TOSS_SECRET_KEY: ${TOSS_SECRET_KEY:-}
+      FCM_MOCK_ENABLED: ${FCM_MOCK_ENABLED:-true}
+      FCM_CREDENTIALS: ${FCM_CREDENTIALS:-}
     restart: unless-stopped
     networks:
       - magampick
 
   postgres:
-    image: postgis/postgis:16-3.4-alpine
+    image: ${POSTGRES_IMAGE:-kasto6329/magampick-postgres:16}
     environment:
       TZ: Asia/Seoul
       PGTZ: Asia/Seoul
@@ -28,6 +44,23 @@ services:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-magampick} -d ${POSTGRES_DB:-magampick}"]
       interval: 5s
       timeout: 5s
+      retries: 20
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - magampick
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    environment:
+      TZ: Asia/Seoul
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
       retries: 10
     restart: unless-stopped
     networks:
@@ -35,6 +68,7 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:
 
 networks:
   magampick:

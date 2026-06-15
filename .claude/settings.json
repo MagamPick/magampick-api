@@ -1,5 +1,34 @@
 {
+  "model": "opus",
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  },
   "permissions": {
-    "defaultMode": "auto"
+    "defaultMode": "auto",
+    "allow": [
+      "Bash(git *)",
+      "PowerShell(git *)",
+      "Bash(gh *)",
+      "PowerShell(gh *)"
+    ],
+    "deny": [
+      "Bash(git push --force *)",
+      "Bash(git push -f *)",
+      "Bash(git push --force-with-lease *)",
+      "Bash(git reset --hard *)",
+      "Bash(git clean -f *)",
+      "Bash(git clean -fd *)",
+      "Bash(git checkout -- *)",
+      "Bash(git restore *)",
+      "PowerShell(git push --force *)",
+      "PowerShell(git push -f *)",
+      "PowerShell(git push --force-with-lease *)",
+      "PowerShell(git reset --hard *)",
+      "PowerShell(git clean -f *)",
+      "PowerShell(git clean -fd *)",
+      "PowerShell(git checkout -- *)",
+      "PowerShell(git restore *)"
+    ]
   }
 }

@@ -19,31 +19,66 @@ repositories {
 	mavenCentral()
 }
 
+configurations {
+	mockitoAgent
+}
+
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.hibernate.orm:hibernate-spatial'
 	implementation 'org.flywaydb:flyway-core'
 	implementation 'org.flywaydb:flyway-database-postgresql'
+	implementation platform('com.oracle.oci.sdk:oci-java-sdk-bom:3.67.3')
+	implementation 'com.oracle.oci.sdk:oci-java-sdk-objectstorage'
+	// OCI SDK 의 HTTP client 구현 (SPI) — 없으면 client 빈 생성 시 HttpProvider NoSuchElementException
+	implementation 'com.oracle.oci.sdk:oci-java-sdk-common-httpclient-jersey3'
+	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.6'
+	implementation 'org.mapstruct:mapstruct:1.6.3'
+	implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+	implementation 'com.google.firebase:firebase-admin:9.4.1'
+	// SOLAPI SMS SDK — 휴대폰 본인인증 인증번호 실발송 (RealSolapiSmsSender, @Profile("!test"))
+	implementation 'net.nurigo:sdk:4.3.2'
 	compileOnly 'org.projectlombok:lombok'
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 	runtimeOnly 'org.postgresql:postgresql'
+	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
+	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
 	annotationProcessor 'org.projectlombok:lombok'
+	annotationProcessor 'org.mapstruct:mapstruct-processor:1.6.3'
+	annotationProcessor 'org.projectlombok:lombok-mapstruct-binding:0.2.0'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
 	testImplementation 'org.springframework.security:spring-security-test'
 	testImplementation 'org.testcontainers:junit-jupiter'
 	testImplementation 'org.testcontainers:postgresql'
+	testImplementation 'org.testcontainers:testcontainers'
 	testCompileOnly 'org.projectlombok:lombok'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 	testAnnotationProcessor 'org.projectlombok:lombok'
+	mockitoAgent('org.mockito:mockito-core') { transitive = false }
 }
 
 tasks.named('test') {
 	useJUnitPlatform()
+	// 테스트 JVM 시간대 = KST 고정 (prod docker TZ=Asia/Seoul + hibernate.jdbc.time_zone 일치).
+	// 호스트 시간대(CI=UTC)와 무관하게 LocalDate/LocalTime 결정적 — TIME 컬럼 +9 시프트로
+	// store_business_hours chk_sbh_time_range 가 CI 에서만 깨지는 문제 방지. (api-convention §7 KST 통일)
+	systemProperty 'user.timezone', 'Asia/Seoul'
+	// Mockito 를 javaagent 로 명시 로드 — JDK 21+ self-attach deprecation 경고 회피
+	jvmArgs("-javaagent:${configurations.mockitoAgent.asPath}")
+	// Windows: 한글 사용자명 경로의 java.io.tmpdir 회피
+	// — Mockito boot delegation jar 를 native instrumentation 이 한글 경로에서
+	//   못 여는 문제 (appendToClassLoaderSearch0 → IllegalArgumentException)
+	if (System.getProperty('os.name').toLowerCase().contains('windows')) {
+		def asciiTmp = file('C:/temp/magampick-test')
+		doFirst { asciiTmp.mkdirs() }
+		systemProperty 'java.io.tmpdir', asciiTmp.toString()
+	}
 	finalizedBy jacocoTestReport
 }
 
