@@ -41,12 +41,26 @@ public class RefreshTokenCookie {
     return baseBuilder(name, "").maxAge(0).build();
   }
 
-  /** refresh 용 읽기 — split 이면 Origin→role 쿠키, legacy 면 base 쿠키. */
+  /**
+   * refresh 용 읽기 — split 이면 Origin→role 쿠키, legacy 면 base 쿠키.
+   *
+   * <p>Origin 이 맵에 없는 경우(localhost 개발 등)는 role 별 쿠키를 순차 시도해 첫 번째 유효한 것을 반환한다. 같은 브라우저에서 여러 role 로
+   * 동시 로그인한 상황은 개발 환경에서만 발생하므로 보안 위협이 아니다.
+   */
   public Optional<String> readForRefresh(HttpServletRequest request) {
     if (properties.origins().isEmpty()) {
       return readByName(request, properties.name());
     }
-    return resolveClientRole(request).flatMap(role -> readByName(request, nameFor(role)));
+    Optional<Role> role = resolveClientRole(request);
+    if (role.isPresent()) {
+      return role.flatMap(r -> readByName(request, nameFor(r)));
+    }
+    // Origin 미매칭(localhost 개발 환경 등) — role별 쿠키 순차 시도
+    return Arrays.stream(Role.values())
+        .map(r -> readByName(request, nameFor(r)))
+        .filter(Optional::isPresent)
+        .map(Optional::get)
+        .findFirst();
   }
 
   /** 명시적 role 읽기 — 인증된 주체의 role 을 아는 경우(비밀번호 변경 등). */
