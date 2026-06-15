@@ -105,6 +105,25 @@ class RefreshTokenCookieTest {
       assertThat(cleared.getName()).isEqualTo("refresh_token_seller");
       assertThat(cleared.getMaxAge().isZero()).isTrue();
     }
+
+    @Test
+    void Origin_미매칭이면_role별_쿠키_순차_시도로_첫번째_유효한_토큰을_반환한다() {
+      // localhost 개발 환경에서 URL 직접 입력 시 Origin 이 맵에 없어 REFRESH_INVALID 나던 버그 재현
+      MockHttpServletRequest request =
+          requestWith(
+              "http://localhost:5173",
+              new Cookie("refresh_token_customer", "localCustomerToken"));
+
+      assertThat(cookie.readForRefresh(request)).contains("localCustomerToken");
+    }
+
+    @Test
+    void Origin_없이_직접_진입해도_role_쿠키가_있으면_반환한다() {
+      MockHttpServletRequest request =
+          requestWith(null, new Cookie("refresh_token_seller", "localSellerToken"));
+
+      assertThat(cookie.readForRefresh(request)).contains("localSellerToken");
+    }
   }
 
   @Nested
