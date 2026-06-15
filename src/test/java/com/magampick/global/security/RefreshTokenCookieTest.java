@@ -111,8 +111,7 @@ class RefreshTokenCookieTest {
       // localhost 개발 환경에서 URL 직접 입력 시 Origin 이 맵에 없어 REFRESH_INVALID 나던 버그 재현
       MockHttpServletRequest request =
           requestWith(
-              "http://localhost:5173",
-              new Cookie("refresh_token_customer", "localCustomerToken"));
+              "http://localhost:5173", new Cookie("refresh_token_customer", "localCustomerToken"));
 
       assertThat(cookie.readForRefresh(request)).contains("localCustomerToken");
     }
