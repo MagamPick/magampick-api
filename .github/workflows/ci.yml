@@ -220,5 +220,10 @@ jobs:
             ENVEOF
             echo "FCM_CREDENTIALS=$(base64 -w 0 ~/magampick-api/firebase-service-account.json)" >> .env
             docker login -u kasto6329 -p '${{ secrets.DOCKERHUB_TOKEN }}'
+<<<<<<< HEAD
             docker compose -f docker-compose.yml -f docker-compose.dev.yml pull
             docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --remove-orphans
+=======
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans
+>>>>>>> origin/main
