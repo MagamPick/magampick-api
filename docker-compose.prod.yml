@@ -21,8 +21,8 @@ services:
       DOMAIN: ${DOMAIN}
     volumes:
       - ./nginx/templates:/etc/nginx/templates:ro
-      - certbot_certs:/etc/letsencrypt:ro
-      - certbot_www:/var/www/certbot:ro
+      - ./certbot_certs:/etc/letsencrypt:ro
+      - ./certbot_www:/var/www/certbot:ro
     depends_on:
       - app
     restart: unless-stopped
@@ -32,8 +32,8 @@ services:
   certbot:
     image: certbot/certbot
     volumes:
-      - certbot_certs:/etc/letsencrypt
-      - certbot_www:/var/www/certbot
+      - ./certbot_certs:/etc/letsencrypt
+      - ./certbot_www:/var/www/certbot
     entrypoint: >
       /bin/sh -c "trap exit TERM;
       while :; do
@@ -41,7 +41,3 @@ services:
         sleep 12h & wait $${!};
       done;"
     restart: unless-stopped
-
-volumes:
-  certbot_certs:
-  certbot_www:
