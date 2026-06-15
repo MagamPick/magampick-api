@@ -20,6 +20,7 @@ public enum RefundErrorCode implements BaseErrorCode {
   REFUND_REJECT_REASON_REQUIRED(
       HttpStatus.BAD_REQUEST, "REFUND_REJECT_REASON_REQUIRED", "거부 사유를 입력해 주세요"),
   REFUND_FORBIDDEN(HttpStatus.FORBIDDEN, "REFUND_FORBIDDEN", "해당 환불 요청에 접근 권한이 없습니다"),
+  REFUND_GATEWAY_ERROR(HttpStatus.BAD_GATEWAY, "REFUND_GATEWAY_ERROR", "결제 취소 중 오류가 발생했습니다"),
   ;
 
   private final HttpStatus status;

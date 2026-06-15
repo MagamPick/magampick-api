@@ -20,6 +20,12 @@ import com.magampick.order.dto.OrderResponse;
 import com.magampick.order.fixture.OrderFixture;
 import com.magampick.order.mapper.OrderMapper;
 import com.magampick.order.repository.OrderRepository;
+import com.magampick.payment.domain.Payment;
+import com.magampick.payment.domain.PaymentStatus;
+import com.magampick.payment.repository.PaymentRepository;
+import com.magampick.payment.service.PaymentCancellation;
+import com.magampick.payment.service.PaymentCancellationCommand;
+import com.magampick.payment.service.PaymentGateway;
 import com.magampick.point.service.PointService;
 import com.magampick.refund.domain.Refund;
 import com.magampick.refund.domain.RefundStatus;
@@ -32,6 +38,7 @@ import com.magampick.refund.fixture.RefundFixture;
 import com.magampick.refund.mapper.RefundMapper;
 import com.magampick.refund.repository.RefundRepository;
 import com.magampick.store.repository.StoreRepository;
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -57,6 +64,8 @@ class RefundServiceTest {
   @Mock PointService pointService;
   @Mock CouponService couponService;
   @Mock NotificationService notificationService;
+  @Mock PaymentRepository paymentRepository;
+  @Mock PaymentGateway paymentGateway;
   @Mock Clock clock;
 
   @InjectMocks RefundService refundService;
@@ -585,5 +594,152 @@ class RefundServiceTest {
     // then — notifySeller / save 호출 없음
     then(notificationService).shouldHaveNoInteractions();
     then(refundRepository).should(never()).save(any());
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // PG 환불 (Phase 6)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  private Payment aApprovedPayment(Order order) {
+    Payment payment =
+        Payment.builder()
+            .order(order)
+            .provider("TOSS")
+            .method("카드")
+            .paymentKey("stub_testkey123")
+            .amount(new BigDecimal("6000"))
+            .status(PaymentStatus.APPROVED)
+            .approvedAt(LocalDateTime.now().minusDays(1))
+            .build();
+    ReflectionTestUtils.setField(payment, "id", 10L);
+    return payment;
+  }
+
+  private Payment aCanceledPayment(Order order) {
+    Payment payment = aApprovedPayment(order);
+    ReflectionTestUtils.setField(payment, "status", PaymentStatus.CANCELED);
+    return payment;
+  }
+
+  @Test
+  void 환불_승인_시_PG_환불_호출_후_Payment_CANCELED() {
+    // given
+    Order order = RefundFixture.aCompletedOrder();
+    Payment payment = aApprovedPayment(order);
+    Refund refund = RefundFixture.aRequestedRefund(order);
+    RefundResponse response = RefundFixture.aRefundResponse(REFUND_ID);
+
+    given(refundRepository.findById(REFUND_ID)).willReturn(Optional.of(refund));
+    given(refundRepository.save(any(Refund.class))).willReturn(refund);
+    given(refundMapper.toResponse(refund)).willReturn(response);
+    given(paymentRepository.findByOrderId(ORDER_ID)).willReturn(Optional.of(payment));
+    given(paymentGateway.cancel(any(PaymentCancellationCommand.class)))
+        .willReturn(
+            new PaymentCancellation(
+                "stub_testkey123", PaymentStatus.CANCELED, LocalDateTime.now()));
+
+    // when
+    refundService.approveRefund(SELLER_ID, REFUND_ID);
+
+    // then — cancel 호출 + amount 전액 + Payment CANCELED
+    then(paymentGateway)
+        .should()
+        .cancel(
+            eq(
+                new PaymentCancellationCommand(
+                    "stub_testkey123", "구매자 환불", new BigDecimal("6000"))));
+    assertThat(payment.getStatus()).isEqualTo(PaymentStatus.CANCELED);
+    then(paymentRepository).should().save(payment);
+  }
+
+  @Test
+  void 자동_승인_시_PG_환불_호출() {
+    // given
+    Order order = RefundFixture.aCompletedOrder();
+    Payment payment = aApprovedPayment(order);
+    Refund refund = RefundFixture.anExpiredRequestedRefund(order);
+
+    given(refundRepository.findById(2L)).willReturn(Optional.of(refund));
+    given(refundRepository.save(any(Refund.class))).willReturn(refund);
+    given(paymentRepository.findByOrderId(ORDER_ID)).willReturn(Optional.of(payment));
+    given(paymentGateway.cancel(any(PaymentCancellationCommand.class)))
+        .willReturn(
+            new PaymentCancellation(
+                "stub_testkey123", PaymentStatus.CANCELED, LocalDateTime.now()));
+
+    // when
+    refundService.approveAndReverse(2L);
+
+    // then
+    then(paymentGateway).should().cancel(any(PaymentCancellationCommand.class));
+    assertThat(payment.getStatus()).isEqualTo(PaymentStatus.CANCELED);
+  }
+
+  @Test
+  void 이미_CANCELED인_Payment는_PG_재호출_안함() {
+    // given — payment 가 이미 CANCELED (멱등 가드)
+    Order order = RefundFixture.aCompletedOrder();
+    Payment payment = aCanceledPayment(order);
+    Refund refund = RefundFixture.aRequestedRefund(order);
+    RefundResponse response = RefundFixture.aRefundResponse(REFUND_ID);
+
+    given(refundRepository.findById(REFUND_ID)).willReturn(Optional.of(refund));
+    given(refundRepository.save(any(Refund.class))).willReturn(refund);
+    given(refundMapper.toResponse(refund)).willReturn(response);
+    given(paymentRepository.findByOrderId(ORDER_ID)).willReturn(Optional.of(payment));
+
+    // when
+    refundService.approveRefund(SELLER_ID, REFUND_ID);
+
+    // then — PG cancel 재호출 없음
+    then(paymentGateway).shouldHaveNoInteractions();
+  }
+
+  @Test
+  void 환불_거부_시_PG_환불_미호출() {
+    // given
+    Order order = RefundFixture.aCompletedOrder();
+    Refund refund = RefundFixture.aRequestedRefund(order);
+    RefundResponse response = RefundFixture.aRefundResponse(REFUND_ID);
+
+    given(refundRepository.findById(REFUND_ID)).willReturn(Optional.of(refund));
+    given(refundRepository.save(any(Refund.class))).willReturn(refund);
+    given(refundMapper.toResponse(refund)).willReturn(response);
+
+    // when
+    refundService.rejectRefund(SELLER_ID, REFUND_ID, RefundFixture.aRejectRequest());
+
+    // then — PG 쪽 의존성 전혀 호출 안 됨
+    then(paymentGateway).shouldHaveNoInteractions();
+    then(paymentRepository).shouldHaveNoInteractions();
+  }
+
+  @Test
+  void PG_환불_후_clawback_restore_쿠폰복원_순서_유지() {
+    // given — 포인트·쿠폰 모두 있는 주문
+    Order order = RefundFixture.aCompletedOrder();
+    ReflectionTestUtils.setField(order, "pointUsed", 200L);
+    ReflectionTestUtils.setField(order, "userCouponId", 5L);
+    Payment payment = aApprovedPayment(order);
+    Refund refund = RefundFixture.aRequestedRefund(order);
+    RefundResponse response = RefundFixture.aRefundResponse(REFUND_ID);
+
+    given(refundRepository.findById(REFUND_ID)).willReturn(Optional.of(refund));
+    given(refundRepository.save(any(Refund.class))).willReturn(refund);
+    given(refundMapper.toResponse(refund)).willReturn(response);
+    given(paymentRepository.findByOrderId(ORDER_ID)).willReturn(Optional.of(payment));
+    given(paymentGateway.cancel(any(PaymentCancellationCommand.class)))
+        .willReturn(
+            new PaymentCancellation(
+                "stub_testkey123", PaymentStatus.CANCELED, LocalDateTime.now()));
+
+    // when
+    refundService.approveRefund(SELLER_ID, REFUND_ID);
+
+    // then — PG + clawback + restore + 쿠폰 모두 호출됨
+    then(paymentGateway).should().cancel(any(PaymentCancellationCommand.class));
+    then(pointService).should().clawback(order);
+    then(pointService).should().restore(eq(order), eq(200L));
+    then(couponService).should().restore(5L);
   }
 }

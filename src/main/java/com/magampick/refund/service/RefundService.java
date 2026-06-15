@@ -9,6 +9,11 @@ import com.magampick.order.dto.OrderResponse;
 import com.magampick.order.exception.OrderErrorCode;
 import com.magampick.order.mapper.OrderMapper;
 import com.magampick.order.repository.OrderRepository;
+import com.magampick.payment.domain.Payment;
+import com.magampick.payment.domain.PaymentStatus;
+import com.magampick.payment.repository.PaymentRepository;
+import com.magampick.payment.service.PaymentCancellationCommand;
+import com.magampick.payment.service.PaymentGateway;
 import com.magampick.point.service.PointService;
 import com.magampick.refund.domain.Refund;
 import com.magampick.refund.domain.RefundStatus;
@@ -24,12 +29,13 @@ import com.magampick.store.repository.StoreRepository;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** 환불 도메인 서비스. Phase 6: 실결제 환불 연동 전까지 상태 기록 역할. */
+/** 환불 도메인 서비스. COMPLETED 주문 환불 승인 시 토스 PG 결제 취소까지 처리한다. */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -47,6 +53,8 @@ public class RefundService {
   private final PointService pointService;
   private final CouponService couponService;
   private final NotificationService notificationService;
+  private final PaymentRepository paymentRepository;
+  private final PaymentGateway paymentGateway;
   private final Clock clock;
 
   /**
@@ -260,15 +268,42 @@ public class RefundService {
   }
 
   /**
-   * 환불 승인 시 혜택 정리: 적립분 회수(먼저) → 사용 포인트 복원 → 쿠폰 복원.
+   * 환불 승인 시 PG 결제 취소 → 혜택 정리: 적립분 회수(먼저) → 사용 포인트 복원 → 쿠폰 복원.
    *
-   * <p>clawback 을 먼저 실행하는 이유: findByOrderId 가 EARN lot 과 (restore 후 생길) RESTORE lot 을 모두 반환하므로,
-   * restore 로 새 lot 이 생기기 전에 clawback 을 완료해야 EARN lot 만 대상이 된다.
+   * <p>PG 취소를 먼저 실행하는 이유: cancelOrder 와 동일하게 PG-first 순서를 유지해 일관성을 보장한다.
+   *
+   * <p>clawback 을 restore 앞에 실행하는 이유: findByOrderId 가 EARN lot 과 (restore 후 생길) RESTORE lot 을 모두
+   * 반환하므로, restore 로 새 lot 이 생기기 전에 clawback 을 완료해야 EARN lot 만 대상이 된다.
    */
   private void reverseBenefits(Order order) {
+    cancelPaymentIfPresent(order.getId());
     pointService.clawback(order);
     if (order.hasUsedPoints()) pointService.restore(order, order.getPointUsed());
     if (order.hasCoupon()) couponService.restore(order.getUserCouponId());
+  }
+
+  /**
+   * PG 결제 취소 헬퍼. Payment 가 없거나 이미 CANCELED 면 no-op (멱등 가드).
+   *
+   * @throws BusinessException REFUND_GATEWAY_ERROR — PG 취소 실패 시
+   */
+  private void cancelPaymentIfPresent(Long orderId) {
+    Optional<Payment> opt = paymentRepository.findByOrderId(orderId);
+    if (opt.isEmpty()) return;
+
+    Payment payment = opt.get();
+    if (payment.getStatus() == PaymentStatus.CANCELED) return; // 이미 취소됨 — 재호출 방지
+
+    try {
+      paymentGateway.cancel(
+          new PaymentCancellationCommand(payment.getPaymentKey(), "구매자 환불", payment.getAmount()));
+      payment.cancel();
+      paymentRepository.save(payment);
+    } catch (BusinessException e) {
+      throw e; // BusinessException 은 그대로 전파
+    } catch (Exception e) {
+      throw new BusinessException(RefundErrorCode.REFUND_GATEWAY_ERROR);
+    }
   }
 
   /** 사장 전용: 환불 조회 + 본인 매장 검증. 공통 헬퍼. */
