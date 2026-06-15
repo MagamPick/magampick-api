@@ -47,6 +47,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ThreadLocalRandom;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -89,9 +90,6 @@ public class OrderService {
     if (!Boolean.TRUE.equals(request.paymentAgreed())) {
       throw new BusinessException(OrderErrorCode.PAYMENT_NOT_AGREED);
     }
-
-    // 기존 AWAITING_PAYMENT 주문 자동취소 + 재고복원 후 신규 생성 (재시도 즉시 깔끔, 재고 다중누수 차단)
-    cancelExistingAwaitingOrders(customerId);
 
     // ── 2. 매장 조회 + 영업 상태 검증 ─────────────────────────────────────────
     Store store =
@@ -218,6 +216,27 @@ public class OrderService {
 
     // ── 5. 픽업 시간 검증 ──────────────────────────────────────────────────────
     LocalDateTime pickupTime = resolvePickupTime(request.pickup(), todayHours, today, now);
+
+    // ── 5.5 동일 재시도 판정 — 모든 조건이 같은 기존 AWAITING 주문이 있으면 그대로 재사용 ──────────
+    // 카드 거절·창 닫음 등으로 같은 장바구니를 다시 결제 시도하면, 새 주문·재고 차감·기존주문 취소를 모두 건너뛰고
+    // 기존 주문을 그대로 돌려준다 (재고는 그 주문이 이미 점유 중). 결제만 재시도하면 되므로 재고 churn / CANCELLED 찌꺼기 방지.
+    Order reusableOrder =
+        findReusableAwaitingOrder(
+            customerId, request, resolvedItems, userCouponId, pointUsed, pickupTime, finalAmount);
+    if (reusableOrder != null) {
+      log.info(
+          "동일 재시도 — 기존 AWAITING 주문 재사용 (재고/주문 재생성 안 함). orderId={}, customerId={}",
+          reusableOrder.getId(),
+          customerId);
+      return new PrepareOrderResponse(
+          reusableOrder.getId(),
+          "order-" + reusableOrder.getId(),
+          reusableOrder.getFinalAmount(),
+          buildOrderName(resolvedItems));
+    }
+
+    // 동일 주문 없음(신규 / 장바구니 변경 / 가격 변동) → 기존 AWAITING 주문 취소 + 재고복원 후 신규 생성 (재고 다중누수 차단)
+    cancelExistingAwaitingOrders(customerId);
 
     // ── 6. 재고 차감 (DEAL 항목) — 조건부 UPDATE, 0 행이면 재고 부족 ────────
     for (ResolvedItem item : resolvedItems) {
@@ -652,6 +671,85 @@ public class OrderService {
         clearanceItemRepository.incrementStock(item.getClearanceItem().getId(), item.getQuantity());
       }
     }
+  }
+
+  // ── 동일 재시도 판정 헬퍼 (createOrder 재사용 분기용) ──────────────────────────────
+
+  /**
+   * 이번 요청과 모든 조건이 동일한 기존 AWAITING_PAYMENT 주문을 찾는다 (없으면 null). 동일하면 결제만 재시도하면 되므로 주문/재고를 재생성하지 않고
+   * 그대로 재사용한다. 조회는 읽기 전용 — 재고/상태를 변경하지 않는다.
+   */
+  private Order findReusableAwaitingOrder(
+      Long customerId,
+      CreateOrderRequest request,
+      List<ResolvedItem> resolvedItems,
+      Long userCouponId,
+      long pointUsed,
+      LocalDateTime pickupTime,
+      BigDecimal finalAmount) {
+    for (Order existing :
+        orderRepository.findByCustomerIdAndStatus(customerId, OrderStatus.AWAITING_PAYMENT)) {
+      if (isSameOrderRequest(
+          existing, request, resolvedItems, userCouponId, pointUsed, pickupTime, finalAmount)) {
+        return existing;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * 기존 주문이 이번 요청과 동일한지 판정 — 매장 / 품목 구성 / 쿠폰 / 포인트 / 픽업 / finalAmount 전부 만족해야 동일. 하나라도 다르면 false 를
+   * 반환해 재생성 경로로 빠진다. finalAmount 비교 덕분에 재시도 사이 딜 가격이 바뀌면 자동으로 '다름'이 되어 freshness 가 유지된다.
+   */
+  private boolean isSameOrderRequest(
+      Order existing,
+      CreateOrderRequest request,
+      List<ResolvedItem> resolvedItems,
+      Long userCouponId,
+      long pointUsed,
+      LocalDateTime pickupTime,
+      BigDecimal finalAmount) {
+    // 같은 매장
+    if (!existing.getStore().getId().equals(request.storeId())) return false;
+    // 같은 쿠폰 (null 포함)
+    if (!Objects.equals(existing.getUserCouponId(), userCouponId)) return false;
+    // 같은 포인트 사용액 (미사용은 null 로 저장되므로 0 으로 정규화)
+    long existingPointUsed = existing.getPointUsed() != null ? existing.getPointUsed() : 0L;
+    if (existingPointUsed != pointUsed) return false;
+    // 같은 픽업 (type + SLOT 시각)
+    if (existing.getPickupType() != request.pickup().type()) return false;
+    if (!Objects.equals(existing.getPickupTime(), pickupTime)) return false;
+    // 같은 finalAmount (딜 가격 변동 시 달라져 자동 재생성)
+    if (existing.getFinalAmount() == null
+        || existing.getFinalAmount().compareTo(finalAmount) != 0) {
+      return false;
+    }
+    // 같은 품목 구성 (상품/딜 id + 수량, 순서 무관)
+    return itemSignature(resolvedItems).equals(orderItemSignature(existing));
+  }
+
+  /** 요청 항목의 품목 시그니처 — "kind:refId:qty" 정렬 목록 (순서 무관 multiset 비교용). */
+  private static List<String> itemSignature(List<ResolvedItem> items) {
+    return items.stream().map(OrderService::resolvedItemKey).sorted().toList();
+  }
+
+  /** 기존 주문 항목의 품목 시그니처 — itemSignature 와 동일 포맷. */
+  private static List<String> orderItemSignature(Order order) {
+    return order.getOrderItems().stream().map(OrderService::orderItemKey).sorted().toList();
+  }
+
+  private static String resolvedItemKey(ResolvedItem item) {
+    Long refId =
+        item.kind() == ItemKind.DEAL ? item.clearanceItem().getId() : item.product().getId();
+    return item.kind() + ":" + refId + ":" + item.qty();
+  }
+
+  private static String orderItemKey(OrderItem item) {
+    Long refId =
+        item.getItemKind() == ItemKind.DEAL
+            ? item.getClearanceItem().getId()
+            : item.getProduct().getId();
+    return item.getItemKind() + ":" + refId + ":" + item.getQuantity();
   }
 
   // ── 만료 배치 스케줄러 위임 메서드 ──────────────────────────────────────────────
