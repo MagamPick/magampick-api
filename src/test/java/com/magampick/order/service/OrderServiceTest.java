@@ -236,6 +236,79 @@ class OrderServiceTest {
   }
 
   @Test
+  void 동일_장바구니_재시도면_기존주문_재사용() {
+    // given — 기존 AWAITING_PAYMENT 주문이 이번 요청과 완전히 동일 (DEAL ci=100, qty=2, ASAP, 쿠폰/포인트 없음,
+    // finalAmount=6000)
+    Store store = OrderFixture.aStore(OperationStatus.OPEN);
+    com.magampick.customer.domain.Customer customer = OrderFixture.aCustomer();
+    Order existingOrder =
+        OrderFixture.anOrderWithStatus(customer, store, OrderStatus.AWAITING_PAYMENT);
+    ReflectionTestUtils.setField(existingOrder, "id", 99L);
+    com.magampick.clearance.domain.ClearanceItem ci = OrderFixture.aClearanceItem(store);
+    // 요청과 동일하게 qty=2 (anOrderItem 은 qty=1 이므로 직접 생성)
+    com.magampick.order.domain.OrderItem existingItem =
+        com.magampick.order.domain.OrderItem.forDeal(
+            existingOrder, ci, ci.getName(), ci.getRegularPrice(), null, 2, ci.getSalePrice());
+    existingOrder.addOrderItem(existingItem);
+
+    given(orderRepository.findByCustomerIdAndStatus(CUSTOMER_ID, OrderStatus.AWAITING_PAYMENT))
+        .willReturn(List.of(existingOrder));
+    // 검증·금액계산은 재사용 분기 이전에 그대로 수행되므로 store/clearanceItem stub 필요
+    givenStoreOpen();
+    givenClearanceItem();
+
+    // when — 동일 장바구니로 재시도
+    PrepareOrderResponse response =
+        orderService.createOrder(CUSTOMER_ID, OrderFixture.aDealOrderRequest(STORE_ID, CI_ID));
+
+    // then — 기존 주문 그대로 반환 (같은 orderId)
+    assertThat(response.orderId()).isEqualTo(99L);
+    assertThat(response.tossOrderId()).isEqualTo("order-99");
+    assertThat(response.amount()).isEqualByComparingTo(new BigDecimal("6000"));
+    // 신규 주문 생성·재고 차감·기존주문 취소/복원 모두 일어나지 않음
+    then(orderRepository).should(never()).save(any(Order.class));
+    then(clearanceItemRepository).should(never()).decrementStock(anyLong(), anyInt());
+    then(orderRepository).should(never()).cancelIfAwaitingPayment(anyLong(), any());
+    then(clearanceItemRepository).should(never()).incrementStock(anyLong(), anyInt());
+  }
+
+  @Test
+  void 재시도_사이_딜가격변동으로_finalAmount_상이하면_재생성() {
+    // given — 품목/픽업/쿠폰/포인트는 같지만 첫 생성 당시 finalAmount(7000)가 현재 계산값(6000)과 다름 (딜 가격 변동)
+    Store store = OrderFixture.aStore(OperationStatus.OPEN);
+    com.magampick.customer.domain.Customer customer = OrderFixture.aCustomer();
+    Order existingOrder =
+        OrderFixture.anOrderWithStatus(customer, store, OrderStatus.AWAITING_PAYMENT);
+    ReflectionTestUtils.setField(existingOrder, "id", 99L);
+    ReflectionTestUtils.setField(existingOrder, "finalAmount", new BigDecimal("7000"));
+    com.magampick.clearance.domain.ClearanceItem ci = OrderFixture.aClearanceItem(store);
+    com.magampick.order.domain.OrderItem existingItem =
+        com.magampick.order.domain.OrderItem.forDeal(
+            existingOrder, ci, ci.getName(), ci.getRegularPrice(), null, 2, ci.getSalePrice());
+    existingOrder.addOrderItem(existingItem);
+
+    given(orderRepository.findByCustomerIdAndStatus(CUSTOMER_ID, OrderStatus.AWAITING_PAYMENT))
+        .willReturn(List.of(existingOrder));
+    given(orderRepository.cancelIfAwaitingPayment(eq(99L), any())).willReturn(1);
+    givenStoreOpen();
+    givenClearanceItem();
+    givenDecrementStockSucceeds();
+    givenOrderSaved();
+    given(customerRepository.getReferenceById(CUSTOMER_ID)).willReturn(customer);
+
+    // when — 동일 품목이지만 현재 계산 finalAmount(6000) ≠ 기존(7000)
+    PrepareOrderResponse response =
+        orderService.createOrder(CUSTOMER_ID, OrderFixture.aDealOrderRequest(STORE_ID, CI_ID));
+
+    // then — 재생성 경로: 기존 취소+재고복원 후 새 주문 생성
+    assertThat(response).isNotNull();
+    then(orderRepository).should().cancelIfAwaitingPayment(eq(99L), any());
+    then(clearanceItemRepository).should().incrementStock(100L, 2); // 기존 qty=2 복원
+    then(clearanceItemRepository).should().decrementStock(CI_ID, 2); // 새 주문 차감
+    then(orderRepository).should().save(any(Order.class));
+  }
+
+  @Test
   void 주문_생성_성공() {
     // given
     givenStoreOpen();
