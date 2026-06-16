@@ -142,7 +142,7 @@ class StoreDetailControllerTest {
         .willReturn(
             List.of(
                 new StoreMenuItemResponse(
-                    1L, "크로아상", "/img/c.jpg", new BigDecimal("3500"), "베이커리")));
+                    1L, "크로아상", "/img/c.jpg", new BigDecimal("3500"), "베이커리", false)));
 
     mockMvc
         .perform(get("/api/v1/stores/{id}/menu", STORE_ID))

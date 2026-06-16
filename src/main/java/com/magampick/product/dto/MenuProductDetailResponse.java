@@ -20,4 +20,5 @@ public record MenuProductDetailResponse(
     @Schema(description = "오늘 영업 종료 시각 (HH:mm). 오늘 휴무이면 null", example = "21:00")
         String closingTime,
     @Schema(description = "가격 (원)") BigDecimal price,
-    @Schema(description = "판매 여부 (ON_SALE=true)") boolean isOnSale) {}
+    @Schema(description = "판매 여부 (ON_SALE=true)") boolean isOnSale,
+    @Schema(description = "활성 떨이 존재 여부 (true 면 장바구니 담기 불가)") boolean hasActiveDeal) {}

@@ -1,6 +1,7 @@
 package com.magampick.order.service;
 
 import com.magampick.clearance.domain.ClearanceItem;
+import com.magampick.clearance.domain.ClearanceItemStatus;
 import com.magampick.clearance.exception.ClearanceItemErrorCode;
 import com.magampick.clearance.repository.ClearanceItemRepository;
 import com.magampick.coupon.domain.UserCoupon;
@@ -160,6 +161,11 @@ public class OrderService {
         // 판매 상태 확인
         if (!product.isOnSale()) {
           throw new BusinessException(ProductErrorCode.PRODUCT_NOT_ON_SALE);
+        }
+        // 활성 떨이가 있으면 일반 상품 주문 불가
+        if (clearanceItemRepository.existsByProductIdAndStatus(
+            product.getId(), ClearanceItemStatus.OPEN)) {
+          throw new BusinessException(ProductErrorCode.PRODUCT_HAS_ACTIVE_CLEARANCE);
         }
 
         BigDecimal regular = product.getRegularPrice();

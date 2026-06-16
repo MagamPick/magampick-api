@@ -12,6 +12,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 
+import com.magampick.clearance.domain.ClearanceItemStatus;
 import com.magampick.clearance.exception.ClearanceItemErrorCode;
 import com.magampick.clearance.repository.ClearanceItemRepository;
 import com.magampick.coupon.domain.UserCoupon;
@@ -472,6 +473,25 @@ class OrderServiceTest {
                     CUSTOMER_ID, OrderFixture.aMenuOrderRequest(STORE_ID, PRODUCT_ID)))
         .isInstanceOf(BusinessException.class)
         .hasFieldOrPropertyWithValue("errorCode", ProductErrorCode.PRODUCT_NOT_ON_SALE);
+  }
+
+  @Test
+  void 일반상품_활성떨이_있으면_주문_실패() {
+    // given
+    givenStoreOpen();
+    Store store = OrderFixture.aStore();
+    given(productRepository.findByIdAndDeletedAtIsNull(PRODUCT_ID))
+        .willReturn(Optional.of(OrderFixture.aProduct(store)));
+    given(clearanceItemRepository.existsByProductIdAndStatus(PRODUCT_ID, ClearanceItemStatus.OPEN))
+        .willReturn(true);
+
+    // when / then
+    assertThatThrownBy(
+            () ->
+                orderService.createOrder(
+                    CUSTOMER_ID, OrderFixture.aMenuOrderRequest(STORE_ID, PRODUCT_ID)))
+        .isInstanceOf(BusinessException.class)
+        .hasFieldOrPropertyWithValue("errorCode", ProductErrorCode.PRODUCT_HAS_ACTIVE_CLEARANCE);
   }
 
   // ── 다른 매장 혼합 ───────────────────────────────────────────────────────────

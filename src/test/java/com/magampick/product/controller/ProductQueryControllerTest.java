@@ -51,7 +51,8 @@ class ProductQueryControllerTest {
         0L,
         "20:00",
         new BigDecimal("4500"),
-        true);
+        true,
+        false);
   }
 
   // ── GET /api/v1/products/{id} ─────────────────────────────────────────────────────────────────
