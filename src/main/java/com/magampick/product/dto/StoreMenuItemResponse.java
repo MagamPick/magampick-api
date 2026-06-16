@@ -9,4 +9,5 @@ public record StoreMenuItemResponse(
     @Schema(description = "상품 이름") String name,
     @Schema(description = "이미지 URL (없으면 null)") String imageUrl,
     @Schema(description = "정상가 (원)") BigDecimal price,
-    @Schema(description = "카테고리 한국어 라벨", example = "베이커리") String category) {}
+    @Schema(description = "카테고리 한국어 라벨", example = "베이커리") String category,
+    @Schema(description = "활성 떨이 존재 여부 (true 면 장바구니 담기 불가)") boolean hasActiveDeal) {}

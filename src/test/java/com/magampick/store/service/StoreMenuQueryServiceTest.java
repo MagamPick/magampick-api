@@ -3,6 +3,9 @@ package com.magampick.store.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 
+import com.magampick.clearance.domain.ClearanceItem;
+import com.magampick.clearance.domain.ClearanceItemStatus;
+import com.magampick.clearance.repository.ClearanceItemRepository;
 import com.magampick.global.common.GeometryUtil;
 import com.magampick.product.domain.Product;
 import com.magampick.product.domain.ProductCategory;
@@ -14,17 +17,20 @@ import com.magampick.store.domain.OperationStatus;
 import com.magampick.store.domain.Store;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class StoreMenuQueryServiceTest {
 
   @Mock ProductRepository productRepository;
+  @Mock ClearanceItemRepository clearanceItemRepository;
   @InjectMocks StoreMenuQueryService service;
 
   private static final Long STORE_ID = 1L;
@@ -38,6 +44,8 @@ class StoreMenuQueryServiceTest {
             productRepository.findByStoreIdAndStatusAndDeletedAtIsNull(
                 STORE_ID, ProductStatus.ON_SALE))
         .willReturn(List.of(product));
+    given(clearanceItemRepository.findByStoreIdAndStatus(STORE_ID, ClearanceItemStatus.OPEN))
+        .willReturn(List.of());
 
     List<StoreMenuItemResponse> result = service.getMenu(STORE_ID);
 
@@ -50,6 +58,8 @@ class StoreMenuQueryServiceTest {
     given(
             productRepository.findByStoreIdAndStatusAndDeletedAtIsNull(
                 STORE_ID, ProductStatus.ON_SALE))
+        .willReturn(List.of());
+    given(clearanceItemRepository.findByStoreIdAndStatus(STORE_ID, ClearanceItemStatus.OPEN))
         .willReturn(List.of());
 
     List<StoreMenuItemResponse> result = service.getMenu(STORE_ID);
@@ -66,6 +76,8 @@ class StoreMenuQueryServiceTest {
             productRepository.findByStoreIdAndStatusAndDeletedAtIsNull(
                 STORE_ID, ProductStatus.ON_SALE))
         .willReturn(List.of(product));
+    given(clearanceItemRepository.findByStoreIdAndStatus(STORE_ID, ClearanceItemStatus.OPEN))
+        .willReturn(List.of());
 
     List<StoreMenuItemResponse> result = service.getMenu(STORE_ID);
 
@@ -79,6 +91,8 @@ class StoreMenuQueryServiceTest {
             productRepository.findByStoreIdAndStatusAndDeletedAtIsNull(
                 STORE_ID, ProductStatus.ON_SALE))
         .willReturn(List.of(product));
+    given(clearanceItemRepository.findByStoreIdAndStatus(STORE_ID, ClearanceItemStatus.OPEN))
+        .willReturn(List.of());
 
     List<StoreMenuItemResponse> result = service.getMenu(STORE_ID);
 
@@ -92,6 +106,8 @@ class StoreMenuQueryServiceTest {
             productRepository.findByStoreIdAndStatusAndDeletedAtIsNull(
                 STORE_ID, ProductStatus.ON_SALE))
         .willReturn(List.of(product));
+    given(clearanceItemRepository.findByStoreIdAndStatus(STORE_ID, ClearanceItemStatus.OPEN))
+        .willReturn(List.of());
 
     List<StoreMenuItemResponse> result = service.getMenu(STORE_ID);
 
@@ -105,13 +121,64 @@ class StoreMenuQueryServiceTest {
             productRepository.findByStoreIdAndStatusAndDeletedAtIsNull(
                 STORE_ID, ProductStatus.ON_SALE))
         .willReturn(List.of(product));
+    given(clearanceItemRepository.findByStoreIdAndStatus(STORE_ID, ClearanceItemStatus.OPEN))
+        .willReturn(List.of());
 
     List<StoreMenuItemResponse> result = service.getMenu(STORE_ID);
 
     assertThat(result.get(0).category()).isEqualTo("기타");
   }
 
+  // ── hasActiveDeal ─────────────────────────────────────────────────────────────────────────────
+
+  @Test
+  void 활성떨이_있는_상품_hasActiveDeal_true() {
+    Product product = stubProduct("크로아상", 3500, ProductCategory.BAKERY, ProductStatus.ON_SALE);
+    ReflectionTestUtils.setField(product, "id", 99L);
+    given(
+            productRepository.findByStoreIdAndStatusAndDeletedAtIsNull(
+                STORE_ID, ProductStatus.ON_SALE))
+        .willReturn(List.of(product));
+    given(clearanceItemRepository.findByStoreIdAndStatus(STORE_ID, ClearanceItemStatus.OPEN))
+        .willReturn(List.of(stubClearanceItem(product)));
+
+    List<StoreMenuItemResponse> result = service.getMenu(STORE_ID);
+
+    assertThat(result.get(0).hasActiveDeal()).isTrue();
+  }
+
+  @Test
+  void 활성떨이_없는_상품_hasActiveDeal_false() {
+    Product product = stubProduct("크로아상", 3500, ProductCategory.BAKERY, ProductStatus.ON_SALE);
+    given(
+            productRepository.findByStoreIdAndStatusAndDeletedAtIsNull(
+                STORE_ID, ProductStatus.ON_SALE))
+        .willReturn(List.of(product));
+    given(clearanceItemRepository.findByStoreIdAndStatus(STORE_ID, ClearanceItemStatus.OPEN))
+        .willReturn(List.of());
+
+    List<StoreMenuItemResponse> result = service.getMenu(STORE_ID);
+
+    assertThat(result.get(0).hasActiveDeal()).isFalse();
+  }
+
   // ── helpers ───────────────────────────────────────────────────────────────────────────────────
+
+  private ClearanceItem stubClearanceItem(Product product) {
+    ClearanceItem ci =
+        ClearanceItem.builder()
+            .store(stubStore())
+            .product(product)
+            .name(product.getName())
+            .regularPrice(product.getRegularPrice())
+            .salePrice(product.getRegularPrice().multiply(new BigDecimal("0.7")))
+            .totalQuantity(5)
+            .pickupStartAt(LocalDateTime.of(2099, 1, 1, 9, 0))
+            .pickupEndAt(LocalDateTime.of(2099, 1, 1, 21, 0))
+            .build();
+    ReflectionTestUtils.setField(ci, "status", ClearanceItemStatus.OPEN);
+    return ci;
+  }
 
   private Store stubStore() {
     Seller seller = Seller.builder().email("s@test.com").passwordHash("x").ownerName("사장").build();
