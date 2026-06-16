@@ -67,6 +67,12 @@ public class TossConfirmService {
       throw new BusinessException(PaymentErrorCode.PAYMENT_GATEWAY_ERROR);
     }
 
+    // couponService.use() 내부 @Modifying clearAutomatically=true 가 EM 을 비워 order 가 detached 되므로
+    // 그 이전에 lazy 연관을 초기화해 둔다 (detached 후에도 in-memory 데이터로 접근 가능).
+    Long sellerId = order.getStore().getSeller().getId();
+    String customerNickname = order.getCustomer().getNickname();
+    order.getOrderItems().size(); // toResponse 에서 사용되는 컬렉션 초기화
+
     // 혜택 차감 및 주문 활성화
     if (order.hasCoupon()) couponService.use(order.getUserCouponId());
     if (order.hasUsedPoints()) pointService.use(order, order.getPointUsed());
@@ -90,11 +96,11 @@ public class TossConfirmService {
 
     // 알림 발송
     notificationService.notifySeller(
-        order.getStore().getSeller().getId(),
+        sellerId,
         "newOrder",
         NotificationCategory.ORDER,
         "새 주문이 들어왔어요",
-        order.getCustomer().getNickname() + "님이 주문했어요.",
+        customerNickname + "님이 주문했어요.",
         "/orders/" + order.getId());
 
     log.info(
