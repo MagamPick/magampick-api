@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 
 import com.magampick.address.exception.AddressErrorCode;
+import com.magampick.clearance.domain.ClearanceItemStatus;
+import com.magampick.clearance.repository.ClearanceItemRepository;
 import com.magampick.global.common.GeometryUtil;
 import com.magampick.global.exception.BusinessException;
 import com.magampick.product.domain.Product;
@@ -36,6 +38,7 @@ class ProductDetailQueryServiceTest {
   @Mock ProductRepository productRepository;
   @Mock StorePreviewHelper storePreviewHelper;
   @Mock ReviewQueryService reviewQueryService;
+  @Mock ClearanceItemRepository clearanceItemRepository;
   @InjectMocks ProductDetailQueryService service;
 
   private static final Long PRODUCT_ID = 50L;
@@ -80,6 +83,8 @@ class ProductDetailQueryServiceTest {
     given(storePreviewHelper.buildStorePreview(STORE_ID, CUSTOMER_ID))
         .willReturn(new StorePreviewInfo(0.8, "20:00"));
     given(reviewQueryService.getMenuProductRating(PRODUCT_ID)).willReturn(RatingStats.EMPTY);
+    given(clearanceItemRepository.existsByProductIdAndStatus(PRODUCT_ID, ClearanceItemStatus.OPEN))
+        .willReturn(false);
 
     MenuProductDetailResponse response = service.getDetail(PRODUCT_ID, CUSTOMER_ID);
 
@@ -107,6 +112,8 @@ class ProductDetailQueryServiceTest {
     given(storePreviewHelper.buildStorePreview(STORE_ID, CUSTOMER_ID))
         .willReturn(new StorePreviewInfo(0.5, null));
     given(reviewQueryService.getMenuProductRating(PRODUCT_ID)).willReturn(new RatingStats(4.5, 2L));
+    given(clearanceItemRepository.existsByProductIdAndStatus(PRODUCT_ID, ClearanceItemStatus.OPEN))
+        .willReturn(false);
 
     MenuProductDetailResponse response = service.getDetail(PRODUCT_ID, CUSTOMER_ID);
 
@@ -122,6 +129,8 @@ class ProductDetailQueryServiceTest {
     given(storePreviewHelper.buildStorePreview(STORE_ID, CUSTOMER_ID))
         .willReturn(new StorePreviewInfo(0.5, null));
     given(reviewQueryService.getMenuProductRating(PRODUCT_ID)).willReturn(RatingStats.EMPTY);
+    given(clearanceItemRepository.existsByProductIdAndStatus(PRODUCT_ID, ClearanceItemStatus.OPEN))
+        .willReturn(false);
 
     MenuProductDetailResponse response = service.getDetail(PRODUCT_ID, CUSTOMER_ID);
 
@@ -139,6 +148,8 @@ class ProductDetailQueryServiceTest {
     given(storePreviewHelper.buildStorePreview(STORE_ID, CUSTOMER_ID))
         .willReturn(new StorePreviewInfo(0.5, null));
     given(reviewQueryService.getMenuProductRating(PRODUCT_ID)).willReturn(RatingStats.EMPTY);
+    given(clearanceItemRepository.existsByProductIdAndStatus(PRODUCT_ID, ClearanceItemStatus.OPEN))
+        .willReturn(false);
 
     MenuProductDetailResponse response = service.getDetail(PRODUCT_ID, CUSTOMER_ID);
 
@@ -153,6 +164,8 @@ class ProductDetailQueryServiceTest {
     given(storePreviewHelper.buildStorePreview(STORE_ID, CUSTOMER_ID))
         .willReturn(new StorePreviewInfo(0.5, null));
     given(reviewQueryService.getMenuProductRating(PRODUCT_ID)).willReturn(RatingStats.EMPTY);
+    given(clearanceItemRepository.existsByProductIdAndStatus(PRODUCT_ID, ClearanceItemStatus.OPEN))
+        .willReturn(false);
 
     MenuProductDetailResponse response = service.getDetail(PRODUCT_ID, CUSTOMER_ID);
 
@@ -169,6 +182,8 @@ class ProductDetailQueryServiceTest {
     given(storePreviewHelper.buildStorePreview(STORE_ID, CUSTOMER_ID))
         .willReturn(new StorePreviewInfo(0.8, "20:00"));
     given(reviewQueryService.getMenuProductRating(PRODUCT_ID)).willReturn(RatingStats.EMPTY);
+    given(clearanceItemRepository.existsByProductIdAndStatus(PRODUCT_ID, ClearanceItemStatus.OPEN))
+        .willReturn(false);
 
     MenuProductDetailResponse response = service.getDetail(PRODUCT_ID, CUSTOMER_ID);
 
@@ -183,10 +198,46 @@ class ProductDetailQueryServiceTest {
     given(storePreviewHelper.buildStorePreview(STORE_ID, CUSTOMER_ID))
         .willReturn(new StorePreviewInfo(0.8, "20:00"));
     given(reviewQueryService.getMenuProductRating(PRODUCT_ID)).willReturn(RatingStats.EMPTY);
+    given(clearanceItemRepository.existsByProductIdAndStatus(PRODUCT_ID, ClearanceItemStatus.OPEN))
+        .willReturn(false);
 
     MenuProductDetailResponse response = service.getDetail(PRODUCT_ID, CUSTOMER_ID);
 
     assertThat(response.description()).isNull();
+  }
+
+  // ── hasActiveDeal ─────────────────────────────────────────────────────────────────────────────
+
+  @Test
+  void 활성떨이_있으면_hasActiveDeal_true() {
+    Product product = stubProduct(ProductStatus.ON_SALE, null);
+    given(productRepository.findByIdAndDeletedAtIsNull(PRODUCT_ID))
+        .willReturn(Optional.of(product));
+    given(storePreviewHelper.buildStorePreview(STORE_ID, CUSTOMER_ID))
+        .willReturn(new StorePreviewInfo(0.5, null));
+    given(reviewQueryService.getMenuProductRating(PRODUCT_ID)).willReturn(RatingStats.EMPTY);
+    given(clearanceItemRepository.existsByProductIdAndStatus(PRODUCT_ID, ClearanceItemStatus.OPEN))
+        .willReturn(true);
+
+    MenuProductDetailResponse response = service.getDetail(PRODUCT_ID, CUSTOMER_ID);
+
+    assertThat(response.hasActiveDeal()).isTrue();
+  }
+
+  @Test
+  void 활성떨이_없으면_hasActiveDeal_false() {
+    Product product = stubProduct(ProductStatus.ON_SALE, null);
+    given(productRepository.findByIdAndDeletedAtIsNull(PRODUCT_ID))
+        .willReturn(Optional.of(product));
+    given(storePreviewHelper.buildStorePreview(STORE_ID, CUSTOMER_ID))
+        .willReturn(new StorePreviewInfo(0.5, null));
+    given(reviewQueryService.getMenuProductRating(PRODUCT_ID)).willReturn(RatingStats.EMPTY);
+    given(clearanceItemRepository.existsByProductIdAndStatus(PRODUCT_ID, ClearanceItemStatus.OPEN))
+        .willReturn(false);
+
+    MenuProductDetailResponse response = service.getDetail(PRODUCT_ID, CUSTOMER_ID);
+
+    assertThat(response.hasActiveDeal()).isFalse();
   }
 
   // ── helpers ───────────────────────────────────────────────────────────────────────────────────

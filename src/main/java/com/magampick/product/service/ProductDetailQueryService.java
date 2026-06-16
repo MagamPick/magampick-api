@@ -1,5 +1,7 @@
 package com.magampick.product.service;
 
+import com.magampick.clearance.domain.ClearanceItemStatus;
+import com.magampick.clearance.repository.ClearanceItemRepository;
 import com.magampick.global.exception.BusinessException;
 import com.magampick.product.domain.Product;
 import com.magampick.product.dto.MenuProductDetailResponse;
@@ -26,6 +28,7 @@ public class ProductDetailQueryService {
   private final ProductRepository productRepository;
   private final StorePreviewHelper storePreviewHelper;
   private final ReviewQueryService reviewQueryService;
+  private final ClearanceItemRepository clearanceItemRepository;
 
   /**
    * 일반 상품 상세 조회.
@@ -49,6 +52,10 @@ public class ProductDetailQueryService {
     // 3. 평점 (해당 상품을 주문한 리뷰 집계)
     RatingStats ratingStats = reviewQueryService.getMenuProductRating(productId);
 
+    // 4. 활성 떨이 존재 여부
+    boolean hasActiveDeal =
+        clearanceItemRepository.existsByProductIdAndStatus(productId, ClearanceItemStatus.OPEN);
+
     return new MenuProductDetailResponse(
         "menu",
         product.getId(),
@@ -63,6 +70,7 @@ public class ProductDetailQueryService {
         ratingStats.count(),
         storePreview.closingTime(),
         product.getRegularPrice(),
-        product.isOnSale());
+        product.isOnSale(),
+        hasActiveDeal);
   }
 }
